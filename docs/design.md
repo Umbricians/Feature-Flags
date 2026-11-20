@@ -216,12 +216,35 @@ whether the tree also shows each group as a child, as a shortcut.
 - **Flag list:** every declared flag with its state, a quick switch and its description where it has one;
   search by name and description; filters for state, overridden, differs from default, declared twice, undeclared,
   group and tag; sorting by name, group or last changed; a marker on flags with an
-  override and on overrides that differ from their default; undeclared flags listed separately.
+  override and on overrides that differ from their default; undeclared flags listed separately. It shows as a
+  list or as cards, the editor's choice, and is paged (25 a page by default), with search, filters and sorting
+  applied across every page.
 - **Flag editor:** state (off, on for everyone, on for an audience); members (`umb-input-member`), member groups
   (`umb-input-member-group`) and groups from group providers; who changed it and when; Reset to default. Parts of a
   definition it can't edit are shown read-only and kept.
 - **Permissions:** `Umbricians.FeatureFlags.View` and `Umbricians.FeatureFlags.Manage`, granted to Administrators on
   install.
+
+### Built from Umbraco's own parts
+
+The screens use Umbraco's components, so they look and behave like the rest of the backoffice; nothing is drawn by
+hand that Umbraco already has. Checked in Umbraco 17.8, which ships UUI 2.2.1:
+
+| Part | Umbraco component |
+| --- | --- |
+| The list, its toolbar, search, paging and list/cards switch | the collection framework: a `collection` with two `collectionView` extensions (list and cards), `umb-collection-toolbar`, `umb-collection-filter-field`, `umb-collection-pagination`, `umb-collection-view-bundle` |
+| List view | `uui-table` |
+| Card view | `uui-card` |
+| On/off switch | `uui-toggle` |
+| State and markers | `uui-tag` |
+| Paging | `uui-pagination`, through `umb-collection-pagination` |
+| Editing screen | a workspace, with `uui-tabs`, `uui-box`, `uui-radio`, `uui-checkbox`, `uui-button` |
+| Member and member group pickers | `umb-input-member`, `umb-input-member-group` |
+| Confirming a switch-on | Umbraco's confirm modal |
+| Messages after a change | Umbraco's notifications (`uui-toast-notification`) |
+
+**Open, to check while building:** how a collection is given a custom data source for items that aren't Umbraco
+entities stored in its database, and whether the Settings tree item can open a collection directly.
 
 ### Management API
 
@@ -229,7 +252,7 @@ Under `umbriciansfeatureflags/api/v1`:
 
 | | |
 | --- | --- |
-| `GET flags` | every declared and undeclared flag, with default, override and state |
+| `GET flags?skip&take&filter&state&mark&group&tag&orderBy` | one page of declared and undeclared flags, with default, override and state, and the total, as Umbraco's `PagedViewModel`; searching, filtering and sorting happen on the server, across every flag |
 | `GET flags/{name}` | one flag |
 | `PUT flags/{name}` | save an override (Manage) |
 | `DELETE flags/{name}` | reset to default, or remove an undeclared flag (Manage) |
