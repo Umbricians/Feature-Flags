@@ -1,0 +1,16 @@
+{
+  "$schema": "https://marketplace.umbraco.com/umbraco-marketplace-schema.json",
+  "Title": "Umbricians Feature Flags",
+  "Description": "Switch the site's feature flags on and off from the Umbraco backoffice, for everyone or only for chosen members and member groups, built on Microsoft.FeatureManagement.",
+  "Category": "",
+  "Tags": [],
+  "LicenseTypes": ["Free"],
+  "DocumentationUrl": "https://github.com/Umbricians/Feature-Flags/blob/main/docs/getting-started.md",
+  "IssueTrackerUrl": "https://github.com/Umbricians/Feature-Flags/issues",
+  "Screenshots": [],
+  "AuthorDetails": {
+    "Name": "Umbricians",
+    "Url": "https://github.com/Umbricians",
+    "SyncContributorsFromRepository": true
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "id": "Umbricians.FeatureFlags",
+  "name": "Umbricians.FeatureFlags",
+  "version": "0.0.0",
+  "allowTelemetry": true,
+  "extensions": [
+    {
+      "name": "Umbricians Feature Flags Bundle",
+      "alias": "Umbricians.FeatureFlags.Bundle",
+      "type": "bundle",
+      "js": "/App_Plugins/UmbriciansFeatureFlags/umbricians-feature-flags.js"
+    }
+  ]
+}

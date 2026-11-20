@@ -1,0 +1,88 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <StaticWebAssetBasePath>/</StaticWebAssetBasePath>
+    <!-- Public types are the package's API, so each needs XML docs, which ship in the package. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <WarningsAsErrors>$(WarningsAsErrors);CS1591</WarningsAsErrors>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true'">
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <PackageId>Umbricians.FeatureFlags</PackageId>
+    <Product>Umbricians.FeatureFlags</Product>
+    <Title>Umbricians Feature Flags</Title>
+    <Description>Switch the site's feature flags on and off from the Umbraco backoffice, for everyone or only for chosen members and member groups, built on Microsoft.FeatureManagement.</Description>
+    <Authors>Umbricians</Authors>
+    <Version>0.1.0</Version>
+    <PackageTags>umbraco;umbraco-marketplace;feature flags;feature toggles;feature management;members</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <Copyright>Copyright (c) 2026 FYIN LLC (trading as Umbricians)</Copyright>
+    <PackageProjectUrl>https://github.com/Umbricians/Feature-Flags</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/Umbricians/Feature-Flags</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <!-- Runs before NuGet collects the package files, so the generated README below is included. -->
+    <BeforePack>$(BeforePack);GenerateNuGetReadme</BeforePack>
+  </PropertyGroup>
+
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Umbricians.FeatureFlags.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Umbraco.Cms.Api.Common" />
+    <PackageReference Include="Umbraco.Cms.Api.Management" />
+    <PackageReference Include="Umbraco.Cms.Web.Common" />
+  </ItemGroup>
+
+
+  <ItemGroup>
+    <!-- The client's sources stay out of the package; Vite's output in wwwroot/ ships as static web assets. -->
+    <Content Remove="Client\**" />
+
+    <!-- Shown in the solution for editing. Vite copies it into wwwroot/, which is how it reaches the package. -->
+    <None Include="Client\public\umbraco-package.json" Pack="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Rendered from assets/logo.svg; NuGet recommends 128x128. -->
+    <None Include="..\..\assets\logo-128.png" Pack="true" PackagePath="\icon.png" Visible="false" />
+  </ItemGroup>
+
+  <!--
+    The package README is generated from the repository README: nuget.org cannot resolve repository-relative image
+    paths, and the contributor sections do not belong on the package page. See build/nuget-readme.mjs.
+  -->
+  <Target Name="GenerateNuGetReadme">
+    <PropertyGroup>
+      <_NuGetReadme>$(IntermediateOutputPath)nuget\README.md</_NuGetReadme>
+      <!-- A release build links images to its tag, so the package page keeps showing that version's images. -->
+      <_NuGetReadmeRef>main</_NuGetReadmeRef>
+      <_NuGetReadmeRef Condition="'$(GITHUB_REF_TYPE)' == 'tag'">$(GITHUB_REF_NAME)</_NuGetReadmeRef>
+    </PropertyGroup>
+    <Exec Command="node &quot;$(MSBuildThisFileDirectory)..\..\build\nuget-readme.mjs&quot; &quot;$(MSBuildThisFileDirectory)..\..\README.md&quot; &quot;$(_NuGetReadme)&quot; &quot;$(RepositoryUrl)&quot; &quot;$(_NuGetReadmeRef)&quot;" />
+    <ItemGroup>
+      <None Include="$(_NuGetReadme)" Pack="true" PackagePath="\README.md" />
+    </ItemGroup>
+  </Target>
+
+  <!--
+    The bundle is built by npm and git-ignored, so never pack a package without it. Pack with a build: a pack with
+    no-build after the bundle appeared ships without the static web assets.
+  -->
+  <Target Name="EnsureClientBundleBuilt" BeforeTargets="GenerateNuspec">
+    <Error Condition="!Exists('wwwroot\App_Plugins\UmbriciansFeatureFlags\umbricians-feature-flags.js')"
+           Text="The backoffice bundle is missing. Run 'npm ci' and 'npm run build' in src/Umbricians.FeatureFlags/Client before packing." />
+  </Target>
+
+</Project>

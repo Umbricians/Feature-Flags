@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/demo/">
+    <Project Path="demo/Umbricians.FeatureFlags.Demo/Umbricians.FeatureFlags.Demo.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/Umbricians.FeatureFlags/Umbricians.FeatureFlags.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Umbricians.FeatureFlags.Tests/Umbricians.FeatureFlags.Tests.csproj" />
+  </Folder>
+</Solution>
