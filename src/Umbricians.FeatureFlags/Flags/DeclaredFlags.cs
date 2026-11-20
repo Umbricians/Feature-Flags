@@ -63,6 +63,27 @@ internal sealed class CodeFlags
 /// </summary>
 internal sealed class ConfigurationFlagDetails(IConfiguration configuration)
 {
+    /// <summary>The names of the flags configuration declares, in either of Microsoft's schemas.</summary>
+    public IEnumerable<string> DeclaredNames()
+    {
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (IConfigurationSection flag in configuration.GetSection("feature_management:feature_flags").GetChildren())
+        {
+            if (!string.IsNullOrWhiteSpace(flag["id"]) && names.Add(flag["id"]!))
+            {
+                yield return flag["id"]!;
+            }
+        }
+
+        foreach (IConfigurationSection flag in configuration.GetSection("FeatureManagement").GetChildren())
+        {
+            if (names.Add(flag.Key))
+            {
+                yield return flag.Key;
+            }
+        }
+    }
+
     public FlagDetails Find(string name)
     {
         foreach (IConfigurationSection flag in configuration.GetSection("feature_management:feature_flags").GetChildren())

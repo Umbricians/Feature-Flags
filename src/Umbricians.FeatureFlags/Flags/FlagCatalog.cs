@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.FeatureManagement;
 using Umbricians.FeatureFlags.Configuration;
@@ -16,19 +17,22 @@ internal sealed class FlagCatalog
     private readonly ConfigurationFlagDetails _configurationDetails;
     private readonly OverrideCache _overrides;
     private readonly IOptionsMonitor<FeatureFlagsOptions> _options;
+    private readonly ILogger<FlagCatalog> _logger;
 
     public FlagCatalog(
         FlagSource source,
         CodeFlags code,
         ConfigurationFlagDetails configurationDetails,
         OverrideCache overrides,
-        IOptionsMonitor<FeatureFlagsOptions> options)
+        IOptionsMonitor<FeatureFlagsOptions> options,
+        ILogger<FlagCatalog> logger)
     {
         _source = source;
         _code = code;
         _configurationDetails = configurationDetails;
         _overrides = overrides;
         _options = options;
+        _logger = logger;
     }
 
     public async Task<IReadOnlyList<CatalogFlag>> GetAllAsync(CancellationToken cancellationToken)
@@ -37,16 +41,44 @@ internal sealed class FlagCatalog
         bool readOnly = _options.CurrentValue.Overrides != FeatureFlagsOverrides.Enabled;
 
         var flags = new Dictionary<string, CatalogFlag>(StringComparer.OrdinalIgnoreCase);
-        await foreach (FeatureDefinition definition in _source.Inner.GetAllFeatureDefinitionsAsync().WithCancellation(cancellationToken))
+        void AddDeclared(FeatureDefinition definition)
         {
             if (flags.ContainsKey(definition.Name))
             {
-                continue;
+                return;
             }
 
             CodeFlagDeclaration? alsoInCode = _code.Find(definition.Name);
             FlagDetails details = _configurationDetails.Find(definition.Name).Or(alsoInCode?.Details ?? FlagDetails.None);
             flags[definition.Name] = Describe(definition, _source.DeclaredIn, alsoInCode is not null, details, snapshot, readOnly);
+        }
+
+        try
+        {
+            await foreach (FeatureDefinition definition in _source.Inner.GetAllFeatureDefinitionsAsync().WithCancellation(cancellationToken))
+            {
+                AddDeclared(definition);
+            }
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            // One flag Microsoft can't read stops the whole list, so read the flags configuration declares one by one,
+            // and show each that fails as unreadable rather than losing the list.
+            _logger.LogWarning(exception, "Feature Flags couldn't list every flag the site declares, so it is reading them one by one.");
+            foreach (string name in _configurationDetails.DeclaredNames())
+            {
+                try
+                {
+                    if (await _source.Inner.GetFeatureDefinitionAsync(name) is { } definition)
+                    {
+                        AddDeclared(definition);
+                    }
+                }
+                catch (Exception flagException) when (flagException is not OperationCanceledException)
+                {
+                    flags.TryAdd(name, Unreadable(name, _code.Find(name) is not null, _configurationDetails.Find(name), snapshot, flagException));
+                }
+            }
         }
 
         foreach (CodeFlagDeclaration declaration in _code.All)
@@ -117,6 +149,26 @@ internal sealed class FlagCatalog
             Editable: readOnlyReason is null && settings is not null,
             readOnlyReason,
             differs);
+    }
+
+    private CatalogFlag Unreadable(string name, bool declaredTwice, FlagDetails details, OverrideCache.Snapshot snapshot, Exception exception)
+    {
+        snapshot.Overrides.TryGetValue(name, out OverrideCache.Entry? entry);
+        string reason = $"Its definition can't be read, so checking it fails: {(exception.InnerException ?? exception).Message}";
+        return new CatalogFlag(
+            name,
+            IsDeclared: true,
+            _source.DeclaredIn,
+            declaredTwice,
+            details with { Group = details.Group ?? GroupFromName(name) },
+            DefaultSettings: null,
+            DefaultState: FlagDisplayState.Custom,
+            entry?.Override,
+            Settings: null,
+            State: FlagDisplayState.Custom,
+            Editable: false,
+            reason,
+            DiffersFromDefault: entry is not null);
     }
 
     private static CatalogFlag Undeclared(OverrideCache.Entry entry)

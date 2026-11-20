@@ -101,6 +101,9 @@ internal sealed class FlagSummaryResponseModel
 
     /// <summary>Whether settings from the backoffice are switched off on this site.</summary>
     public bool ReadOnly { get; init; }
+
+    /// <summary>The site's environment, such as Production, so editors know where they are changing flags.</summary>
+    public required string Environment { get; init; }
 }
 
 internal sealed class FlagGroupCountModel

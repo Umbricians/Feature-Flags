@@ -1,0 +1,30 @@
+import { UmbRepositoryBase } from "@umbraco-cms/backoffice/repository";
+import type { UmbCollectionFilterModel, UmbCollectionRepository } from "@umbraco-cms/backoffice/collection";
+import { fetchFlags, type FlagQuery } from "../../api/feature-flags.resource.js";
+import { FEATURE_FLAG_ENTITY_TYPE } from "../../constants.js";
+import type { FeatureFlagCollectionItem } from "../display.js";
+
+/** The collection's filter: Umbraco's paging and search, plus the flag list's own filters. */
+export type FeatureFlagsCollectionFilter = UmbCollectionFilterModel & Omit<FlagQuery, "skip" | "take" | "filter">;
+
+/** Reads a page of flags from the Feature Flags API; the server searches, filters and sorts across every flag. */
+export class FeatureFlagsCollectionRepository
+  extends UmbRepositoryBase
+  implements UmbCollectionRepository<FeatureFlagCollectionItem, FeatureFlagsCollectionFilter>
+{
+  async requestCollection(filter: FeatureFlagsCollectionFilter) {
+    try {
+      const page = await fetchFlags(filter);
+      const items: Array<FeatureFlagCollectionItem> = page.items.map((flag) => ({
+        ...flag,
+        unique: flag.name,
+        entityType: FEATURE_FLAG_ENTITY_TYPE,
+      }));
+      return { data: { items, total: page.total } };
+    } catch (error) {
+      return { error: error as Error };
+    }
+  }
+}
+
+export { FeatureFlagsCollectionRepository as api };

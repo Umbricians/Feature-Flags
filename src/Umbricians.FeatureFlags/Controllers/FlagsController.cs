@@ -1,6 +1,7 @@
 using Asp.Versioning;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Umbraco.Cms.Api.Common.ViewModels.Pagination;
 using Umbraco.Cms.Web.Common.Routing;
@@ -27,17 +28,20 @@ internal sealed class FlagsController : FeatureFlagsControllerBase
     private readonly FlagResponses _responses;
     private readonly IEnumerable<IFeatureFlagGroupProvider> _groupProviders;
     private readonly IOptionsMonitor<FeatureFlagsOptions> _options;
+    private readonly IHostEnvironment _environment;
 
     public FlagsController(
         FlagCatalog catalog,
         FlagResponses responses,
         IEnumerable<IFeatureFlagGroupProvider> groupProviders,
-        IOptionsMonitor<FeatureFlagsOptions> options)
+        IOptionsMonitor<FeatureFlagsOptions> options,
+        IHostEnvironment environment)
     {
         _catalog = catalog;
         _responses = responses;
         _groupProviders = groupProviders;
         _options = options;
+        _environment = environment;
     }
 
     /// <summary>A page of flags, searched, filtered and sorted across every flag.</summary>
@@ -131,6 +135,7 @@ internal sealed class FlagsController : FeatureFlagsControllerBase
             Total = declared.Length,
             Undeclared = flags.Count - declared.Length,
             ReadOnly = _options.CurrentValue.Overrides != FeatureFlagsOverrides.Enabled,
+            Environment = _environment.EnvironmentName,
         };
     }
 

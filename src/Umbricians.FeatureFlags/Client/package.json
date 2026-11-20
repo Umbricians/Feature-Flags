@@ -6,7 +6,7 @@
   "scripts": {
     "watch": "tsc && vite build --watch",
     "build": "tsc && vite build",
-    "test": "node --test --experimental-strip-types \"src/**/*.test.ts\""
+    "test": "node --test --experimental-strip-types --import ./test/resolve-ts.mjs \"src/**/*.test.ts\""
   },
   "devDependencies": {
     "@types/node": "^22.20.5",

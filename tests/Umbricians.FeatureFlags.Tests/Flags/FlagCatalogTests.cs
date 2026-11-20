@@ -94,5 +94,23 @@ public class FlagCatalogTests
         Assert.That(items.Select(f => f.Name), Is.EqualTo(new[] { "Checkout.GiftCards", "Sale" }));
     }
 
+    [Test]
+    public async Task A_flag_with_a_bad_date_is_listed_read_only_without_hiding_the_others()
+    {
+        // 1 December 2026 is a Tuesday, so Microsoft can't read this date; it only finds out when the flag is checked.
+        var site = new TestSite("""
+            { "feature_management": { "feature_flags": [
+                { "id": "Good", "enabled": true },
+                { "id": "Broken", "enabled": true, "conditions": { "client_filters": [ { "name": "Microsoft.TimeWindow", "parameters": { "Start": "Mon, 01 Dec 2026 00:00:00 GMT" } } ] } } ] } }
+            """);
+
+        Dictionary<string, CatalogFlag> flags = (await Catalog(site).GetAllAsync(default)).ToDictionary(flag => flag.Name);
+
+        Assert.That(flags.Keys, Is.EquivalentTo(new[] { "Good", "Broken" }));
+        Assert.That(flags["Good"].State, Is.EqualTo(FlagDisplayState.Everyone));
+        Assert.That(flags["Broken"], Has.Property(nameof(CatalogFlag.Editable)).False
+            .And.Property(nameof(CatalogFlag.State)).EqualTo(FlagDisplayState.Custom));
+    }
+
     private static FlagCatalog Catalog(TestSite site) => site.Provider.GetRequiredService<FlagCatalog>();
 }
