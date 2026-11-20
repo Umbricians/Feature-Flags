@@ -49,6 +49,10 @@ internal static class ServiceCollectionExtensions
         services.TryAddSingleton<CodeFlags>();
         services.TryAddSingleton(provider => new ConfigurationFlagDetails(provider.GetRequiredService<IConfiguration>()));
         services.TryAddSingleton<OverrideCache>();
+        services.TryAddSingleton<IFeatureFlagOverrideStore, DatabaseOverrideStore>();
+        services.TryAddSingleton<FlagCatalog>();
+        services.TryAddSingleton<OverrideService>();
+        services.TryAddSingleton<FlagResponses>();
         return services;
     }
 

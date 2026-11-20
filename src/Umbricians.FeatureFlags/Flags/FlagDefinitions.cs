@@ -103,7 +103,9 @@ internal static class FlagDefinitions
             return audience is null ? null : new FlagSettings(enabled, audience);
         }
 
-        notEditableReason = "It uses filters the backoffice can't edit yet.";
+        notEditableReason = filters.Length == 1
+            ? $"It uses the '{filters[0]["name"]}' filter, which the backoffice can't edit yet."
+            : "It combines several filters, which the backoffice can't edit yet.";
         return null;
     }
 
