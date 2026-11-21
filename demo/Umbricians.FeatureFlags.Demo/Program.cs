@@ -1,3 +1,5 @@
+using Umbricians.FeatureFlags.Demo.DemoFlags;
+
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
 builder.CreateUmbracoBuilder()
@@ -20,6 +22,9 @@ app.UseUmbraco()
     {
         u.UseBackOfficeEndpoints();
         u.UseWebsiteEndpoints();
+
+        // Demo only: a page showing which flags are on for whoever is signed in.
+        u.EndpointRouteBuilder.MapDemoFlags();
     });
 
 await app.RunAsync();

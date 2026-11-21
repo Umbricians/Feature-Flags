@@ -66,7 +66,8 @@ Removing a flag's override, so the flag goes back to its default.
 ## State
 
 How a flag is evaluated: *off*, *on for everyone*, or *on for an audience*. In Microsoft's terms: disabled,
-enabled with no conditions, and enabled with the targeting filter.
+enabled with no conditions, and enabled with the targeting filter. A flag whose definition is anything else, such as
+a time window, a percentage or variants, is *custom*: the backoffice shows it but can't change it.
 
 ## Undeclared flag
 

@@ -9,5 +9,7 @@
     <PackageVersion Include="Umbraco.Cms.Api.Common" Version="17.8.0" />
     <PackageVersion Include="Umbraco.Cms.Api.Management" Version="17.8.0" />
     <PackageVersion Include="Umbraco.Cms.Web.Common" Version="17.8.0" />
+    <!-- The lowest Microsoft.FeatureManagement the package supports. -->
+    <PackageVersion Include="Microsoft.FeatureManagement.AspNetCore" Version="4.8.0" />
   </ItemGroup>
 </Project>

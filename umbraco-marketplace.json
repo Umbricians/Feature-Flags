@@ -2,12 +2,35 @@
   "$schema": "https://marketplace.umbraco.com/umbraco-marketplace-schema.json",
   "Title": "Umbricians Feature Flags",
   "Description": "Switch the site's feature flags on and off from the Umbraco backoffice, for everyone or only for chosen members and member groups, built on Microsoft.FeatureManagement.",
-  "Category": "",
-  "Tags": [],
-  "LicenseTypes": ["Free"],
+  "Category": "Developer Tools",
+  "Tags": [
+    "feature flags",
+    "feature management",
+    "feature toggles",
+    "members",
+    "member groups",
+    "targeting",
+    "backoffice"
+  ],
+  "LicenseTypes": [
+    "Free"
+  ],
   "DocumentationUrl": "https://github.com/Umbricians/Feature-Flags/blob/main/docs/getting-started.md",
   "IssueTrackerUrl": "https://github.com/Umbricians/Feature-Flags/issues",
-  "Screenshots": [],
+  "Screenshots": [
+    {
+      "ImageUrl": "https://raw.githubusercontent.com/Umbricians/Feature-Flags/main/docs/images/feature-flags-list.png",
+      "Caption": "Every flag in Settings, grouped, with its state and an on/off switch."
+    },
+    {
+      "ImageUrl": "https://raw.githubusercontent.com/Umbricians/Feature-Flags/main/docs/images/feature-flags-editor.png",
+      "Caption": "Switch a flag on for chosen members, member groups or groups worked out in code."
+    },
+    {
+      "ImageUrl": "https://raw.githubusercontent.com/Umbricians/Feature-Flags/main/docs/images/feature-flags-demo-page.png",
+      "Caption": "The demo site: one page, shown as different members see it."
+    }
+  ],
   "AuthorDetails": {
     "Name": "Umbricians",
     "Url": "https://github.com/Umbricians",
