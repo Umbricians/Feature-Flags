@@ -37,6 +37,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Umbricians.FeatureFlags.Tests" />
+    <InternalsVisibleTo Include="Umbricians.FeatureFlags.IntegrationTests" />
   </ItemGroup>
 
   <ItemGroup>

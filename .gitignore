@@ -21,3 +21,14 @@ demo/**/umbraco-package-schema.json
 
 # Local Claude Code settings
 .claude/settings.local.json
+
+# Local SQL Server test connection, made by build/sql-server.sh
+tests/sqlserver.local.env
+
+# Test site runtime data, and the JSON schemas Umbraco copies in on every build
+tests/**/umbraco/Data/
+tests/**/umbraco/Logs/
+tests/**/umbraco/mediacache/
+tests/**/wwwroot/media/
+tests/**/appsettings-schema*.json
+tests/**/umbraco-package-schema.json

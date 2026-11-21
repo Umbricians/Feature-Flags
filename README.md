@@ -161,10 +161,12 @@ flags; changes need Change feature flags too.
 ## Development
 
 ```
-src/Umbricians.FeatureFlags          the package (Razor class library + Client/ TypeScript)
-demo/Umbricians.FeatureFlags.Demo    Umbraco 17.8.0 site on SQLite that references the package
-tests/Umbricians.FeatureFlags.Tests  NUnit tests, run with `dotnet test`
-docs/design.md                       why the package works the way it does
+src/Umbricians.FeatureFlags                     the package (Razor class library + Client/ TypeScript)
+demo/Umbricians.FeatureFlags.Demo               Umbraco 17.8.0 site on SQLite that references the package
+tests/Umbricians.FeatureFlags.Tests             NUnit tests, run with `dotnet test`
+tests/Umbricians.FeatureFlags.IntegrationTests  NUnit tests on a real Umbraco and SQL Server; see CONTRIBUTING.md
+tests/Umbricians.FeatureFlags.TestSite          the Umbraco site the integration tests start
+docs/design.md                                  why the package works the way it does
 ```
 
 ```bash
