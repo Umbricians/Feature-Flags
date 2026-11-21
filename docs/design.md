@@ -190,9 +190,16 @@ which would mean passing the request rather than a member.
 ## Keeping it fast
 
 Microsoft asks the provider for a flag's definition on every check and doesn't cache it, so the provider answers
-from an in-memory copy of all overrides. Saving or resetting an override updates the database, then tells every
-server to reload through an Umbraco cache refresher (`JsonCacheRefresherBase` and `DistributedCache`), so
-load-balanced sites stay consistent. Member groups are looked up once per request.
+from an in-memory copy of all overrides. Each server reads them when the site starts. Saving or resetting an
+override updates the database, then tells every server to read them again through an Umbraco cache refresher
+(`CacheRefresherBase` and `DistributedCache.RefreshAll`), so load-balanced sites stay consistent. A server reads
+them in the background and keeps answering from the copy it has until the new one is ready, so a flag check never
+waits on the database; only the server that saved the change waits for its own read, so the editor sees it at once.
+If a read fails, the last good copy stays in use and the read is tried again in the background. The one exception
+is a check that arrives before a server's first read has finished, which waits for it rather than answer with
+defaults that might switch on something an editor switched off. Member groups are looked up once per request.
+
+A JSON cache refresher isn't needed: every change means "read them all again", so there is no payload to send.
 
 Deleting a member or member group (`MemberDeletedNotification`, `MemberGroupDeletedNotification`) removes it from
 every override's audience.
@@ -213,11 +220,14 @@ flag, because a site may have hundreds; Umbraco handles large lists, such as mem
 whether the tree also shows each section as a child, as a shortcut.
 
 - **Flag list:** every declared flag with its state, a quick switch and its description where it has one;
-  search by name and description; filters for state, overridden, differs from default, declared twice, undeclared,
-  section and tag; sorting by name, section or last changed; a marker on flags with an
-  override and on overrides that differ from their default; undeclared flags listed separately. It shows as a
-  list or as cards, the editor's choice, and is paged (25 a page by default), with search, filters and sorting
-  applied across every page.
+  search by name and description; filters for state (including *custom*, for flags the backoffice can't edit),
+  section and tag; checkboxes for changed here, differs from default and declared twice, which combine; sorting by
+  section (the default, so each section appears once) or by last changed; a marker on flags with an override and on
+  overrides that differ from their default; undeclared flags as a separate list. It shows as a list or as cards,
+  the editor's choice, and is paged (25 a page by default), with search, filters and sorting applied across every
+  page.
+- **Which site:** the list and the confirmation before switching a flag on name the environment, such as
+  Production, since each environment has its own settings and an editor may have several open.
 - **Flag editor:** state (off, on for everyone, on for an audience); members (`umb-input-member`), member groups
   (`umb-input-member-group`) and groups from group providers; who changed it and when; Reset to default. Parts of a
   definition it can't edit are shown read-only and kept.
