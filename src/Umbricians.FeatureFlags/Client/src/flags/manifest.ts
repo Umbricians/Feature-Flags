@@ -107,9 +107,9 @@ export const manifests: Array<UmbExtensionManifest> = [
     element: () => import("./workspace/views/flag-settings-view.element.js"),
     weight: 200,
     meta: {
-      label: "#umbriciansFeatureFlags_settings",
+      label: "#general_settings",
       pathname: "settings",
-      icon: "icon-flag",
+      icon: "icon-settings",
     },
     conditions: [{ alias: UMB_WORKSPACE_CONDITION, match: FEATURE_FLAG_WORKSPACE_ALIAS }],
   },
