@@ -1,0 +1,153 @@
+@model DemoShopModel
+@{
+    Layout = null;
+    // Each part a flag switches is wrapped in Microsoft's <feature> tag helper, exactly as a site would write it.
+    // data-flag only labels the part when "Show flagged areas" is on in the demo page.
+}
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Ridgeline Outfitters</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        :root { --bg: #f7f5f0; --surface: #ffffff; --text: #1f2421; --muted: #5d655f; --accent: #2f6b4f; --accent-text: #ffffff; --line: #e2ded4; }
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
+        a { color: inherit; }
+        .banner { background: #b23a2a; color: #fff; text-align: center; padding: 10px 16px; font-weight: 600; }
+        header { background: var(--surface); border-bottom: 1px solid var(--line); }
+        .bar { max-width: 1100px; margin: 0 auto; padding: 16px 24px; display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
+        .logo { font-weight: 800; font-size: 22px; letter-spacing: -0.5px; text-decoration: none; display: flex; align-items: center; gap: 8px; }
+        nav { display: flex; gap: 18px; color: var(--muted); }
+        nav a { text-decoration: none; }
+        .search { flex: 1 1 260px; position: relative; }
+        .search input { width: 100%; padding: 10px 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg); color: var(--text); font-size: 14px; }
+        .pill { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: #e6efe9; color: var(--accent); vertical-align: middle; }
+        .suggestions { position: absolute; left: 0; right: 0; top: 46px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 6px; box-shadow: 0 8px 24px rgba(0,0,0,.08); z-index: 2; }
+        .suggestions div { padding: 8px 10px; border-radius: 8px; color: var(--muted); }
+        .suggestions div:first-child { background: var(--bg); color: var(--text); }
+        .account { margin-left: auto; display: flex; gap: 14px; align-items: center; color: var(--muted); }
+        main { max-width: 1100px; margin: 0 auto; padding: 32px 24px 56px; display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 40px; }
+        .crumbs { grid-column: 1 / -1; color: var(--muted); font-size: 14px; margin-bottom: -16px; }
+        .photo { background: linear-gradient(160deg, #cfe0d6, #93b5a2); border-radius: 18px; aspect-ratio: 4 / 3.4; display: flex; align-items: center; justify-content: center; }
+        h1 { font-size: 34px; margin: 0 0 6px; letter-spacing: -0.5px; }
+        .price { font-size: 24px; font-weight: 700; margin: 10px 0 18px; }
+        .muted { color: var(--muted); }
+        .sizes { display: flex; gap: 8px; margin: 14px 0 22px; }
+        .sizes span { border: 1px solid var(--line); border-radius: 10px; padding: 8px 14px; background: var(--surface); }
+        .sizes span.on { border-color: var(--text); font-weight: 700; }
+        .button { display: block; width: 100%; padding: 14px; border: none; border-radius: 12px; font-size: 16px; font-weight: 700; text-align: center; }
+        .primary { background: var(--accent); color: var(--accent-text); }
+        .express { background: #111; color: #fff; margin-top: 10px; }
+        .basket { margin-top: 26px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 18px; }
+        .basket h2 { font-size: 16px; margin: 0 0 12px; }
+        .row { display: flex; justify-content: space-between; padding: 6px 0; }
+        .steps { display: flex; gap: 6px; margin: 12px 0; font-size: 13px; }
+        .steps span { flex: 1; text-align: center; padding: 6px; border-radius: 8px; background: var(--bg); color: var(--muted); }
+        .steps span.on { background: var(--accent); color: var(--accent-text); }
+        .onepage { margin: 12px 0; padding: 12px; border-radius: 10px; background: #e6efe9; color: #1d4a35; font-size: 14px; }
+        .gift { display: flex; gap: 8px; margin: 12px 0; }
+        .gift input { flex: 1; padding: 9px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--text); }
+        .gift span { padding: 9px 14px; border-radius: 10px; border: 1px solid var(--line); }
+        .flagged { position: relative; }
+        .outline .flagged { outline: 2px dashed #d99a00; outline-offset: 4px; border-radius: 6px; }
+        .outline .flagged::after { content: attr(data-flag); position: absolute; top: -14px; right: 6px; background: #d99a00; color: #111; font: 600 11px/1.6 ui-monospace, Menlo, monospace; padding: 0 6px; border-radius: 4px; z-index: 3; white-space: nowrap; }
+    </style>
+    <feature name="DarkMode">
+        <style>
+            :root { --bg: #121614; --surface: #1b211e; --text: #e8ece9; --muted: #a3ada6; --accent: #7cc39c; --accent-text: #0e1a13; --line: #2c3530; }
+            .photo { background: linear-gradient(160deg, #24382d, #16231c); }
+            .onepage { background: #1f3328; color: #cfe9da; }
+            .pill { background: #24382d; }
+        </style>
+    </feature>
+</head>
+<body class="@(Model.Outline ? "outline" : "")">
+    <feature name="DarkMode"><div class="flagged" data-flag="DarkMode" style="position:fixed;inset:0;pointer-events:none;outline-offset:-6px"></div></feature>
+
+    <feature name="Promo.WinterSale">
+        <div class="banner flagged" data-flag="Promo.WinterSale">Winter sale: 25% off all jackets until 1 January</div>
+    </feature>
+
+    <header>
+        <div class="bar">
+            <a class="logo" href="#">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 20l6-10 4 6 3-4 5 8z"/></svg>
+                Ridgeline
+            </a>
+            <nav><a href="#">Jackets</a><a href="#">Boots</a><a href="#">Packs</a><a href="#">Camp</a></nav>
+            <div class="search">
+                <feature name="Search.BetaSearch">
+                    <div class="flagged" data-flag="Search.BetaSearch">
+                        <input value="warm jacket for winter hikes" aria-label="Ask a question"> <span class="pill" style="position:absolute;right:10px;top:9px">Ask anything · Beta</span>
+                    </div>
+                </feature>
+                <feature name="Search.BetaSearch" negate="true">
+                    <input placeholder="Search products" aria-label="Search products">
+                </feature>
+                <feature name="Search.Suggestions">
+                    <div class="suggestions flagged" data-flag="Search.Suggestions">
+                        <div>Trail Shell Jacket</div><div>Insulated winter jackets</div><div>Waterproof hiking boots</div>
+                    </div>
+                </feature>
+            </div>
+            <div class="account">
+                @if (Model.MemberName is not null)
+                {
+                    <span>Hi, @Model.MemberName</span>
+                    <feature name="Members.NewProfilePage">
+                        <a class="flagged" data-flag="Members.NewProfilePage" href="#">My profile <span class="pill">New</span></a>
+                    </feature>
+                    <feature name="Members.NewProfilePage" negate="true"><a href="#">Account</a></feature>
+                }
+                else
+                {
+                    <a href="#">Sign in</a>
+                }
+                <a href="#">Basket (1)</a>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <div class="crumbs">Jackets / Shell jackets</div>
+        <div class="photo">
+            <svg width="45%" viewBox="0 0 120 120" aria-hidden="true">
+                <path d="M40 18l20 8 20-8 22 14-8 22-10-4v62H36V50l-10 4-8-22z" fill="#2f6b4f"/>
+                <path d="M60 26v86" stroke="#1d4a35" stroke-width="2"/>
+                <path d="M48 20c4 8 20 8 24 0" fill="none" stroke="#1d4a35" stroke-width="3"/>
+            </svg>
+        </div>
+        <div>
+            <p class="muted" style="margin:0 0 6px">Ridgeline</p>
+            <h1>Trail Shell Jacket</h1>
+            <p class="muted" style="margin:0">Waterproof, breathable and light enough to forget you packed it.</p>
+            <div class="price">£149.00</div>
+            <div>Size</div>
+            <div class="sizes"><span>S</span><span class="on">M</span><span>L</span><span>XL</span></div>
+            <span class="button primary">Add to basket</span>
+            <feature name="Checkout.ExpressPay">
+                <span class="button express flagged" data-flag="Checkout.ExpressPay">Buy now with ExpressPay</span>
+            </feature>
+
+            <div class="basket">
+                <h2>Your basket</h2>
+                <div class="row"><span>Trail Shell Jacket, M</span><span>£149.00</span></div>
+                <div class="row muted"><span>Delivery</span><span>Free</span></div>
+                <feature name="Checkout.NewFlow">
+                    <div class="onepage flagged" data-flag="Checkout.NewFlow">One-page checkout: delivery, payment and review together.</div>
+                </feature>
+                <feature name="Checkout.NewFlow" negate="true">
+                    <div class="steps"><span class="on">1. Delivery</span><span>2. Payment</span><span>3. Review</span></div>
+                </feature>
+                <feature name="Checkout.GiftCards">
+                    <div class="gift flagged" data-flag="Checkout.GiftCards"><input placeholder="Gift card code" aria-label="Gift card code"><span>Apply</span></div>
+                </feature>
+                <div class="row" style="font-weight:700;border-top:1px solid var(--line);margin-top:8px;padding-top:12px"><span>Total</span><span>£149.00</span></div>
+                <span class="button primary" style="margin-top:12px">Checkout</span>
+            </div>
+        </div>
+    </main>
+</body>
+</html>
