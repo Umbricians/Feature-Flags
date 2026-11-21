@@ -105,7 +105,8 @@ configuration can.
 
 An editor's change is stored as an override: the flag's whole definition in Microsoft's `feature_management` JSON,
 with who saved it and when. When a flag has an override, the provider returns it instead of the flag source's
-default. Resetting deletes the override.
+default. Resetting deletes the override. A flag source that can't list its flags still has each flag read on its own,
+so the backoffice shows every flag it can read.
 
 - **The default changes later:** if a deploy changes a flag's default, an existing override still wins. The
   backoffice marks flags whose override differs from their current default, so nobody is surprised.

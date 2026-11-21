@@ -37,29 +37,18 @@ internal sealed class StartupChecks(IServiceProvider services, ILogger<StartupCh
                 + "Register it before Umbraco is added, and Feature Flags wraps it.");
         }
 
-        FlagSource source = services.GetRequiredService<FlagSource>();
-        CodeFlags code = services.GetRequiredService<CodeFlags>();
-        var declaredTwice = new List<string>();
-        try
+        FlagResolution resolution = services.GetRequiredService<FlagResolution>();
+        DeclaredFlags declared = await resolution.GetDeclaredAsync(cancellationToken);
+        if (declared.ListingError is not null)
         {
-            await foreach (FeatureDefinition definition in source.Inner.GetAllFeatureDefinitionsAsync().WithCancellation(cancellationToken))
-            {
-                if (code.Find(definition.Name) is not null)
-                {
-                    declaredTwice.Add(definition.Name);
-                }
-            }
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            logger.LogWarning(exception, "Feature Flags couldn't list the flags the site's flag source declares.");
+            logger.LogWarning(declared.ListingError, "Feature Flags couldn't list the flags the site's flag source declares.");
         }
 
-        foreach (string name in declaredTwice)
+        foreach (DeclaredFlag flag in declared.Flags.Where(flag => flag.DeclaredTwice))
         {
             logger.LogWarning(
                 "The flag '{FlagName}' is declared both in code and by the site's flag source. The flag source's declaration is used.",
-                name);
+                flag.Name);
         }
     }
 }

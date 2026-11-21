@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.FeatureManagement;
 using Umbricians.FeatureFlags.Configuration;
@@ -12,108 +11,54 @@ namespace Umbricians.FeatureFlags.Flags;
 /// </summary>
 internal sealed class FlagCatalog
 {
-    private readonly FlagSource _source;
+    private readonly FlagResolution _resolution;
     private readonly CodeFlags _code;
     private readonly ConfigurationFlagDetails _configurationDetails;
-    private readonly OverrideCache _overrides;
     private readonly IOptionsMonitor<FeatureFlagsOptions> _options;
-    private readonly ILogger<FlagCatalog> _logger;
 
     public FlagCatalog(
-        FlagSource source,
+        FlagResolution resolution,
         CodeFlags code,
         ConfigurationFlagDetails configurationDetails,
-        OverrideCache overrides,
-        IOptionsMonitor<FeatureFlagsOptions> options,
-        ILogger<FlagCatalog> logger)
+        IOptionsMonitor<FeatureFlagsOptions> options)
     {
-        _source = source;
+        _resolution = resolution;
         _code = code;
         _configurationDetails = configurationDetails;
-        _overrides = overrides;
         _options = options;
-        _logger = logger;
     }
 
     public async Task<IReadOnlyList<CatalogFlag>> GetAllAsync(CancellationToken cancellationToken)
     {
-        OverrideCache.Snapshot snapshot = await _overrides.GetAsync(cancellationToken);
+        ResolvedFlags resolved = await _resolution.GetAllAsync(cancellationToken);
         bool readOnly = _options.CurrentValue.OverridesAreReadOnly();
 
-        var flags = new Dictionary<string, CatalogFlag>(StringComparer.OrdinalIgnoreCase);
-        void AddDeclared(FeatureDefinition definition)
+        return resolved.Flags.Select(flag => flag switch
         {
-            if (flags.ContainsKey(definition.Name))
-            {
-                return;
-            }
-
-            CodeFlagDeclaration? alsoInCode = _code.Find(definition.Name);
-            FlagDetails details = _configurationDetails.Find(definition.Name).Or(alsoInCode?.Details ?? FlagDetails.None);
-            flags[definition.Name] = Describe(definition, _source.DeclaredIn, alsoInCode is not null, details, snapshot, readOnly);
-        }
-
-        try
-        {
-            await foreach (FeatureDefinition definition in _source.Inner.GetAllFeatureDefinitionsAsync().WithCancellation(cancellationToken))
-            {
-                AddDeclared(definition);
-            }
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            // One flag Microsoft can't read stops the whole list, so read the flags configuration declares one by one,
-            // and show each that fails as unreadable rather than losing the list.
-            _logger.LogWarning(exception, "Feature Flags couldn't list every flag the site declares, so it is reading them one by one.");
-            foreach (string name in _configurationDetails.DeclaredNames())
-            {
-                try
-                {
-                    if (await _source.Inner.GetFeatureDefinitionAsync(name) is { } definition)
-                    {
-                        AddDeclared(definition);
-                    }
-                }
-                catch (Exception flagException) when (flagException is not OperationCanceledException)
-                {
-                    flags.TryAdd(name, Unreadable(name, _code.Find(name) is not null, _configurationDetails.Find(name), snapshot, flagException));
-                }
-            }
-        }
-
-        foreach (CodeFlagDeclaration declaration in _code.All)
-        {
-            if (!flags.ContainsKey(declaration.Definition.Name))
-            {
-                flags[declaration.Definition.Name] = Describe(
-                    declaration.Definition, FlagDeclaredIn.Code, false, declaration.Details, snapshot, readOnly);
-            }
-        }
-
-        foreach (OverrideCache.Entry entry in snapshot.Overrides.Values)
-        {
-            if (!flags.ContainsKey(entry.Override.FlagName))
-            {
-                flags[entry.Override.FlagName] = Undeclared(entry);
-            }
-        }
-
-        return flags.Values.ToArray();
+            { Declared: null } => Undeclared(flag.Override!),
+            { Declared.ReadError: { } error } => Unreadable(flag.Declared, FlagDetailsFor(flag.Declared), flag.Override, error),
+            _ => Describe(flag, FlagDetailsFor(flag.Declared), readOnly),
+        }).ToArray();
     }
 
     public async Task<CatalogFlag?> FindAsync(string name, CancellationToken cancellationToken) =>
         (await GetAllAsync(cancellationToken)).FirstOrDefault(flag => string.Equals(flag.Name, name, StringComparison.OrdinalIgnoreCase));
 
-    private static CatalogFlag Describe(
-        FeatureDefinition definition,
-        FlagDeclaredIn declaredIn,
-        bool declaredTwice,
-        FlagDetails details,
-        OverrideCache.Snapshot snapshot,
-        bool readOnly)
+    /// <summary>What helps editors find the flag: configuration's details first, then code's.</summary>
+    private FlagDetails FlagDetailsFor(DeclaredFlag declared)
     {
-        FlagSettings? defaultSettings = FlagDefinitions.ToSettings(definition, out string? defaultReason);
-        snapshot.Overrides.TryGetValue(definition.Name, out OverrideCache.Entry? entry);
+        FlagDetails fromCode = _code.Find(declared.Name)?.Details ?? FlagDetails.None;
+        return declared.DeclaredIn == FlagDeclaredIn.Code
+            ? fromCode
+            : _configurationDetails.Find(declared.Name).Or(fromCode);
+    }
+
+    private static CatalogFlag Describe(ResolvedFlag flag, FlagDetails details, bool readOnly)
+    {
+        DeclaredFlag declared = flag.Declared!;
+        FeatureDefinition defaultDefinition = declared.Default!;
+        OverrideCache.Entry? entry = flag.Override;
+        FlagSettings? defaultSettings = FlagDefinitions.ToSettings(defaultDefinition, out string? defaultReason);
 
         FlagSettings? overrideSettings = null;
         string? overrideReason = null;
@@ -122,11 +67,10 @@ internal sealed class FlagCatalog
             overrideSettings = FlagDefinitions.ReadOverride(entry.Override.Definition, out overrideReason);
         }
 
-        bool overrideApplies = entry is not null && !readOnly && entry.Definition is not null;
-        FlagSettings? settings = overrideApplies ? overrideSettings : defaultSettings;
-        FlagDisplayState state = overrideApplies
-            ? Display(overrideSettings, entry!.Definition!)
-            : Display(defaultSettings, definition);
+        FlagSettings? settings = flag.OverrideApplies ? overrideSettings : defaultSettings;
+        FlagDisplayState state = flag.OverrideApplies
+            ? Display(overrideSettings, flag.Definition!)
+            : Display(defaultSettings, defaultDefinition);
 
         string? readOnlyReason = readOnly
             ? "Settings from the backoffice are switched off on this site (Umbricians:FeatureFlags:Overrides is ReadOnly)."
@@ -136,13 +80,13 @@ internal sealed class FlagCatalog
             && (overrideSettings is null || defaultSettings is null || !overrideSettings.SameAs(defaultSettings));
 
         return new CatalogFlag(
-            definition.Name,
+            declared.Name,
             IsDeclared: true,
-            declaredIn,
-            declaredTwice,
-            details.ForFlag(definition.Name),
+            declared.DeclaredIn,
+            declared.DeclaredTwice,
+            details.ForFlag(declared.Name),
             defaultSettings,
-            Display(defaultSettings, definition),
+            Display(defaultSettings, defaultDefinition),
             entry?.Override,
             settings,
             state,
@@ -151,16 +95,15 @@ internal sealed class FlagCatalog
             differs);
     }
 
-    private CatalogFlag Unreadable(string name, bool declaredTwice, FlagDetails details, OverrideCache.Snapshot snapshot, Exception exception)
+    private static CatalogFlag Unreadable(DeclaredFlag declared, FlagDetails details, OverrideCache.Entry? entry, Exception exception)
     {
-        snapshot.Overrides.TryGetValue(name, out OverrideCache.Entry? entry);
         string reason = $"Its definition can't be read, so checking it fails: {(exception.InnerException ?? exception).Message}";
         return new CatalogFlag(
-            name,
+            declared.Name,
             IsDeclared: true,
-            _source.DeclaredIn,
-            declaredTwice,
-            details.ForFlag(name),
+            declared.DeclaredIn,
+            declared.DeclaredTwice,
+            details.ForFlag(declared.Name),
             DefaultSettings: null,
             DefaultState: FlagDisplayState.Custom,
             entry?.Override,

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.FeatureManagement;
 using Umbricians.FeatureFlags.Flags;
 
 namespace Umbricians.FeatureFlags.Tests.Flags;
@@ -125,6 +126,54 @@ public class FlagCatalogTests
         Assert.That(flags["Good"].State, Is.EqualTo(FlagDisplayState.Everyone));
         Assert.That(flags["Broken"], Has.Property(nameof(CatalogFlag.Editable)).False
             .And.Property(nameof(CatalogFlag.State)).EqualTo(FlagDisplayState.Custom));
+    }
+
+    [Test]
+    public async Task A_site_flag_source_that_can_not_list_its_flags_still_shows_each_one_it_can_read()
+    {
+        var site = new TestSite(before: services =>
+        {
+            services.AddFeatureManagement();
+            services.AddSingleton<IFeatureDefinitionProvider>(new FailingListSource());
+            services.AddSingleton(new CodeFlagDeclaration(FlagDefinitions.Simple("B", false), FlagDetails.None));
+            services.AddSingleton(new CodeFlagDeclaration(FlagDefinitions.Simple("Broken", false), FlagDetails.None));
+        });
+        site.Store.With("C", FlagSettings.Off);
+
+        Dictionary<string, CatalogFlag> flags = (await Catalog(site).GetAllAsync(default)).ToDictionary(flag => flag.Name);
+
+        Assert.That(flags["A"].DeclaredIn, Is.EqualTo(FlagDeclaredIn.FlagSource));
+        Assert.That(flags["B"], Has.Property(nameof(CatalogFlag.DeclaredIn)).EqualTo(FlagDeclaredIn.FlagSource)
+            .And.Property(nameof(CatalogFlag.DeclaredTwice)).True);
+        Assert.That(flags["C"], Has.Property(nameof(CatalogFlag.IsDeclared)).True.And.Property(nameof(CatalogFlag.Override)).Not.Null);
+        Assert.That(flags["Broken"], Has.Property(nameof(CatalogFlag.Editable)).False
+            .And.Property(nameof(CatalogFlag.State)).EqualTo(FlagDisplayState.Custom));
+    }
+
+    [Test]
+    public async Task Finds_a_flag_by_name_whatever_its_case()
+    {
+        var site = new TestSite(Flags);
+
+        Assert.That((await Catalog(site).FindAsync("checkout.newflow", default))?.Name, Is.EqualTo("Checkout.NewFlow"));
+        Assert.That(await Catalog(site).FindAsync("Nobody", default), Is.Null);
+    }
+
+    [Test]
+    public async Task Overrides_are_shown_but_not_applied_when_they_are_read_only()
+    {
+        var site = new TestSite("""
+            { "Umbricians": { "FeatureFlags": { "Overrides": "ReadOnly" } },
+              "feature_management": { "feature_flags": [ { "id": "F", "enabled": false } ] } }
+            """);
+        site.Store.With("F", new FlagSettings(true, null));
+
+        CatalogFlag flag = (await Catalog(site).FindAsync("F", default))!;
+
+        Assert.That(flag, Has.Property(nameof(CatalogFlag.State)).EqualTo(FlagDisplayState.Off)
+            .And.Property(nameof(CatalogFlag.Editable)).False
+            .And.Property(nameof(CatalogFlag.DiffersFromDefault)).True
+            .And.Property(nameof(CatalogFlag.Override)).Not.Null);
     }
 
     private static FlagCatalog Catalog(TestSite site) => site.Provider.GetRequiredService<FlagCatalog>();
