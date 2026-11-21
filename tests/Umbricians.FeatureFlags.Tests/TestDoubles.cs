@@ -16,17 +16,27 @@ internal sealed class InMemoryOverrideStore : IFeatureFlagOverrideStore
 
     public bool Fail { get; set; }
 
-    public int Reads { get; private set; }
+    public int Reads => _reads;
 
-    public Task<IReadOnlyCollection<FeatureFlagOverride>> GetAllAsync(CancellationToken cancellationToken)
+    /// <summary>While set, reads wait until it completes, like a slow database.</summary>
+    public TaskCompletionSource? Hold { get; set; }
+
+    private int _reads;
+
+    public async Task<IReadOnlyCollection<FeatureFlagOverride>> GetAllAsync(CancellationToken cancellationToken)
     {
-        Reads++;
+        Interlocked.Increment(ref _reads);
+        if (Hold is { } hold)
+        {
+            await hold.Task;
+        }
+
         if (Fail)
         {
             throw new InvalidOperationException("No such table.");
         }
 
-        return Task.FromResult<IReadOnlyCollection<FeatureFlagOverride>>(_overrides.Values.ToArray());
+        return _overrides.Values.ToArray();
     }
 
     public Task SaveAsync(FeatureFlagOverride featureFlagOverride, CancellationToken cancellationToken)
@@ -101,5 +111,5 @@ internal sealed class TestSite
     public Task<bool> IsOnAsync(string flag) => Features.IsEnabledAsync(flag);
 
     /// <summary>What happens on every server when an override is saved.</summary>
-    public void Refresh() => Provider.GetRequiredService<OverrideCache>().Invalidate();
+    public void Refresh() => Provider.GetRequiredService<OverrideCache>().ReloadAsync().GetAwaiter().GetResult();
 }

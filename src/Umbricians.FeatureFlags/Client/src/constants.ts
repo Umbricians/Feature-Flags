@@ -4,7 +4,7 @@
 export const FEATURE_FLAGS_ROOT_ENTITY_TYPE = "umbricians-feature-flags-root";
 
 /** One flag, edited in its own workspace. Its unique is the flag's name. */
-export const FEATURE_FLAG_ENTITY_TYPE = "umbricians-feature-flag";
+export const FEATURE_FLAG_ENTITY_TYPE = "umbricians-feature-flags-flag";
 
 export const FEATURE_FLAGS_ROOT_WORKSPACE_ALIAS = "Umbricians.FeatureFlags.Workspace.Root";
 export const FEATURE_FLAG_WORKSPACE_ALIAS = "Umbricians.FeatureFlags.Workspace.Flag";

@@ -1,14 +1,14 @@
 import { css, customElement, html, nothing, repeat, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbCollectionViewElementBase, UMB_COLLECTION_CONTEXT } from "@umbraco-cms/backoffice/collection";
 import { UmbTextStyles } from "@umbraco-cms/backoffice/style";
-import { sections, shortName, stateColor, type FeatureFlagCollectionItem } from "../display.js";
-import { changedText, describeAudience, markers, stateLabel } from "../describe.js";
-import { editFlagPath } from "../paths.js";
+import { sections, type FeatureFlagCollectionItem } from "../display.js";
+import { changedText } from "../describe.js";
+import { audienceNote, flagName, markerTags, stateTag } from "./flag-item.templates.js";
 import type { FeatureFlagsCollectionFilter } from "./flags-collection.repository.js";
 import "./flags-filters.element.js";
 import "./flag-switch.element.js";
 
-/** The flag list as a table, in sections by group. */
+/** The flag list as a table, in its sections. */
 @customElement("umbricians-feature-flags-table-view")
 export class FeatureFlagsTableViewElement extends UmbCollectionViewElementBase<FeatureFlagCollectionItem> {
   @state()
@@ -37,8 +37,8 @@ export class FeatureFlagsTableViewElement extends UmbCollectionViewElementBase<F
             (section) => html`
               ${this._orderBy === "updated"
                 ? nothing
-                : html`<uui-table-row class="group">
-                    <uui-table-cell>${section.name ?? this.localize.term("umbriciansFeatureFlags_ungrouped")}</uui-table-cell>
+                : html`<uui-table-row class="section">
+                    <uui-table-cell>${section.name ?? this.localize.term("umbriciansFeatureFlags_noSection")}</uui-table-cell>
                     <uui-table-cell></uui-table-cell>
                     <uui-table-cell></uui-table-cell>
                     <uui-table-cell></uui-table-cell>
@@ -53,27 +53,21 @@ export class FeatureFlagsTableViewElement extends UmbCollectionViewElementBase<F
   }
 
   #renderRow(item: FeatureFlagCollectionItem) {
-    const audience = item.audience ? describeAudience(this.localize, item.audience) : "";
     return html`<uui-table-row>
       <uui-table-cell>
         <div class="name">
-          ${item.isDeclared
-            ? html`<a href=${editFlagPath(item.name)} title=${item.name}>${this._orderBy === "updated" ? item.name : shortName(item)}</a>`
-            : html`<strong title=${item.name}>${item.name}</strong>`}
+          ${flagName(item, this._orderBy)}
           ${item.description ? html`<small>${item.description}</small>` : nothing}
           ${item.tags.length ? html`<div class="tags">${item.tags.map((tag) => html`<uui-tag look="placeholder">${tag}</uui-tag>`)}</div>` : nothing}
         </div>
       </uui-table-cell>
       <uui-table-cell>
-        <uui-tag color=${stateColor(item.state)} look=${item.state === "off" ? "secondary" : "primary"}>${stateLabel(this.localize, item.state)}</uui-tag>
-        ${audience
-          ? html`<small class="audience">${item.state === "off" ? this.localize.term("umbriciansFeatureFlags_keeps", audience) : audience}</small>`
-          : nothing}
+        ${stateTag(this.localize, item)} ${audienceNote(this.localize, item, "audience")}
       </uui-table-cell>
-      <uui-table-cell><umbricians-feature-flag-switch .item=${item}></umbricians-feature-flag-switch></uui-table-cell>
+      <uui-table-cell><umbricians-feature-flags-switch .item=${item}></umbricians-feature-flags-switch></uui-table-cell>
       <uui-table-cell>
         <div class="markers">
-          ${markers(this.localize, item).map((marker) => html`<uui-tag color=${marker.color} look="outline">${marker.label}</uui-tag>`)}
+          ${markerTags(this.localize, item)}
         </div>
       </uui-table-cell>
       <uui-table-cell><small>${changedText(this.localize, item)}</small></uui-table-cell>
@@ -86,7 +80,7 @@ export class FeatureFlagsTableViewElement extends UmbCollectionViewElementBase<F
       :host {
         display: block;
       }
-      uui-table-row.group uui-table-cell {
+      uui-table-row.section uui-table-cell {
         font-weight: bold;
         background: var(--uui-color-surface-alt);
       }

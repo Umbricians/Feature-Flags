@@ -17,12 +17,25 @@ internal sealed record FlagSettings(bool Enabled, FlagAudience? Audience)
 }
 
 /// <summary>
-/// Who a flag is on for: members by key, and groups by id. A group id is a member group's key or a group provider's
-/// id. An empty audience includes nobody.
+/// Who a flag is on for: members by key, and groups by id. Microsoft's targeting keeps every group in one list, so a
+/// group id is either a member group's key or another group: a group provider's id, or a member group named in
+/// appsettings. An empty audience includes nobody.
 /// </summary>
 internal sealed record FlagAudience(IReadOnlyList<string> Members, IReadOnlyList<string> Groups)
 {
     public static FlagAudience Empty { get; } = new([], []);
+
+    /// <summary>The groups that are member groups, by key, as the backoffice's member group picker works with them.</summary>
+    public IReadOnlyList<string> MemberGroupKeys => Groups.Where(IsMemberGroupKey).ToArray();
+
+    /// <summary>Every other group: group providers' ids, and member groups named in appsettings.</summary>
+    public IReadOnlyList<string> OtherGroups => Groups.Where(id => !IsMemberGroupKey(id)).ToArray();
+
+    /// <summary>An audience from the backoffice, which picks member groups and other groups separately.</summary>
+    public static FlagAudience Of(IEnumerable<string> members, IEnumerable<string> memberGroupKeys, IEnumerable<string> otherGroups) =>
+        new(members.ToArray(), memberGroupKeys.Concat(otherGroups).ToArray());
+
+    private static bool IsMemberGroupKey(string id) => Guid.TryParse(id, out _);
 
     public bool SameAs(FlagAudience other) =>
         Members.ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(other.Members)

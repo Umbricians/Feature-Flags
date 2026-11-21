@@ -47,8 +47,9 @@ export function flagsQueryString(query: FlagQuery): string {
     const value = query[key];
     if (value) parameters.set(key, value);
   }
-  // An empty group asks for flags in no group, so it is sent even when empty.
-  if (query.group !== undefined && query.group !== null) parameters.set("group", query.group);
+  if (query.marks?.length) parameters.set("marks", query.marks.join(","));
+  // An empty section asks for flags in no section, so it is sent even when empty.
+  if (query.section !== undefined && query.section !== null) parameters.set("section", query.section);
   return parameters.toString();
 }
 

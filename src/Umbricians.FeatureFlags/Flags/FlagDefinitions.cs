@@ -21,6 +21,7 @@ internal static class FlagDefinitions
     private const string TargetingFilterShortName = "Targeting";
     private const string AlwaysOnFilter = "AlwaysOn";
     private const string OnFilter = "On";
+    private const string VariantsReason = "It has variants, which the backoffice can't edit yet.";
 
     /// <summary>
     /// The settings a definition amounts to, or null with the reason when it uses more than the backoffice can edit:
@@ -31,7 +32,7 @@ internal static class FlagDefinitions
         notEditableReason = null;
         if (definition.Variants?.Any() == true || definition.Allocation is not null)
         {
-            notEditableReason = "It has variants, which the backoffice can't edit yet.";
+            notEditableReason = VariantsReason;
             return null;
         }
 
@@ -48,16 +49,7 @@ internal static class FlagDefinitions
             return new FlagSettings(enabled, null);
         }
 
-        if (filters.Length == 1 && IsTargeting(filters[0].Name))
-        {
-            FlagAudience? audience = ReadAudience(filters[0].Parameters, out notEditableReason);
-            return audience is null ? null : new FlagSettings(enabled, audience);
-        }
-
-        notEditableReason = filters.Length == 1
-            ? $"It uses the '{filters[0].Name}' filter, which the backoffice can't edit yet."
-            : "It combines several filters, which the backoffice can't edit yet.";
-        return null;
+        return FromFilters(enabled, filters.Select(filter => filter.Name).ToArray(), () => filters[0].Parameters, out notEditableReason);
     }
 
     /// <summary>
@@ -86,7 +78,7 @@ internal static class FlagDefinitions
 
         if (flag.GetSection("variants").GetChildren().Any() || flag.GetSection("allocation").Exists())
         {
-            notEditableReason = "It has variants, which the backoffice can't edit yet.";
+            notEditableReason = VariantsReason;
             return null;
         }
 
@@ -97,16 +89,7 @@ internal static class FlagDefinitions
             return new FlagSettings(enabled, null);
         }
 
-        if (filters.Length == 1 && IsTargeting(filters[0]["name"]))
-        {
-            FlagAudience? audience = ReadAudience(filters[0].GetSection("parameters"), out notEditableReason);
-            return audience is null ? null : new FlagSettings(enabled, audience);
-        }
-
-        notEditableReason = filters.Length == 1
-            ? $"It uses the '{filters[0]["name"]}' filter, which the backoffice can't edit yet."
-            : "It combines several filters, which the backoffice can't edit yet.";
-        return null;
+        return FromFilters(enabled, filters.Select(filter => filter["name"]).ToArray(), () => filters[0].GetSection("parameters"), out notEditableReason);
     }
 
     /// <summary>A flag's settings as Microsoft's <c>feature_management</c> JSON, for storing as an override.</summary>
@@ -118,6 +101,7 @@ internal static class FlagDefinitions
             ["enabled"] = settings.Enabled,
         };
 
+        // With no audience the flag has no conditions, which Microsoft's schema reads as on for everyone when enabled.
         if (settings.Audience is not null)
         {
             var groups = new JsonArray();
@@ -145,10 +129,6 @@ internal static class FlagDefinitions
                     },
                 },
             };
-        }
-        else if (settings.Enabled)
-        {
-            // An enabled flag with no conditions is on for everyone in Microsoft's schema.
         }
 
         return flag.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
@@ -222,6 +202,24 @@ internal static class FlagDefinitions
     private static bool IsTargeting(string? name) =>
         string.Equals(name, TargetingFilter, StringComparison.OrdinalIgnoreCase)
         || string.Equals(name, TargetingFilterShortName, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The settings for a flag whose only filter is targeting, read from its parameters; otherwise null, with the reason.
+    /// Off and on-for-everyone are worked out before this, since a definition and stored JSON spell them differently.
+    /// </summary>
+    private static FlagSettings? FromFilters(bool enabled, string?[] filterNames, Func<IConfiguration?> targetingParameters, out string? notEditableReason)
+    {
+        if (filterNames.Length == 1 && IsTargeting(filterNames[0]))
+        {
+            FlagAudience? audience = ReadAudience(targetingParameters(), out notEditableReason);
+            return audience is null ? null : new FlagSettings(enabled, audience);
+        }
+
+        notEditableReason = filterNames.Length == 1
+            ? $"It uses the '{filterNames[0]}' filter, which the backoffice can't edit yet."
+            : "It combines several filters, which the backoffice can't edit yet.";
+        return null;
+    }
 
     private static FlagAudience? ReadAudience(IConfiguration? parameters, out string? notEditableReason)
     {

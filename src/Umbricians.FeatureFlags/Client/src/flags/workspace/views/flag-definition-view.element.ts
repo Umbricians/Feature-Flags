@@ -8,7 +8,7 @@ import { FEATURE_FLAG_WORKSPACE_CONTEXT } from "../flag-workspace.context-token.
  * The flag editor's Definition tab: the saved setting exactly as it is stored, in Microsoft's feature_management JSON,
  * which is what Microsoft.FeatureManagement reads. Read-only, and as last saved.
  */
-@customElement("umbricians-feature-flag-definition-view")
+@customElement("umbricians-feature-flags-definition-view")
 export class FeatureFlagDefinitionViewElement extends UmbLitElement {
   @state() private _flag?: FeatureFlag;
 
@@ -57,6 +57,6 @@ export { FeatureFlagDefinitionViewElement as element };
 
 declare global {
   interface HTMLElementTagNameMap {
-    "umbricians-feature-flag-definition-view": FeatureFlagDefinitionViewElement;
+    "umbricians-feature-flags-definition-view": FeatureFlagDefinitionViewElement;
   }
 }

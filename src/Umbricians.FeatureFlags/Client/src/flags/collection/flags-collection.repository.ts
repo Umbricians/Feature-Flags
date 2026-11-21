@@ -14,8 +14,8 @@ export class FeatureFlagsCollectionRepository
 {
   async requestCollection(filter: FeatureFlagsCollectionFilter) {
     try {
-      // Grouped by default, so the list's sections each appear once.
-      const page = await fetchFlags({ ...filter, orderBy: filter.orderBy ?? "group" });
+      // In section order by default, so each of the list's sections appears once.
+      const page = await fetchFlags({ ...filter, orderBy: filter.orderBy ?? "section" });
       const items: Array<FeatureFlagCollectionItem> = page.items.map((flag) => ({
         ...flag,
         unique: flag.name,

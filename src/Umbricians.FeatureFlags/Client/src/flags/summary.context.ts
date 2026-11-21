@@ -5,7 +5,7 @@ import { UmbObjectState } from "@umbraco-cms/backoffice/observable-api";
 import { fetchSummary, type FeatureFlagSummary } from "../api/feature-flags.resource.js";
 
 /**
- * The groups, tags and site details the flag list shows, shared by its header, filters and views. Read again after
+ * The sections, tags and site details the flag list shows, shared by its header, filters and views. Read again after
  * any change, since a change can move a flag in or out of the undeclared list.
  */
 export class FeatureFlagsSummaryContext extends UmbContextBase {
@@ -21,7 +21,7 @@ export class FeatureFlagsSummaryContext extends UmbContextBase {
     try {
       this.#summary.setValue(await fetchSummary());
     } catch {
-      // The list shows its own error; without a summary the filters simply offer no groups or tags.
+      // The list shows its own error; without a summary the filters simply offer no sections or tags.
     }
   }
 }

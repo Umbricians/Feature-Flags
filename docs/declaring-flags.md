@@ -23,7 +23,7 @@ Use Microsoft's `feature_management` schema:
         "id": "Checkout.ExpressPay",
         "enabled": false,
         "description": "One-click payment for returning members.",
-        "group": "Checkout",
+        "section": "Checkout",
         "tags": ["payments", "beta"]
       }
     ]
@@ -62,14 +62,14 @@ public class SiteFlagsComposer : IComposer
     public void Compose(IUmbracoBuilder builder) =>
         builder.AddFeatureFlags(flags => flags
             .Declare("DarkMode", description: "Dark colours across the site.", tags: ["ui"])
-            .Declare("Pricing.MemberDiscount", description: "10% off for the members it is on for.", group: "Pricing"));
+            .Declare("Pricing.MemberDiscount", description: "10% off for the members it is on for.", section: "Pricing"));
 }
 ```
 
-`Declare(name, enabled, description, group, tags)` declares a flag that is off, or on for everyone when `enabled` is
+`Declare(name, enabled, description, section, tags)` declares a flag that is off, or on for everyone when `enabled` is
 `true`, until an editor changes it. Leave new flags off.
 
-`Declare(FeatureDefinition, description, group, tags)` takes any Microsoft definition, for flags that need a filter
+`Declare(FeatureDefinition, description, section, tags)` takes any Microsoft definition, for flags that need a filter
 or variants. Most of those are easier to write in appsettings.
 
 ## Declared in both places
@@ -84,14 +84,14 @@ Each flag can have:
 | | appsettings field | Code parameter | Shown |
 | --- | --- | --- | --- |
 | Description | `description` (`Description` in the older schema) | `description` | Under the flag's name, in the list and the editor. |
-| Group | `group` (`Group`) | `group` | The heading the flag is listed under. When there is none, the text before the first `.` in the flag's name; a name without a `.` is Ungrouped. |
+| Section | `section` (`Section`) | `section` | The section of the list the flag is in. When there is none, the text before the first `.` in the flag's name; a name without a `.` is in No section. |
 | Tags | `tags` (`Tags`) | `tags` | Under the description; the list can be filtered by tag. |
 
 Microsoft ignores these fields, so they are harmless. Naming flags `Area.Feature`, such as `Checkout.ExpressPay`,
-groups them with nothing more to write. On a site with many flags, the list's search, filters and paging keep them
+puts them in sections with nothing more to write. On a site with many flags, the list's search, filters and paging keep them
 manageable.
 
-Flags from a flag source of the site's own (a custom `IFeatureDefinitionProvider`) have no details, and are grouped by
+Flags from a flag source of the site's own (a custom `IFeatureDefinitionProvider`) have no details, and are put in sections by
 name.
 
 ## Checking a flag

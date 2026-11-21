@@ -90,7 +90,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     conditions: [{ alias: UMB_COLLECTION_CONDITION, match: FEATURE_FLAGS_COLLECTION_ALIAS }],
   },
 
-  // One flag's editor, at …/workspace/umbricians-feature-flag/edit/{name}.
+  // One flag's editor, at …/workspace/umbricians-feature-flags-flag/edit/{name}.
   {
     type: "workspace",
     kind: "routable",

@@ -40,7 +40,7 @@ Add a flag to `appsettings.json` in Microsoft's `feature_management` section. St
 }
 ```
 
-The text before the first `.` is the flag's group in the backoffice, so this flag is listed under "Checkout". You can
+The text before the first `.` is the flag's section in the backoffice, so this flag is listed under "Checkout". You can
 declare flags in code instead; see [Declaring and checking flags](declaring-flags.md).
 
 ## 3. Check it in the site

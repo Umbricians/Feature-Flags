@@ -52,7 +52,7 @@ internal sealed class OverrideService
         await _store.SaveAsync(
             new FeatureFlagOverride(flag.Name, FlagDefinitions.ToJson(flag.Name, normalized), userKey, _time.GetUtcNow().UtcDateTime),
             cancellationToken);
-        Refresh();
+        await RefreshAsync();
         return OverrideResult.Saved;
     }
 
@@ -84,7 +84,7 @@ internal sealed class OverrideService
 
         // Any flag can go back to its default, even one whose override the backoffice can't edit, unless the site
         // has switched backoffice settings off altogether.
-        if (_options.CurrentValue.Overrides != FeatureFlagsOverrides.Enabled)
+        if (_options.CurrentValue.OverridesAreReadOnly())
         {
             return OverrideResult.ReadOnly(flag.ReadOnlyReason);
         }
@@ -95,7 +95,7 @@ internal sealed class OverrideService
         }
 
         await _store.DeleteAsync(flag.Name, cancellationToken);
-        Refresh();
+        await RefreshAsync();
         return OverrideResult.Saved;
     }
 
@@ -136,15 +136,16 @@ internal sealed class OverrideService
 
         if (changed)
         {
-            Refresh();
+            await RefreshAsync();
         }
     }
 
-    private void Refresh()
+    private Task RefreshAsync()
     {
-        // Straight away on this server; the distributed cache tells the others, and this one again, which is harmless.
-        _cache.Invalidate();
+        // The distributed cache tells every server to read the overrides again in the background. This server waits for
+        // its own read, so whatever the editor does next sees the change.
         _distributedCache?.RefreshAll(FeatureFlagsCacheRefresher.UniqueId);
+        return _cache.ReloadAsync();
     }
 
     /// <summary>Writes keys the way targeting compares them, and drops blanks and repeats.</summary>

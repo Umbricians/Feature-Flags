@@ -28,7 +28,7 @@ internal sealed class FeatureFlagsCacheRefresher : CacheRefresherBase<FeatureFla
 
     public override void RefreshAll()
     {
-        _cache.Invalidate();
+        _cache.Reload();
         base.RefreshAll();
     }
 

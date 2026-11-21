@@ -38,7 +38,7 @@ internal sealed class ManageFlagsController : FeatureFlagsControllerBase
     {
         FlagAudience? audience = request.Audience is null
             ? null
-            : new FlagAudience(request.Audience.Members, request.Audience.MemberGroups.Concat(request.Audience.Groups).ToArray());
+            : FlagAudience.Of(request.Audience.Members, request.Audience.MemberGroups, request.Audience.Groups);
         return Respond(name, await _overrides.SaveAsync(name, new FlagSettings(request.Enabled, audience), CurrentUser(), cancellationToken));
     }
 

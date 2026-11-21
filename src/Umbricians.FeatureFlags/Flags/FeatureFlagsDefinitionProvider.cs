@@ -64,7 +64,7 @@ internal sealed class FeatureFlagsDefinitionProvider : IFeatureDefinitionProvide
 
     private async ValueTask<FeatureDefinition> WithOverrideAsync(FeatureDefinition declared)
     {
-        if (_options.CurrentValue.Overrides != FeatureFlagsOverrides.Enabled)
+        if (_options.CurrentValue.OverridesAreReadOnly())
         {
             return declared;
         }

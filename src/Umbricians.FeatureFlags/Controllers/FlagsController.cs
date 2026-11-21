@@ -49,10 +49,11 @@ internal sealed class FlagsController : FeatureFlagsControllerBase
     /// <param name="take">How many to return, at most 100.</param>
     /// <param name="filter">Text the name or description contains.</param>
     /// <param name="state"><c>off</c>, <c>everyone</c>, <c>audience</c> or <c>custom</c>.</param>
-    /// <param name="show"><c>declared</c> (the default), <c>changed</c>, <c>differs</c>, <c>twice</c> or <c>undeclared</c>.</param>
-    /// <param name="group">A group's name, or an empty value for flags in no group.</param>
+    /// <param name="show"><c>declared</c> (the default), or <c>undeclared</c> for settings left from flags nobody declares any more.</param>
+    /// <param name="marks">Only flags with every one of these, comma-separated: <c>changed</c>, <c>differs</c> and <c>twice</c>.</param>
+    /// <param name="section">A section's name, or an empty value for flags in no section.</param>
     /// <param name="tag">A tag.</param>
-    /// <param name="orderBy"><c>name</c> (the default), <c>group</c> or <c>updated</c>, most recent first.</param>
+    /// <param name="orderBy"><c>name</c> (the default), <c>section</c> or <c>updated</c>, most recent first.</param>
     /// <param name="cancellationToken">Cancelled when the request is.</param>
     [HttpGet("flags")]
     [ProducesResponseType<PagedViewModel<FlagListItemResponseModel>>(StatusCodes.Status200OK)]
@@ -63,7 +64,8 @@ internal sealed class FlagsController : FeatureFlagsControllerBase
         string? filter = null,
         string? state = null,
         string? show = null,
-        string? group = null,
+        string? marks = null,
+        string? section = null,
         string? tag = null,
         string? orderBy = null,
         CancellationToken cancellationToken = default)
@@ -73,50 +75,29 @@ internal sealed class FlagsController : FeatureFlagsControllerBase
             return BadRequest(new ProblemDetails { Title = "Invalid page", Detail = $"skip must be 0 or more, and take between 1 and {MaxPageSize}." });
         }
 
-        FlagDisplayState? stateFilter = state?.ToLowerInvariant() switch
+        if (!ApiNames.TryParseState(state, out FlagDisplayState? stateFilter)
+            || !ApiNames.TryParseShow(show, out bool undeclared)
+            || !ApiNames.TryParseMarks(marks, out FlagMarks markFilter)
+            || !ApiNames.TryParseOrder(orderBy, out FlagQueryOrder order))
         {
-            null or "" => null,
-            "off" => FlagDisplayState.Off,
-            "everyone" => FlagDisplayState.Everyone,
-            "audience" => FlagDisplayState.Audience,
-            "custom" => FlagDisplayState.Custom,
-            _ => (FlagDisplayState)(-1),
-        };
-        FlagQueryShow? showFilter = show?.ToLowerInvariant() switch
-        {
-            null or "" or "declared" => FlagQueryShow.Declared,
-            "changed" => FlagQueryShow.Changed,
-            "differs" => FlagQueryShow.DiffersFromDefault,
-            "twice" => FlagQueryShow.DeclaredTwice,
-            "undeclared" => FlagQueryShow.Undeclared,
-            _ => null,
-        };
-        FlagQueryOrder? order = orderBy?.ToLowerInvariant() switch
-        {
-            null or "" or "name" => FlagQueryOrder.Name,
-            "group" => FlagQueryOrder.Group,
-            "updated" => FlagQueryOrder.Updated,
-            _ => null,
-        };
-        if (stateFilter == (FlagDisplayState)(-1) || showFilter is null || order is null)
-        {
-            return BadRequest(new ProblemDetails { Title = "Invalid filter", Detail = "state, show or orderBy has a value the API doesn't know." });
+            return BadRequest(new ProblemDetails { Title = "Invalid filter", Detail = "state, show, marks or orderBy has a value the API doesn't know." });
         }
 
         var query = new FlagQuery(
             filter,
             stateFilter,
-            showFilter.Value,
-            string.IsNullOrEmpty(group) ? null : group,
-            UngroupedOnly: group is not null && group.Length == 0,
+            undeclared,
+            markFilter,
+            string.IsNullOrEmpty(section) ? null : section,
+            NoSectionOnly: section is not null && section.Length == 0,
             string.IsNullOrEmpty(tag) ? null : tag,
-            order.Value);
+            order);
 
         (IReadOnlyList<CatalogFlag> items, int total) = query.Run(await _catalog.GetAllAsync(cancellationToken), skip, take);
         return Ok(new PagedViewModel<FlagListItemResponseModel> { Total = total, Items = await _responses.ListItemsAsync(items) });
     }
 
-    /// <summary>The groups and tags flags are in, for the list's filters and the tree.</summary>
+    /// <summary>The sections and tags flags are in, for the list's filters, and what the list says about the site.</summary>
     [HttpGet("flags/summary")]
     [ProducesResponseType<FlagSummaryResponseModel>(StatusCodes.Status200OK)]
     public async Task<FlagSummaryResponseModel> Summary(CancellationToken cancellationToken)
@@ -125,16 +106,16 @@ internal sealed class FlagsController : FeatureFlagsControllerBase
         CatalogFlag[] declared = flags.Where(flag => flag.IsDeclared).ToArray();
         return new FlagSummaryResponseModel
         {
-            Groups = declared
-                .GroupBy(flag => flag.Details.Group, StringComparer.OrdinalIgnoreCase)
+            Sections = declared
+                .GroupBy(flag => flag.Details.Section, StringComparer.OrdinalIgnoreCase)
                 .OrderBy(g => g.Key is null ? 1 : 0).ThenBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
-                .Select(g => new FlagGroupCountModel { Name = g.Key, Count = g.Count() })
+                .Select(g => new FlagSectionCountModel { Name = g.Key, Count = g.Count() })
                 .ToArray(),
             Tags = declared.SelectMany(flag => flag.Details.Tags).Distinct(StringComparer.OrdinalIgnoreCase)
                 .Order(StringComparer.OrdinalIgnoreCase).ToArray(),
             Total = declared.Length,
             Undeclared = flags.Count - declared.Length,
-            ReadOnly = _options.CurrentValue.Overrides != FeatureFlagsOverrides.Enabled,
+            ReadOnly = _options.CurrentValue.OverridesAreReadOnly(),
             Environment = _environment.EnvironmentName,
         };
     }

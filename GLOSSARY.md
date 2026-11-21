@@ -42,7 +42,7 @@ or a site's own `IFeatureDefinitionProvider`. Feature Flags wraps the site's fla
 ## Group
 
 A name a member can belong to for targeting: one of their member groups, or a name a group provider gives them.
-Not a backoffice user group.
+Not a backoffice user group, and not a [section](#section) of the flag list.
 
 ## Group provider
 
@@ -62,6 +62,12 @@ Each site and environment has its own overrides. Removed by resetting.
 ## Reset
 
 Removing a flag's override, so the flag goes back to its default.
+
+## Section
+
+The part of the flag list a flag is shown in, such as "Checkout", to help editors find it. Set with `section` where
+the flag is declared, or taken from the text before the first `.` in its name. It has no effect on who gets the
+feature. Not a [group](#group).
 
 ## State
 

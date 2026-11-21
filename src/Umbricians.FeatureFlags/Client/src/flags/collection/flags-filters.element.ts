@@ -1,16 +1,18 @@
-import { css, customElement, html, state } from "@umbraco-cms/backoffice/external/lit";
+import { css, customElement, html, nothing, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbLitElement } from "@umbraco-cms/backoffice/lit-element";
 import { UMB_COLLECTION_CONTEXT } from "@umbraco-cms/backoffice/collection";
-import type { UUISelectEvent } from "@umbraco-cms/backoffice/external/uui";
+import type { UUIBooleanInputEvent, UUISelectEvent } from "@umbraco-cms/backoffice/external/uui";
 import { FEATURE_FLAGS_SUMMARY_CONTEXT } from "../summary.context.js";
 import type { FeatureFlagSummary } from "../../api/feature-flags.resource.js";
+import type { FlagMark } from "../../api/types.js";
 import type { FeatureFlagsCollectionFilter } from "./flags-collection.repository.js";
 
 type Option = { name: string; value: string; selected?: boolean };
 
 /**
- * The flag list's filters beside Umbraco's own search: state, what to show, group, tag and order. Changing one goes
- * back to the first page, since the collection reloads from the server.
+ * The flag list's filters beside Umbraco's own search: state, which list to show, section, tag and order, and marks a
+ * flag must have, which combine. Changing one goes back to the first page, since the collection reloads from the
+ * server.
  */
 @customElement("umbricians-feature-flags-filters")
 export class FeatureFlagsFiltersElement extends UmbLitElement {
@@ -38,22 +40,35 @@ export class FeatureFlagsFiltersElement extends UmbLitElement {
     this.#collection?.setFilter({ ...change, skip: 0 } as Partial<FeatureFlagsCollectionFilter>);
   }
 
+  #toggleMark(mark: FlagMark, on: boolean) {
+    const marks = new Set(this._filter.marks ?? []);
+    if (on) marks.add(mark);
+    else marks.delete(mark);
+    this.#set({ marks: [...marks] });
+  }
+
   #options(options: Array<Option>, current: string | undefined | null): Array<Option> {
     return options.map((option) => ({ ...option, selected: option.value === (current ?? "") }));
   }
 
   override render() {
     const term = (key: string) => this.localize.term(key);
-    const groups: Array<Option> = [
-      { name: term("umbriciansFeatureFlags_allGroups"), value: "*" },
-      ...(this._summary?.groups ?? []).map((group) => ({
-        name: `${group.name ?? term("umbriciansFeatureFlags_ungrouped")} (${group.count})`,
-        value: group.name ?? "",
+    const sectionOptions: Array<Option> = [
+      { name: term("umbriciansFeatureFlags_allSections"), value: "*" },
+      ...(this._summary?.sections ?? []).map((section) => ({
+        name: `${section.name ?? term("umbriciansFeatureFlags_noSection")} (${section.count})`,
+        value: section.name ?? "",
       })),
     ];
     const tags: Array<Option> = [
       { name: term("umbriciansFeatureFlags_allTags"), value: "" },
       ...(this._summary?.tags ?? []).map((tag) => ({ name: tag, value: tag })),
+    ];
+
+    const marks: Array<[FlagMark, string]> = [
+      ["changed", "umbriciansFeatureFlags_showChanged"],
+      ["differs", "umbriciansFeatureFlags_showDiffers"],
+      ["twice", "umbriciansFeatureFlags_showTwice"],
     ];
 
     return html`
@@ -75,9 +90,6 @@ export class FeatureFlagsFiltersElement extends UmbLitElement {
         .options=${this.#options(
           [
             { name: term("umbriciansFeatureFlags_showDeclared"), value: "" },
-            { name: term("umbriciansFeatureFlags_showChanged"), value: "changed" },
-            { name: term("umbriciansFeatureFlags_showDiffers"), value: "differs" },
-            { name: term("umbriciansFeatureFlags_showTwice"), value: "twice" },
             {
               name: this.localize.term("umbriciansFeatureFlags_showUndeclared", this._summary?.undeclared ?? 0),
               value: "undeclared",
@@ -87,9 +99,9 @@ export class FeatureFlagsFiltersElement extends UmbLitElement {
         )}
         @change=${(e: UUISelectEvent) => this.#set({ show: (e.target.value || undefined) as FeatureFlagsCollectionFilter["show"] })}></uui-select>
       <uui-select
-        label=${term("umbriciansFeatureFlags_filterGroup")}
-        .options=${this.#options(groups, this._filter.group === undefined || this._filter.group === null ? "*" : this._filter.group)}
-        @change=${(e: UUISelectEvent) => this.#set({ group: e.target.value === "*" ? null : String(e.target.value) })}></uui-select>
+        label=${term("umbriciansFeatureFlags_filterSection")}
+        .options=${this.#options(sectionOptions, this._filter.section === undefined || this._filter.section === null ? "*" : this._filter.section)}
+        @change=${(e: UUISelectEvent) => this.#set({ section: e.target.value === "*" ? null : String(e.target.value) })}></uui-select>
       <uui-select
         label=${term("umbriciansFeatureFlags_filterTag")}
         .options=${this.#options(tags, this._filter.tag)}
@@ -101,9 +113,19 @@ export class FeatureFlagsFiltersElement extends UmbLitElement {
             { name: term("umbriciansFeatureFlags_sortName"), value: "" },
             { name: term("umbriciansFeatureFlags_sortUpdated"), value: "updated" },
           ],
-          this._filter.orderBy === "group" ? "" : this._filter.orderBy,
+          this._filter.orderBy === "section" ? "" : this._filter.orderBy,
         )}
         @change=${(e: UUISelectEvent) => this.#set({ orderBy: (e.target.value || undefined) as FeatureFlagsCollectionFilter["orderBy"] })}></uui-select>
+      ${this._filter.show === "undeclared"
+        ? nothing
+        : html`<div class="marks" role="group" aria-label=${term("umbriciansFeatureFlags_filterMarks")}>
+            ${marks.map(
+              ([mark, label]) => html`<uui-checkbox
+                label=${term(label)}
+                ?checked=${this._filter.marks?.includes(mark) ?? false}
+                @change=${(e: UUIBooleanInputEvent) => this.#toggleMark(mark, e.target.checked)}>${term(label)}</uui-checkbox>`,
+            )}
+          </div>`}
     `;
   }
 
@@ -112,7 +134,14 @@ export class FeatureFlagsFiltersElement extends UmbLitElement {
       display: flex;
       flex-wrap: wrap;
       gap: var(--uui-size-space-3);
+      align-items: center;
       margin-bottom: var(--uui-size-space-5);
+    }
+
+    .marks {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--uui-size-space-4);
     }
   `;
 }

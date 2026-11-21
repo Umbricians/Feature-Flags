@@ -9,7 +9,7 @@ public class FlagCatalogTests
     private const string Flags = """
         { "feature_management": { "feature_flags": [
             { "id": "Checkout.NewFlow", "enabled": false, "description": "The redesigned checkout.", "tags": [ "beta" ] },
-            { "id": "Checkout.GiftCards", "enabled": true, "group": "Payments" },
+            { "id": "Checkout.GiftCards", "enabled": true, "section": "Payments" },
             { "id": "Search.Suggestions", "enabled": true },
             { "id": "Sale", "enabled": true, "conditions": { "client_filters": [ { "name": "Microsoft.TimeWindow", "parameters": { "Start": "Mon, 01 Jan 2024 00:00:00 GMT" } } ] } } ] } }
         """;
@@ -28,9 +28,9 @@ public class FlagCatalogTests
         Assert.That(flags.Keys, Is.EquivalentTo(new[] { "Checkout.NewFlow", "Checkout.GiftCards", "Search.Suggestions", "Sale", "DarkMode" }));
         Assert.That(flags["Checkout.NewFlow"].Details, Is.EqualTo(new FlagDetails("The redesigned checkout.", "Checkout", flags["Checkout.NewFlow"].Details.Tags)));
         Assert.That(flags["Checkout.NewFlow"].Details.Tags, Is.EqualTo(new[] { "beta" }));
-        Assert.That(flags["Checkout.GiftCards"].Details.Group, Is.EqualTo("Payments"));
+        Assert.That(flags["Checkout.GiftCards"].Details.Section, Is.EqualTo("Payments"));
         Assert.That(flags["DarkMode"], Has.Property(nameof(CatalogFlag.DeclaredIn)).EqualTo(FlagDeclaredIn.Code)
-            .And.Property(nameof(CatalogFlag.Details)).Property(nameof(FlagDetails.Group)).Null);
+            .And.Property(nameof(CatalogFlag.Details)).Property(nameof(FlagDetails.Section)).Null);
         Assert.That(flags["Search.Suggestions"], Has.Property(nameof(CatalogFlag.DeclaredTwice)).True
             .And.Property(nameof(CatalogFlag.DeclaredIn)).EqualTo(FlagDeclaredIn.Configuration)
             .And.Property(nameof(CatalogFlag.State)).EqualTo(FlagDisplayState.Everyone));
@@ -64,10 +64,10 @@ public class FlagCatalogTests
         (IReadOnlyList<CatalogFlag> firstPage, int total) = new FlagQuery().Run(all, 0, 2);
         (IReadOnlyList<CatalogFlag> search, _) = new FlagQuery(Filter: "REDESIGNED").Run(all, 0, 10);
         (IReadOnlyList<CatalogFlag> on, _) = new FlagQuery(State: FlagDisplayState.Everyone).Run(all, 0, 10);
-        (IReadOnlyList<CatalogFlag> changed, _) = new FlagQuery(Show: FlagQueryShow.Changed).Run(all, 0, 10);
-        (IReadOnlyList<CatalogFlag> undeclared, _) = new FlagQuery(Show: FlagQueryShow.Undeclared).Run(all, 0, 10);
-        (IReadOnlyList<CatalogFlag> checkout, _) = new FlagQuery(Group: "checkout").Run(all, 0, 10);
-        (IReadOnlyList<CatalogFlag> ungrouped, _) = new FlagQuery(UngroupedOnly: true).Run(all, 0, 10);
+        (IReadOnlyList<CatalogFlag> changed, _) = new FlagQuery(Marks: FlagMarks.Changed).Run(all, 0, 10);
+        (IReadOnlyList<CatalogFlag> undeclared, _) = new FlagQuery(Undeclared: true).Run(all, 0, 10);
+        (IReadOnlyList<CatalogFlag> checkout, _) = new FlagQuery(Section: "checkout").Run(all, 0, 10);
+        (IReadOnlyList<CatalogFlag> noSection, _) = new FlagQuery(NoSectionOnly: true).Run(all, 0, 10);
         (IReadOnlyList<CatalogFlag> tagged, _) = new FlagQuery(Tag: "Beta").Run(all, 0, 10);
 
         Assert.That(total, Is.EqualTo(4));
@@ -77,8 +77,23 @@ public class FlagCatalogTests
         Assert.That(changed.Select(f => f.Name), Is.EqualTo(new[] { "Search.Suggestions" }));
         Assert.That(undeclared.Select(f => f.Name), Is.EqualTo(new[] { "Promo.Removed" }));
         Assert.That(checkout.Select(f => f.Name), Is.EqualTo(new[] { "Checkout.NewFlow" }));
-        Assert.That(ungrouped.Select(f => f.Name), Is.EqualTo(new[] { "Sale" }));
+        Assert.That(noSection.Select(f => f.Name), Is.EqualTo(new[] { "Sale" }));
         Assert.That(tagged.Select(f => f.Name), Is.EqualTo(new[] { "Checkout.NewFlow" }));
+    }
+
+    [Test]
+    public async Task Narrows_to_flags_with_every_mark_asked_for()
+    {
+        var site = new TestSite(Flags, before: services =>
+            services.AddSingleton(new CodeFlagDeclaration(FlagDefinitions.Simple("Search.Suggestions", false), FlagDetails.None)));
+        site.Store.With("Search.Suggestions", FlagSettings.Off).With("Sale", FlagSettings.Off);
+        IReadOnlyList<CatalogFlag> all = await Catalog(site).GetAllAsync(default);
+
+        (IReadOnlyList<CatalogFlag> changed, _) = new FlagQuery(Marks: FlagMarks.Changed).Run(all, 0, 10);
+        (IReadOnlyList<CatalogFlag> changedAndTwice, _) = new FlagQuery(Marks: FlagMarks.Changed | FlagMarks.DeclaredTwice).Run(all, 0, 10);
+
+        Assert.That(changed.Select(f => f.Name), Is.EquivalentTo(new[] { "Search.Suggestions", "Sale" }));
+        Assert.That(changedAndTwice.Select(f => f.Name), Is.EqualTo(new[] { "Search.Suggestions" }));
     }
 
     [Test]

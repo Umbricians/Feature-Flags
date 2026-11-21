@@ -7,13 +7,23 @@ namespace Umbricians.FeatureFlags.Flags;
 internal sealed record CodeFlagDeclaration(FeatureDefinition Definition, FlagDetails Details);
 
 /// <summary>What helps editors find and understand a flag. Microsoft has no place for these.</summary>
-internal sealed record FlagDetails(string? Description, string? Group, IReadOnlyList<string> Tags)
+internal sealed record FlagDetails(string? Description, string? Section, IReadOnlyList<string> Tags)
 {
     public static FlagDetails None { get; } = new(null, null, []);
 
     /// <summary>Each detail from this, or from <paramref name="fallback"/> where this has none.</summary>
     public FlagDetails Or(FlagDetails fallback) =>
-        new(Description ?? fallback.Description, Group ?? fallback.Group, Tags.Count > 0 ? Tags : fallback.Tags);
+        new(Description ?? fallback.Description, Section ?? fallback.Section, Tags.Count > 0 ? Tags : fallback.Tags);
+
+    /// <summary>These details, with the section taken from the flag's name when none was given.</summary>
+    public FlagDetails ForFlag(string name) => Section is null ? this with { Section = SectionFromName(name) } : this;
+
+    /// <summary>The text before the first <c>.</c> in a flag's name, when there is any.</summary>
+    private static string? SectionFromName(string name)
+    {
+        int dot = name.IndexOf('.');
+        return dot > 0 ? name[..dot] : null;
+    }
 }
 
 /// <summary>Where a declared flag comes from.</summary>
@@ -58,7 +68,7 @@ internal sealed class CodeFlags
 }
 
 /// <summary>
-/// Reads a flag's description, group and tags from configuration, from fields Microsoft ignores: in the
+/// Reads a flag's description, section and tags from configuration, from fields Microsoft ignores: in the
 /// <c>feature_management:feature_flags</c> list, or in a flag's section under <c>FeatureManagement</c>.
 /// </summary>
 internal sealed class ConfigurationFlagDetails(IConfiguration configuration)
@@ -90,18 +100,18 @@ internal sealed class ConfigurationFlagDetails(IConfiguration configuration)
         {
             if (string.Equals(flag["id"], name, StringComparison.OrdinalIgnoreCase))
             {
-                return Read(flag, "description", "group", "tags");
+                return Read(flag, "description", "section", "tags");
             }
         }
 
         IConfigurationSection section = configuration.GetSection("FeatureManagement").GetSection(name);
-        return section.Exists() ? Read(section, "Description", "Group", "Tags") : FlagDetails.None;
+        return section.Exists() ? Read(section, "Description", "Section", "Tags") : FlagDetails.None;
     }
 
-    private static FlagDetails Read(IConfigurationSection flag, string description, string group, string tags) =>
+    private static FlagDetails Read(IConfigurationSection flag, string description, string section, string tags) =>
         new(
             NullIfBlank(flag[description]),
-            NullIfBlank(flag[group]),
+            NullIfBlank(flag[section]),
             flag.GetSection(tags).GetChildren().Select(tag => tag.Value).OfType<string>().Where(tag => tag.Length > 0).ToArray());
 
     private static string? NullIfBlank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();

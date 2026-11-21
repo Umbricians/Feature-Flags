@@ -19,7 +19,7 @@ export interface FlagAudience {
 export interface FeatureFlagListItem {
   name: string;
   description: string | null;
-  group: string | null;
+  section: string | null;
   tags: Array<string>;
   declaredIn: FlagDeclaredIn;
   declaredTwice: boolean;
@@ -46,8 +46,8 @@ export interface FeatureFlag {
 }
 
 export interface FeatureFlagSummary {
-  /** Each group and how many flags it has; a null name is flags in no group. */
-  groups: Array<{ name: string | null; count: number }>;
+  /** Each section and how many flags it has; a null name is flags in no section. */
+  sections: Array<{ name: string | null; count: number }>;
   tags: Array<string>;
   total: number;
   undeclared: number;
@@ -63,8 +63,11 @@ export interface ProviderGroup {
   description: string | null;
 }
 
-export type FlagShow = "declared" | "changed" | "differs" | "twice" | "undeclared";
-export type FlagOrder = "name" | "group" | "updated";
+/** Which list: declared flags, or settings left from flags nobody declares any more. */
+export type FlagShow = "declared" | "undeclared";
+/** Notes a flag must have, every one of them, to be listed. */
+export type FlagMark = "changed" | "differs" | "twice";
+export type FlagOrder = "name" | "section" | "updated";
 
 export interface FlagQuery {
   skip?: number;
@@ -72,8 +75,9 @@ export interface FlagQuery {
   filter?: string;
   state?: FlagState | "";
   show?: FlagShow;
-  /** A group's name, or an empty string for flags in no group. */
-  group?: string | null;
+  marks?: Array<FlagMark>;
+  /** A section's name, or an empty string for flags in no section. */
+  section?: string | null;
   tag?: string;
   orderBy?: FlagOrder;
 }
