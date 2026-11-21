@@ -1,9 +1,9 @@
 # Design
 
 How Feature Flags works, and why. Words in this document are used as [GLOSSARY.md](../GLOSSARY.md) defines them.
-This is a working document for the people building the package: the design we are building towards, including
-what comes later. Parts marked **Open** are still to decide or verify. Once the package exists, what it does is
-described in the README and `docs/`, and this document keeps only the reasons.
+It is for the people building the package: the reasons behind the design, and what comes later. What the package
+does, and how to use it, is in the [README](../README.md) and the other pages in `docs/`. Parts marked **Open** are
+still to decide.
 
 ## What it is
 
@@ -98,7 +98,8 @@ first `.` in its name, so `Checkout.ExpressPay` is in "Checkout" with nothing to
 Feature Flags can't read details from, such as a site's own provider, are grouped by name alone. **Open:** how to
 read details for flags in Azure App Configuration, which keeps tags of its own.
 
-**Open:** whether code declarations take a full Microsoft `FeatureDefinition` as well as the short form.
+Code declarations take a full Microsoft `FeatureDefinition` as well as the short form, so code can declare anything
+configuration can.
 
 ## Overrides
 
@@ -118,15 +119,15 @@ default. Resetting deletes the override.
   in production from the same deploy. They aren't moved between environments. **Open:** whether to support
   Umbraco Deploy or uSync later.
 
-Storage is a package migration that adds one table, roughly:
+Storage is a package migration that adds one table, `umbriciansFeatureFlagsOverride`:
 
 | Column | |
 | --- | --- |
-| `Key` | `uniqueidentifier`, primary key |
-| `FlagName` | `nvarchar(255)`, unique |
-| `Definition` | `nvarchar(max)`: the flag in Microsoft's `feature_management` JSON |
-| `UpdatedBy` | the editor's user key |
-| `UpdatedUtc` | `datetime` |
+| `id` | `int`, primary key |
+| `flagName` | `nvarchar(255)`, unique |
+| `definition` | `nvarchar(max)`: the flag in Microsoft's `feature_management` JSON |
+| `updatedBy` | the editor's user key |
+| `updatedUtc` | `datetime` |
 
 Keeping the definition as Microsoft's JSON is the decision that makes later features cheap: time windows,
 percentages and variants need no migration. The provider reads stored JSON with Microsoft's own
@@ -135,10 +136,13 @@ window, a variant and an allocation read all of them back intact. The JSON is sa
 never rebuilt from a `FeatureDefinition`, because that direction is lossy: configuration values are all strings, so
 a variant's `2` would come back as `"2"`.
 
-**Open, to verify:** an editor's first override of a flag starts from its default, and a default from a wrapped
-source arrives as a `FeatureDefinition`, not JSON. Turning that into JSON is lossless for the parts the backoffice
-edits (state and audience), but not for variant values or filters it doesn't know. One option is to copy only the
-parts it edits and keep the rest from the default when evaluating.
+A default from a wrapped source arrives as a `FeatureDefinition`, not JSON, and turning that into JSON is lossy for
+variant values and filters the backoffice doesn't know. So the backoffice only edits flags whose definition it fully
+understands (off, on for everyone, on for an audience of users and groups at 100%), and writes their JSON itself.
+Any other flag is **Custom** and read-only, so nothing is ever rebuilt from a lossy copy.
+
+Microsoft's parser drops a disabled flag's conditions, so a flag switched off would lose its audience. The backoffice
+reads its own overrides' JSON directly, so turning a flag off keeps who it was for.
 
 The store is an interface (`IFeatureFlagOverrideStore`), registered with
 `TryAdd`, so a site can keep overrides somewhere else.
@@ -169,25 +173,19 @@ people another way replaces the accessor.
 - **Percentages for anonymous visitors.** Microsoft's percentage rollout buckets people by user id. With no id,
   every anonymous visitor probably lands in the same bucket, so a percentage would include all of them or none.
   Check before percentages ship; a fix would give each visitor a lasting anonymous id, such as a cookie.
-- **Still to check in Umbraco 17.8:** how to read a member's groups (`IMemberManager` is an ASP.NET Identity user
-  manager, so likely `GetRolesAsync`), and what `umb-input-member` and `umb-input-member-group` return (keys,
-  presumably).
+- **Group names in appsettings in the backoffice.** Targeting matches member groups by name or key, but the
+  backoffice's picker works by key, so a group named in appsettings shows as "other group" in the editor. Whether
+  the backoffice should look names up.
 
 ### Group providers
 
-```csharp
-public interface IFeatureFlagGroupProvider
-{
-    // The groups editors can pick, shown beside member groups.
-    Task<IEnumerable<FeatureFlagGroup>> GetGroupsAsync(CancellationToken cancellationToken);
+`IFeatureFlagGroupProvider` offers groups editors can pick (`GetGroupsAsync`) and says which of them a member is in
+(`GetGroupIdsForMemberAsync`). It is given a small `FeatureFlagMember` record (key, username, email, member group
+names) rather than Umbraco's member types, so a provider doesn't depend on how Umbraco loads members, and the
+record can grow without breaking providers. Several can be registered.
 
-    // The groups the current member is in.
-    Task<IEnumerable<string>> GetGroupsForMemberAsync(IPublishedMember member, CancellationToken cancellationToken);
-}
-```
-
-Several can be registered. **Open:** whether group providers are also asked about anonymous visitors (for rules
-such as country or campaign), which would mean passing the request rather than a member.
+**Open:** whether group providers are also asked about anonymous visitors (for rules such as country or campaign),
+which would mean passing the request rather than a member.
 
 ## Keeping it fast
 
@@ -202,10 +200,11 @@ every override's audience.
 ## Registering with Microsoft.FeatureManagement
 
 The package's composer calls `AddFeatureManagement()` and its targeting setup itself, so a site needs no code to
-start, then wraps whichever `IFeatureDefinitionProvider` is registered. **Open, to verify with tests:** a site that
-also calls `AddFeatureManagement()` in `Program.cs`, before or after Umbraco's composers run, must not end up with
-duplicate filters or with Feature Flags bypassed. Wrapping may need to happen when the provider is resolved rather
-than when it is registered.
+start, then wraps whichever `IFeatureDefinitionProvider` is registered. It only calls `AddFeatureManagement()` if the
+site hasn't: calling it twice registers Microsoft's time window filter twice, and checking a flag that uses it then
+throws. A site that calls it, or registers its own flag source, after Umbraco is added can't be wrapped at
+registration, so the package checks at startup and logs an error or warning saying what to move. Tests cover each
+order.
 
 ## Backoffice
 
@@ -243,20 +242,14 @@ hand that Umbraco already has. Checked in Umbraco 17.8, which ships UUI 2.2.1:
 | Confirming a switch-on | Umbraco's confirm modal |
 | Messages after a change | Umbraco's notifications (`uui-toast-notification`) |
 
-**Open, to check while building:** how a collection is given a custom data source for items that aren't Umbraco
-entities stored in its database, and whether the Settings tree item can open a collection directly.
+The collection gets its items from a `repository` extension that calls the package's API, and the Settings tree's
+menu item opens a workspace whose only view is the collection.
 
 ### Management API
 
-Under `umbriciansfeatureflags/api/v1`:
-
-| | |
-| --- | --- |
-| `GET flags?skip&take&filter&state&mark&group&tag&orderBy` | one page of declared and undeclared flags, with default, override and state, and the total, as Umbraco's `PagedViewModel`; searching, filtering and sorting happen on the server, across every flag |
-| `GET flags/{name}` | one flag |
-| `PUT flags/{name}` | save an override (Manage) |
-| `DELETE flags/{name}` | reset to default, or remove an undeclared flag (Manage) |
-| `GET groups` | the groups group providers offer |
+The endpoints are listed in the [README](../README.md#api). A flag's name is a query parameter (`flag?name=`), not a
+path segment, because names contain `.` and may contain `/` or `:`. Searching, filtering and sorting happen on the
+server, across every flag, so paging stays correct on a site with hundreds.
 
 ## Roadmap
 
