@@ -130,6 +130,10 @@ Storage is a package migration that adds one table, `umbriciansFeatureFlagsOverr
 | `updatedBy` | the editor's user key |
 | `updatedUtc` | `datetime` |
 
+The migration, and saving overrides through Umbraco's scopes, are tested against SQL Server as well as SQLite, with a
+test site started in the tests. Two saves of a flag with no override can both try to add its row at once; the unique
+index refuses the second, which then updates the first's row instead.
+
 Keeping the definition as Microsoft's JSON is the decision that makes later features cheap: time windows,
 percentages and variants need no migration. The provider reads stored JSON with Microsoft's own
 `ConfigurationFeatureDefinitionProvider`. A probe with targeting (users, groups, percentage, exclusions), a time

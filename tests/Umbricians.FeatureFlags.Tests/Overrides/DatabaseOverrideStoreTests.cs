@@ -1,3 +1,4 @@
+using Umbraco.Cms.Infrastructure.Scoping;
 using Umbricians.FeatureFlags.Overrides;
 
 namespace Umbricians.FeatureFlags.Tests.Overrides;
@@ -68,5 +69,30 @@ public class DatabaseOverrideStoreTests
         await _store.DeleteAsync("Missing", default);
 
         Assert.That((await _store.GetAllAsync(default)).Select(saved => saved.FlagName), Is.EqualTo(new[] { "B" }));
+    }
+
+    [Test]
+    public async Task A_save_that_fails_once_because_another_save_got_there_first_is_tried_again_and_kept()
+    {
+        int attempts = 0;
+        var store = new DatabaseOverrideStore(Stub.Of<IScopeProvider>((name, _) =>
+            name == "CreateScope" && ++attempts == 1 ? throw new InvalidOperationException("Duplicate key.") : _database.Scopes.CreateScope()));
+
+        await store.SaveAsync(new FeatureFlagOverride("Checkout.NewFlow", "{\"enabled\":true}", Editor, DateTime.UtcNow), default);
+
+        Assert.That((await _store.GetAllAsync(default)).Single().Definition, Is.EqualTo("{\"enabled\":true}"));
+        Assert.That(attempts, Is.EqualTo(2));
+    }
+
+    [Test]
+    public void A_save_that_keeps_failing_gives_up_after_three_tries_and_says_why()
+    {
+        int attempts = 0;
+        var store = new DatabaseOverrideStore(Stub.Of<IScopeProvider>((name, _) =>
+            name == "CreateScope" ? throw new InvalidOperationException($"Attempt {++attempts}.") : null));
+
+        Assert.That(
+            async () => await store.SaveAsync(new FeatureFlagOverride("Checkout.NewFlow", "{}", null, DateTime.UtcNow), default),
+            Throws.InvalidOperationException.With.Message.EqualTo("Attempt 3."));
     }
 }
