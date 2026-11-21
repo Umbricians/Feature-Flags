@@ -4,10 +4,10 @@ import type {
   FeatureFlag,
   FeatureFlagListItem,
   FeatureFlagSummary,
-  FlagAudience,
   FlagQuery,
   PagedResult,
   ProviderGroup,
+  SaveAudience,
 } from "./types.js";
 
 export type * from "./types.js";
@@ -63,7 +63,7 @@ export const fetchFlag = (name: string) => request<FeatureFlag>("GET", `flag?${n
 export const fetchProviderGroups = () => request<Array<ProviderGroup>>("GET", "provider-groups");
 
 /** Saves an editor's settings: on or off, and who for (null for everyone). */
-export const saveFlag = (name: string, enabled: boolean, audience: FlagAudience | null) =>
+export const saveFlag = (name: string, enabled: boolean, audience: SaveAudience | null) =>
   request<void>("PUT", `flag?${nameQuery(name)}`, { enabled, audience });
 
 /** Switches a flag on or off, keeping who it is for. */

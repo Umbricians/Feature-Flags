@@ -1,5 +1,5 @@
 // How flags are shown. No backoffice imports, so Node can test it.
-import type { AudienceCounts, FeatureFlagListItem, FlagAudience, FlagOrder, FlagState } from "../api/types.js";
+import type { AudienceCounts, FeatureFlagListItem, FlagOrder, FlagState } from "../api/types.js";
 
 /** A flag as a collection item: its unique is its name. */
 export interface FeatureFlagCollectionItem extends FeatureFlagListItem {
@@ -56,10 +56,6 @@ export function audienceParts(counts: AudienceCounts | null): Array<{ kind: "mem
   return (["members", "memberGroups", "groups"] as const)
     .map((kind) => ({ kind, count: counts[kind] }))
     .filter((part) => part.count > 0);
-}
-
-export function countAudience(audience: FlagAudience): AudienceCounts {
-  return { members: audience.members.length, memberGroups: audience.memberGroups.length, groups: audience.groups.length };
 }
 
 /** Joins words as a list in English prose: "a", "a and b", "a, b and c". */

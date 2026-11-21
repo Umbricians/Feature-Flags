@@ -26,20 +26,20 @@ internal sealed class FlagsController : FeatureFlagsControllerBase
 
     private readonly FlagCatalog _catalog;
     private readonly FlagResponses _responses;
-    private readonly IEnumerable<IFeatureFlagGroupProvider> _groupProviders;
+    private readonly AudienceGroups _audienceGroups;
     private readonly IOptionsMonitor<FeatureFlagsOptions> _options;
     private readonly IHostEnvironment _environment;
 
     public FlagsController(
         FlagCatalog catalog,
         FlagResponses responses,
-        IEnumerable<IFeatureFlagGroupProvider> groupProviders,
+        AudienceGroups audienceGroups,
         IOptionsMonitor<FeatureFlagsOptions> options,
         IHostEnvironment environment)
     {
         _catalog = catalog;
         _responses = responses;
-        _groupProviders = groupProviders;
+        _audienceGroups = audienceGroups;
         _options = options;
         _environment = environment;
     }
@@ -94,7 +94,7 @@ internal sealed class FlagsController : FeatureFlagsControllerBase
             order);
 
         (IReadOnlyList<CatalogFlag> items, int total) = query.Run(await _catalog.GetAllAsync(cancellationToken), skip, take);
-        return Ok(new PagedViewModel<FlagListItemResponseModel> { Total = total, Items = await _responses.ListItemsAsync(items) });
+        return Ok(new PagedViewModel<FlagListItemResponseModel> { Total = total, Items = await _responses.ListItemsAsync(items, cancellationToken) });
     }
 
     /// <summary>The sections and tags flags are in, for the list's filters, and what the list says about the site.</summary>
@@ -129,7 +129,7 @@ internal sealed class FlagsController : FeatureFlagsControllerBase
         CatalogFlag? flag = await _catalog.FindAsync(name, cancellationToken);
         return flag is null
             ? NotFound(new ProblemDetails { Title = "Flag not found", Detail = $"No flag source declares '{name}', and it has no saved setting." })
-            : Ok(await _responses.FlagAsync(flag));
+            : Ok(await _responses.FlagAsync(flag, cancellationToken));
     }
 
     /// <summary>The groups the site's group providers offer, for an audience.</summary>
@@ -137,15 +137,7 @@ internal sealed class FlagsController : FeatureFlagsControllerBase
     [ProducesResponseType<IEnumerable<ProviderGroupResponseModel>>(StatusCodes.Status200OK)]
     public async Task<IEnumerable<ProviderGroupResponseModel>> ProviderGroups(CancellationToken cancellationToken)
     {
-        var groups = new List<ProviderGroupResponseModel>();
-        foreach (IFeatureFlagGroupProvider provider in _groupProviders)
-        {
-            foreach (FeatureFlagGroup group in await provider.GetGroupsAsync(cancellationToken))
-            {
-                groups.Add(new ProviderGroupResponseModel { Id = group.Id, Name = group.Name, Description = group.Description });
-            }
-        }
-
-        return groups;
+        GroupDirectory directory = await _audienceGroups.ReadAsync(cancellationToken);
+        return directory.ProviderGroups.Select(group => new ProviderGroupResponseModel { Id = group.Id, Name = group.Name, Description = group.Description });
     }
 }

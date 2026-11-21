@@ -1,4 +1,5 @@
 using Umbricians.FeatureFlags.Flags;
+using Umbricians.FeatureFlags.Groups;
 
 namespace Umbricians.FeatureFlags.Controllers;
 
@@ -28,6 +29,15 @@ internal static class ApiNames
     };
 
     public static string State(FlagDisplayState state) => States[state];
+
+    /// <summary>What an audience group is, as the API says it.</summary>
+    public static string GroupKind(AudienceGroupKind kind) => kind switch
+    {
+        AudienceGroupKind.MemberGroup => "memberGroup",
+        AudienceGroupKind.NamedMemberGroup => "namedMemberGroup",
+        AudienceGroupKind.ProviderGroup => "providerGroup",
+        _ => "unknown",
+    };
 
     /// <summary>A state from its name; true with null for none given.</summary>
     public static bool TryParseState(string? name, out FlagDisplayState? state)

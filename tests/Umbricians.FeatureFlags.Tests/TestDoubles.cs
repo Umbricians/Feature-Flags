@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -6,6 +7,7 @@ using Microsoft.FeatureManagement;
 using Microsoft.FeatureManagement.FeatureFilters;
 using Umbricians.FeatureFlags.Composers;
 using Umbricians.FeatureFlags.Flags;
+using Umbricians.FeatureFlags.Groups;
 using Umbricians.FeatureFlags.Overrides;
 
 namespace Umbricians.FeatureFlags.Tests;
@@ -64,6 +66,39 @@ internal sealed class InMemoryOverrideStore : IFeatureFlagOverrideStore
     public IReadOnlyCollection<FeatureFlagOverride> All => _overrides.Values;
 }
 
+/// <summary>Keeps the site's member groups in a list; a site without Umbraco has none.</summary>
+internal sealed class InMemoryMemberGroups : IMemberGroups
+{
+    public List<KnownMemberGroup> Groups { get; } = [];
+
+    public InMemoryMemberGroups Add(Guid key, string name)
+    {
+        Groups.Add(new KnownMemberGroup(key, name));
+        return this;
+    }
+
+    public Task<IReadOnlyList<KnownMemberGroup>> GetAllAsync(CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<KnownMemberGroup>>(Groups.ToArray());
+}
+
+/// <summary>
+/// A hand-written double for an Umbraco interface too big to implement by hand: every member answers through
+/// <see cref="Answer"/>, which returns null (the default) for the ones a test doesn't care about.
+/// </summary>
+internal class Stub : DispatchProxy
+{
+    public Func<string, object?[], object?> Answer { get; set; } = (_, _) => null;
+
+    public static T Of<T>(Func<string, object?[], object?> answer) where T : class
+    {
+        T proxy = Create<T, Stub>();
+        ((Stub)(object)proxy).Answer = answer;
+        return proxy;
+    }
+
+    protected override object? Invoke(MethodInfo? targetMethod, object?[]? args) => Answer(targetMethod!.Name, args ?? []);
+}
+
 /// <summary>Says the visitor is whoever the test sets.</summary>
 internal sealed class FixedTargetingContextAccessor : ITargetingContextAccessor
 {
@@ -89,6 +124,7 @@ internal sealed class TestSite
         services.AddLogging();
         services.AddSingleton<IConfiguration>(Configuration);
         services.AddSingleton<IFeatureFlagOverrideStore>(Store);
+        services.AddSingleton<IMemberGroups>(MemberGroups);
         services.AddSingleton<ITargetingContextAccessor>(Visitor);
         before?.Invoke(services);
         services.AddFeatureFlags(Configuration);
@@ -100,6 +136,8 @@ internal sealed class TestSite
     public IConfiguration Configuration { get; }
 
     public InMemoryOverrideStore Store { get; } = new();
+
+    public InMemoryMemberGroups MemberGroups { get; } = new();
 
     public FixedTargetingContextAccessor Visitor { get; } = new();
 

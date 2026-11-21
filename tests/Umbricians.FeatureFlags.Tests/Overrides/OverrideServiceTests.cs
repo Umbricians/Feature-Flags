@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Umbricians.FeatureFlags.Flags;
+using Umbricians.FeatureFlags.Groups;
 using Umbricians.FeatureFlags.Overrides;
 
 namespace Umbricians.FeatureFlags.Tests.Overrides;
@@ -42,6 +43,37 @@ public class OverrideServiceTests
         Assert.That(await site.IsOnAsync("Checkout.NewFlow"), Is.True);
         Assert.That(FlagDefinitions.ReadOverride(site.Store.All.Single().Definition, out _)!.Audience!.Members,
             Is.EqualTo(new[] { Member.ToLowerInvariant() }));
+    }
+
+    [Test]
+    public async Task Saving_writes_member_group_keys_the_way_targeting_compares_them_and_leaves_provider_ids_as_they_are()
+    {
+        string providerId = "A1B2C3D4-0000-4000-8000-000000000000";
+        var site = new TestSite(Flags, before: services => services.AddSingleton<IFeatureFlagGroupProvider>(new TestProvider(providerId)));
+        site.MemberGroups.Add(Guid.Parse(Group), "Premium members");
+
+        await Service(site).SaveAsync("Checkout.NewFlow", new FlagSettings(true, new FlagAudience([], [Group.ToUpperInvariant(), providerId])), Editor, default);
+
+        Assert.That(FlagDefinitions.ReadOverride(site.Store.All.Single().Definition, out _)!.Audience!.Groups, Is.EqualTo(new[] { Group, providerId }));
+    }
+
+    [Test]
+    public async Task Saving_keeps_member_groups_named_by_name_and_unknown_ids()
+    {
+        var site = new TestSite(Flags);
+        site.MemberGroups.Add(Guid.NewGuid(), "VIPs");
+
+        await Service(site).SaveAsync("Checkout.NewFlow", new FlagSettings(true, new FlagAudience([], ["VIPs", "crm:gone", Group.ToUpperInvariant()])), Editor, default);
+
+        Assert.That(FlagDefinitions.ReadOverride(site.Store.All.Single().Definition, out _)!.Audience!.Groups,
+            Is.EqualTo(new[] { "VIPs", "crm:gone", Group.ToUpperInvariant() }));
+    }
+
+    private sealed class TestProvider(string id) : IFeatureFlagGroupProvider
+    {
+        public Task<IEnumerable<FeatureFlagGroup>> GetGroupsAsync(CancellationToken cancellationToken) => Task.FromResult<IEnumerable<FeatureFlagGroup>>([new FeatureFlagGroup(id, "Provided")]);
+
+        public Task<IEnumerable<string>> GetGroupIdsForMemberAsync(FeatureFlagMember member, CancellationToken cancellationToken) => Task.FromResult<IEnumerable<string>>([]);
     }
 
     [Test]

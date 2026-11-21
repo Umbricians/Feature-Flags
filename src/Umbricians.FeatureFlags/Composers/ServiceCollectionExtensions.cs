@@ -6,6 +6,7 @@ using Microsoft.FeatureManagement.FeatureFilters;
 using Umbricians.FeatureFlags.Configuration;
 using Umbricians.FeatureFlags.Controllers;
 using Umbricians.FeatureFlags.Flags;
+using Umbricians.FeatureFlags.Groups;
 using Umbricians.FeatureFlags.OpenApi;
 using Umbricians.FeatureFlags.Overrides;
 using Umbricians.FeatureFlags.Targeting;
@@ -52,6 +53,8 @@ internal static class ServiceCollectionExtensions
         services.TryAddSingleton<IFeatureFlagOverrideStore, DatabaseOverrideStore>();
         services.TryAddSingleton<FlagResolution>();
         services.TryAddSingleton<FlagCatalog>();
+        services.TryAddSingleton<IMemberGroups, UmbracoMemberGroups>();
+        services.TryAddSingleton<AudienceGroups>();
         services.TryAddSingleton<OverrideService>();
         services.TryAddSingleton<FlagResponses>();
         return services;

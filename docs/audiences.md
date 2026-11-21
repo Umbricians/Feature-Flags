@@ -51,6 +51,9 @@ each environment's database, but a group's name is the same everywhere.
 Choose individual members in each environment's backoffice instead. The backoffice saves member groups by key, so
 picks survive a group being renamed.
 
+A member group named by name in appsettings shows in the editor under **Member groups**, marked "named in
+configuration", and is kept when an editor saves the flag.
+
 When a member or member group is deleted, Feature Flags removes it from every saved audience.
 
 ## Group providers

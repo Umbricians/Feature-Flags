@@ -2,7 +2,7 @@ using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core.Cache;
 using Umbricians.FeatureFlags.Configuration;
 using Umbricians.FeatureFlags.Flags;
-using Umbricians.FeatureFlags.Targeting;
+using Umbricians.FeatureFlags.Groups;
 
 namespace Umbricians.FeatureFlags.Overrides;
 
@@ -17,6 +17,7 @@ internal sealed class OverrideService
     private readonly DistributedCache? _distributedCache;
     private readonly TimeProvider _time;
     private readonly IOptionsMonitor<FeatureFlagsOptions> _options;
+    private readonly AudienceGroups _groups;
 
     public OverrideService(
         IFeatureFlagOverrideStore store,
@@ -24,6 +25,7 @@ internal sealed class OverrideService
         OverrideCache cache,
         TimeProvider time,
         IOptionsMonitor<FeatureFlagsOptions> options,
+        AudienceGroups groups,
         DistributedCache? distributedCache = null)
     {
         _store = store;
@@ -31,6 +33,7 @@ internal sealed class OverrideService
         _cache = cache;
         _time = time;
         _options = options;
+        _groups = groups;
         _distributedCache = distributedCache;
     }
 
@@ -71,7 +74,9 @@ internal sealed class OverrideService
             return OverrideResult.ReadOnly(flag.ReadOnlyReason);
         }
 
-        FlagSettings normalized = Normalize(settings);
+        FlagSettings normalized = settings.Audience is null
+            ? settings
+            : settings with { Audience = (await _groups.ReadAsync(cancellationToken)).Normalize(settings.Audience) };
         await _store.SaveAsync(
             new FeatureFlagOverride(flag.Name, FlagDefinitions.ToJson(flag.Name, normalized), userKey, _time.GetUtcNow().UtcDateTime),
             cancellationToken);
@@ -154,23 +159,6 @@ internal sealed class OverrideService
         // its own read, so whatever the editor does next sees the change.
         _distributedCache?.RefreshAll(FeatureFlagsCacheRefresher.UniqueId);
         return _cache.ReloadAsync();
-    }
-
-    /// <summary>Writes keys the way targeting compares them, and drops blanks and repeats.</summary>
-    private static FlagSettings Normalize(FlagSettings settings)
-    {
-        if (settings.Audience is null)
-        {
-            return settings;
-        }
-
-        static string[] Clean(IEnumerable<string> ids) => ids
-            .Where(id => !string.IsNullOrWhiteSpace(id))
-            .Select(id => Guid.TryParse(id, out Guid key) ? TargetingIds.For(key) : id.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-
-        return settings with { Audience = new FlagAudience(Clean(settings.Audience.Members), Clean(settings.Audience.Groups)) };
     }
 }
 

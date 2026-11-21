@@ -2,8 +2,8 @@ import { css, customElement, html, nothing, state } from "@umbraco-cms/backoffic
 import { UmbLitElement } from "@umbraco-cms/backoffice/lit-element";
 import { UmbTextStyles } from "@umbraco-cms/backoffice/style";
 import type { UUIRadioGroupEvent } from "@umbraco-cms/backoffice/external/uui";
-import type { FeatureFlag, FlagAudience, ProviderGroup } from "../../../api/feature-flags.resource.js";
-import { countAudience } from "../../display.js";
+import type { AudienceGroup, FeatureFlag, FlagAudience, ProviderGroup } from "../../../api/feature-flags.resource.js";
+import { countAudience, emptyAudience, groupsOfKind, hasGroup, memberGroupKeys } from "../../audience.js";
 import { changedText, describeAudience, stateLabel } from "../../describe.js";
 import { FEATURE_FLAG_WORKSPACE_CONTEXT } from "../flag-workspace.context-token.js";
 import type { FlagEditorMode } from "../flag-workspace.context.js";
@@ -24,7 +24,7 @@ export class FeatureFlagSettingsViewElement extends UmbLitElement {
 
   @state() private _flag?: FeatureFlag;
   @state() private _mode: FlagEditorMode = "off";
-  @state() private _audience: FlagAudience = { members: [], memberGroups: [], groups: [] };
+  @state() private _audience: FlagAudience = emptyAudience();
   @state() private _providerGroups: Array<ProviderGroup> = [];
   @state() private _canManage = false;
 
@@ -73,6 +73,8 @@ export class FeatureFlagSettingsViewElement extends UmbLitElement {
 
   #renderAudience(readOnly: boolean) {
     const selection = (e: Event) => [...(e.target as unknown as { selection: Array<string> }).selection];
+    const named = groupsOfKind(this._audience, "namedMemberGroup");
+    const unknown = groupsOfKind(this._audience, "unknown");
     return html`<uui-box headline=${this.localize.term("umbriciansFeatureFlags_audience")}>
       <p class="summary">
         ${this.localize.term("umbriciansFeatureFlags_onFor", describeAudience(this.localize, countAudience(this._audience)))}
@@ -84,35 +86,61 @@ export class FeatureFlagSettingsViewElement extends UmbLitElement {
           slot="editor"
           .selection=${this._audience.members}
           ?readonly=${readOnly}
-          @change=${(e: Event) => this.#context?.updateAudience({ members: selection(e) })}></umb-input-member>
+          @change=${(e: Event) => this.#context?.setMembers(selection(e))}></umb-input-member>
       </umb-property-layout>
       <umb-property-layout
         label=${this.localize.term("umbriciansFeatureFlags_audienceMemberGroups")}
         description=${this.localize.term("umbriciansFeatureFlags_audienceMemberGroupsHelp")}>
-        <umb-input-member-group
-          slot="editor"
-          .selection=${this._audience.memberGroups}
-          ?readonly=${readOnly}
-          @change=${(e: Event) => this.#context?.updateAudience({ memberGroups: selection(e) })}></umb-input-member-group>
+        <div slot="editor" class="groups">
+          <umb-input-member-group
+            .selection=${memberGroupKeys(this._audience)}
+            ?readonly=${readOnly}
+            @change=${(e: Event) => this.#context?.setMemberGroupKeys(selection(e))}></umb-input-member-group>
+          ${named.map((group) =>
+            this.#renderKeptGroup(group, this.localize.term("umbriciansFeatureFlags_namedMemberGroup", group.name ?? group.id), readOnly),
+          )}
+        </div>
       </umb-property-layout>
-      ${this._providerGroups.length
+      ${this._providerGroups.length || unknown.length
         ? html`<umb-property-layout
             label=${this.localize.term("umbriciansFeatureFlags_audienceGroups")}
             description=${this.localize.term("umbriciansFeatureFlags_audienceGroupsHelp")}>
-            <div slot="editor" class="checkboxes">
-              ${this._providerGroups.map(
-                (group) => html`<uui-checkbox
-                  label=${group.name}
-                  ?checked=${this._audience.groups.includes(group.id)}
-                  ?disabled=${readOnly}
-                  @change=${(e: Event) => this.#context?.toggleProviderGroup(group.id, (e.target as HTMLInputElement).checked)}>
-                  ${group.name}${group.description ? html` <small>${group.description}</small>` : nothing}
-                </uui-checkbox>`,
+            <div slot="editor" class="groups">
+              <div class="checkboxes">
+                ${this._providerGroups.map(
+                  (group) => html`<uui-checkbox
+                    label=${group.name}
+                    ?checked=${hasGroup(this._audience, group.id)}
+                    ?disabled=${readOnly}
+                    @change=${(e: Event) => this.#context?.setProviderGroup(group, (e.target as HTMLInputElement).checked)}>
+                    ${group.name}${group.description ? html` <small>${group.description}</small>` : nothing}
+                  </uui-checkbox>`,
+                )}
+              </div>
+              ${unknown.map((group) =>
+                this.#renderKeptGroup(group, this.localize.term("umbriciansFeatureFlags_unknownGroup", group.id), readOnly),
               )}
+              ${unknown.length ? html`<small>${this.localize.term("umbriciansFeatureFlags_unknownGroupsHelp")}</small>` : nothing}
             </div>
           </umb-property-layout>`
         : nothing}
     </uui-box>`;
+  }
+
+  /** A group the pickers can't show, as a tag that stays in the audience until it is removed. */
+  #renderKeptGroup(group: AudienceGroup, label: string, readOnly: boolean) {
+    return html`<div class="kept">
+      <uui-tag look="secondary">${label}</uui-tag>
+      ${readOnly
+        ? nothing
+        : html`<uui-button
+            compact
+            look="secondary"
+            label=${this.localize.term("umbriciansFeatureFlags_removeGroup", group.name ?? group.id)}
+            @click=${() => this.#context?.removeGroup(group.id)}>
+            <uui-icon name="icon-wrong"></uui-icon>
+          </uui-button>`}
+    </div>`;
   }
 
   #renderInfo(flag: FeatureFlag) {
@@ -177,6 +205,16 @@ export class FeatureFlagSettingsViewElement extends UmbLitElement {
       .summary {
         font-weight: bold;
         margin-top: 0;
+      }
+      .groups {
+        display: flex;
+        flex-direction: column;
+        gap: var(--uui-size-space-2);
+      }
+      .kept {
+        display: flex;
+        align-items: center;
+        gap: var(--uui-size-space-2);
       }
       .checkboxes {
         display: flex;

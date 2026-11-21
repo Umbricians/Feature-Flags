@@ -16,19 +16,25 @@ import {
   saveFlag,
   type FeatureFlag,
   type FlagAudience,
+  type SaveAudience,
   type ProviderGroup,
 } from "../../api/feature-flags.resource.js";
 import { FeatureFlagsRequestError } from "../../api/request-error.js";
 import { FEATURE_FLAG_ENTITY_TYPE, FEATURE_FLAG_WORKSPACE_ALIAS } from "../../constants.js";
 import { FEATURE_FLAGS_PERMISSION_MANAGE } from "../../permissions/constants.js";
 import { observePermission } from "../../permissions/permissions.js";
+import {
+  emptyAudience,
+  toSaveAudience,
+  withMemberGroupKeys,
+  withoutGroup,
+  withProviderGroup,
+} from "../audience.js";
 import { stateLabel } from "../describe.js";
 import { FeatureFlagEditorElement } from "./flag-editor.element.js";
 
 /** What the editor's state choice means: off (keeping any audience), on for everyone, or on for an audience. */
 export type FlagEditorMode = "off" | "everyone" | "audience";
-
-const emptyAudience = (): FlagAudience => ({ members: [], memberGroups: [], groups: [] });
 
 /**
  * The flag editor's workspace, at …/edit/{name}: loads one flag, holds the editor's unsaved changes, and saves or resets
@@ -121,14 +127,20 @@ export class FeatureFlagWorkspaceContext extends UmbContextBase implements UmbRo
     this.#dirty.setValue(true);
   }
 
-  updateAudience(change: Partial<FlagAudience>) {
-    this.#audience.update(change);
-    this.#dirty.setValue(true);
+  setMembers(keys: Array<string>) {
+    this.#changeAudience((audience) => ({ ...audience, members: keys }));
   }
 
-  toggleProviderGroup(id: string, checked: boolean) {
-    const groups = this.#audience.getValue().groups;
-    this.updateAudience({ groups: checked ? [...new Set([...groups, id])] : groups.filter((group) => group !== id) });
+  setMemberGroupKeys(keys: Array<string>) {
+    this.#changeAudience((audience) => withMemberGroupKeys(audience, keys));
+  }
+
+  setProviderGroup(group: ProviderGroup, checked: boolean) {
+    this.#changeAudience((audience) => withProviderGroup(audience, group, checked));
+  }
+
+  removeGroup(id: string) {
+    this.#changeAudience((audience) => withoutGroup(audience, id));
   }
 
   async save() {
@@ -176,14 +188,19 @@ export class FeatureFlagWorkspaceContext extends UmbContextBase implements UmbRo
     }
   }
 
+  #changeAudience(change: (audience: FlagAudience) => FlagAudience) {
+    this.#audience.setValue(change(this.#audience.getValue()));
+    this.#dirty.setValue(true);
+  }
+
   /** The audience to save: the chosen one when on for an audience, the one kept while off, or none for everyone. */
-  #audienceToSave(flag: FeatureFlag): FlagAudience | null {
+  #audienceToSave(flag: FeatureFlag): SaveAudience | null {
     const mode = this.#mode.getValue();
     const audience = this.#audience.getValue();
     if (mode === "everyone") return null;
-    if (mode === "audience") return audience;
-    const kept = audience.members.length + audience.memberGroups.length + audience.groups.length > 0;
-    return kept || flag.audienceDetail ? audience : null;
+    if (mode === "audience") return toSaveAudience(audience);
+    const kept = audience.members.length + audience.groups.length > 0;
+    return kept || flag.audienceDetail ? toSaveAudience(audience) : null;
   }
 
   #fail(error: unknown) {
