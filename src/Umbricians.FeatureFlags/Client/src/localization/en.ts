@@ -38,6 +38,7 @@ export default {
     noSection: "No section",
     filterState: "State",
     filterShow: "Show",
+    filterMarks: "Only flags that are",
     filterSection: "Section",
     filterTag: "Tag",
     sort: "Sort",

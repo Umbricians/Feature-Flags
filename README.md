@@ -146,7 +146,7 @@ flags; changes need Change feature flags too.
 
 | Endpoint | |
 | --- | --- |
-| `GET flags?skip&take&filter&state&show&section&tag&orderBy` | A page of flags (at most 100), searched, filtered and sorted across every flag. |
+| `GET flags?skip&take&filter&state&show&marks&section&tag&orderBy` | A page of flags (at most 100), searched, filtered and sorted across every flag. `show` is `declared` or `undeclared`; `marks` narrows to flags with every one of `changed`, `differs` and `twice`. |
 | `GET flags/summary` | The sections and tags in use, counts, whether overrides are read-only, and the environment's name. |
 | `GET flag?name=` | One flag, with its default, its saved setting and who it is on for. |
 | `GET provider-groups` | The groups the site's group providers offer. |

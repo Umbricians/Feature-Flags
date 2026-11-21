@@ -19,8 +19,9 @@ Flags are listed in sections, such as Checkout, with a description under each. T
 
 - type in **Type to filter** to search names and descriptions;
 - use the filters for state, section and tag;
-- use **Show** to see only flags changed here, flags that differ from their default, flags declared twice, or
-  undeclared flags;
+- tick **Changed here**, **Differs from default** or **Declared twice** to see only flags with those notes; tick more
+  than one to see flags with all of them;
+- use **Show** to switch to undeclared flags;
 - sort by section or by when they last changed;
 - switch between a list and cards with the button at the top right.
 

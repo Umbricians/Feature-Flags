@@ -64,8 +64,8 @@ public class FlagCatalogTests
         (IReadOnlyList<CatalogFlag> firstPage, int total) = new FlagQuery().Run(all, 0, 2);
         (IReadOnlyList<CatalogFlag> search, _) = new FlagQuery(Filter: "REDESIGNED").Run(all, 0, 10);
         (IReadOnlyList<CatalogFlag> on, _) = new FlagQuery(State: FlagDisplayState.Everyone).Run(all, 0, 10);
-        (IReadOnlyList<CatalogFlag> changed, _) = new FlagQuery(Show: FlagQueryShow.Changed).Run(all, 0, 10);
-        (IReadOnlyList<CatalogFlag> undeclared, _) = new FlagQuery(Show: FlagQueryShow.Undeclared).Run(all, 0, 10);
+        (IReadOnlyList<CatalogFlag> changed, _) = new FlagQuery(Marks: FlagMarks.Changed).Run(all, 0, 10);
+        (IReadOnlyList<CatalogFlag> undeclared, _) = new FlagQuery(Undeclared: true).Run(all, 0, 10);
         (IReadOnlyList<CatalogFlag> checkout, _) = new FlagQuery(Section: "checkout").Run(all, 0, 10);
         (IReadOnlyList<CatalogFlag> noSection, _) = new FlagQuery(NoSectionOnly: true).Run(all, 0, 10);
         (IReadOnlyList<CatalogFlag> tagged, _) = new FlagQuery(Tag: "Beta").Run(all, 0, 10);
@@ -79,6 +79,21 @@ public class FlagCatalogTests
         Assert.That(checkout.Select(f => f.Name), Is.EqualTo(new[] { "Checkout.NewFlow" }));
         Assert.That(noSection.Select(f => f.Name), Is.EqualTo(new[] { "Sale" }));
         Assert.That(tagged.Select(f => f.Name), Is.EqualTo(new[] { "Checkout.NewFlow" }));
+    }
+
+    [Test]
+    public async Task Narrows_to_flags_with_every_mark_asked_for()
+    {
+        var site = new TestSite(Flags, before: services =>
+            services.AddSingleton(new CodeFlagDeclaration(FlagDefinitions.Simple("Search.Suggestions", false), FlagDetails.None)));
+        site.Store.With("Search.Suggestions", FlagSettings.Off).With("Sale", FlagSettings.Off);
+        IReadOnlyList<CatalogFlag> all = await Catalog(site).GetAllAsync(default);
+
+        (IReadOnlyList<CatalogFlag> changed, _) = new FlagQuery(Marks: FlagMarks.Changed).Run(all, 0, 10);
+        (IReadOnlyList<CatalogFlag> changedAndTwice, _) = new FlagQuery(Marks: FlagMarks.Changed | FlagMarks.DeclaredTwice).Run(all, 0, 10);
+
+        Assert.That(changed.Select(f => f.Name), Is.EquivalentTo(new[] { "Search.Suggestions", "Sale" }));
+        Assert.That(changedAndTwice.Select(f => f.Name), Is.EqualTo(new[] { "Search.Suggestions" }));
     }
 
     [Test]

@@ -27,19 +27,11 @@ internal sealed class FlagResponses
         return new FlagResponseModel
         {
             Flag = item,
-            DefaultState = StateName(flag.DefaultState),
+            DefaultState = ApiNames.State(flag.DefaultState),
             AudienceDetail = flag.Settings?.Audience is { } audience ? Detail(audience) : null,
             OverrideDefinition = flag.Override?.Definition,
         };
     }
-
-    public static string StateName(FlagDisplayState state) => state switch
-    {
-        FlagDisplayState.Off => "off",
-        FlagDisplayState.Everyone => "everyone",
-        FlagDisplayState.Audience => "audience",
-        _ => "custom",
-    };
 
     public static string DeclaredInName(FlagDeclaredIn declaredIn) => declaredIn switch
     {
@@ -72,7 +64,7 @@ internal sealed class FlagResponses
             DeclaredIn = DeclaredInName(flag.DeclaredIn),
             DeclaredTwice = flag.DeclaredTwice,
             IsDeclared = flag.IsDeclared,
-            State = StateName(flag.State),
+            State = ApiNames.State(flag.State),
             Enabled = flag.Settings?.Enabled ?? flag.State != FlagDisplayState.Off,
             Audience = audience is null
                 ? null

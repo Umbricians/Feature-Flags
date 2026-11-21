@@ -1,13 +1,14 @@
 namespace Umbricians.FeatureFlags.Flags;
 
 /// <summary>
-/// Searches, filters, sorts and pages the flag list, across every flag. Undeclared flags are only listed when asked
-/// for, since they have no effect.
+/// Searches, filters, sorts and pages the flag list, across every flag. Undeclared flags are a list of their own, only
+/// shown when asked for, since they have no effect. Every filter given must match.
 /// </summary>
 internal sealed record FlagQuery(
     string? Filter = null,
     FlagDisplayState? State = null,
-    FlagQueryShow Show = FlagQueryShow.Declared,
+    bool Undeclared = false,
+    FlagMarks Marks = FlagMarks.None,
     string? Section = null,
     bool NoSectionOnly = false,
     string? Tag = null,
@@ -32,18 +33,14 @@ internal sealed record FlagQuery(
         return (all.Skip(Math.Max(0, skip)).Take(Math.Max(0, take)).ToArray(), all.Length);
     }
 
+    private bool HasMarks(CatalogFlag flag) =>
+        (!Marks.HasFlag(FlagMarks.Changed) || flag.Override is not null)
+        && (!Marks.HasFlag(FlagMarks.DiffersFromDefault) || flag.DiffersFromDefault)
+        && (!Marks.HasFlag(FlagMarks.DeclaredTwice) || flag.DeclaredTwice);
+
     private bool Matches(CatalogFlag flag)
     {
-        bool shown = Show switch
-        {
-            FlagQueryShow.Undeclared => !flag.IsDeclared,
-            FlagQueryShow.Changed => flag.IsDeclared && flag.Override is not null,
-            FlagQueryShow.DiffersFromDefault => flag.IsDeclared && flag.DiffersFromDefault,
-            FlagQueryShow.DeclaredTwice => flag.IsDeclared && flag.DeclaredTwice,
-            _ => flag.IsDeclared,
-        };
-
-        if (!shown || (State is not null && flag.State != State))
+        if (flag.IsDeclared == Undeclared || !HasMarks(flag) || (State is not null && flag.State != State))
         {
             return false;
         }
@@ -70,13 +67,20 @@ internal sealed record FlagQuery(
     }
 }
 
-internal enum FlagQueryShow
+/// <summary>Notes on a flag the list can be narrowed to; a flag must have every one asked for.</summary>
+[Flags]
+internal enum FlagMarks
 {
-    Declared,
-    Changed,
-    DiffersFromDefault,
-    DeclaredTwice,
-    Undeclared,
+    None = 0,
+
+    /// <summary>An editor has changed it on this site.</summary>
+    Changed = 1,
+
+    /// <summary>Its setting here differs from its default.</summary>
+    DiffersFromDefault = 2,
+
+    /// <summary>Code and configuration both declare it.</summary>
+    DeclaredTwice = 4,
 }
 
 internal enum FlagQueryOrder

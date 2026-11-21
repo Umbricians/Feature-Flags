@@ -63,7 +63,10 @@ export interface ProviderGroup {
   description: string | null;
 }
 
-export type FlagShow = "declared" | "changed" | "differs" | "twice" | "undeclared";
+/** Which list: declared flags, or settings left from flags nobody declares any more. */
+export type FlagShow = "declared" | "undeclared";
+/** Notes a flag must have, every one of them, to be listed. */
+export type FlagMark = "changed" | "differs" | "twice";
 export type FlagOrder = "name" | "section" | "updated";
 
 export interface FlagQuery {
@@ -72,6 +75,7 @@ export interface FlagQuery {
   filter?: string;
   state?: FlagState | "";
   show?: FlagShow;
+  marks?: Array<FlagMark>;
   /** A section's name, or an empty string for flags in no section. */
   section?: string | null;
   tag?: string;
