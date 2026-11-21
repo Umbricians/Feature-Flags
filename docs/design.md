@@ -84,18 +84,18 @@ mistake, which is why it warns.
 
 ### Details for the backoffice
 
-A flag can carry a description, a group and tags, which help editors find and understand it. Microsoft has no place
+A flag can carry a description, a section and tags, which help editors find and understand it. Microsoft has no place
 for them: `FeatureDefinition` has no such properties, and its configuration provider drops `description`. So
 Feature Flags reads them itself, from the declaration in code or from the flag's JSON in configuration:
 
 ```json
 { "id": "Checkout.ExpressPay", "enabled": false, "description": "One-click payment.",
-  "group": "Checkout", "tags": ["payments", "beta"] }
+  "section": "Checkout", "tags": ["payments", "beta"] }
 ```
 
-Microsoft ignores fields it doesn't know, so these are harmless. A flag with no group takes the text before the
+Microsoft ignores fields it doesn't know, so these are harmless. A flag with no section takes the text before the
 first `.` in its name, so `Checkout.ExpressPay` is in "Checkout" with nothing to configure. Flags from a source
-Feature Flags can't read details from, such as a site's own provider, are grouped by name alone. **Open:** how to
+Feature Flags can't read details from, such as a site's own provider, are put in sections by name alone. **Open:** how to
 read details for flags in Azure App Configuration, which keeps tags of its own.
 
 Code declarations take a full Microsoft `FeatureDefinition` as well as the short form, so code can declare anything
@@ -210,11 +210,11 @@ order.
 
 Feature Flags is one item in the Settings section's tree, which opens the flag list. It isn't one tree entry per
 flag, because a site may have hundreds; Umbraco handles large lists, such as members, the same way. **Open:**
-whether the tree also shows each group as a child, as a shortcut.
+whether the tree also shows each section as a child, as a shortcut.
 
 - **Flag list:** every declared flag with its state, a quick switch and its description where it has one;
   search by name and description; filters for state, overridden, differs from default, declared twice, undeclared,
-  group and tag; sorting by name, group or last changed; a marker on flags with an
+  section and tag; sorting by name, section or last changed; a marker on flags with an
   override and on overrides that differ from their default; undeclared flags listed separately. It shows as a
   list or as cards, the editor's choice, and is paged (25 a page by default), with search, filters and sorting
   applied across every page.

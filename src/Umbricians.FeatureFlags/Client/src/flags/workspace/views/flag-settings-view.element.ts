@@ -131,7 +131,7 @@ export class FeatureFlagSettingsViewElement extends UmbLitElement {
         <dd>${stateLabel(this.localize, flag.defaultState)}</dd>
         <dt>${this.localize.term("umbriciansFeatureFlags_declaredIn")}</dt>
         <dd>${declaredIn}</dd>
-        ${item.group ? html`<dt>${this.localize.term("umbriciansFeatureFlags_group")}</dt><dd>${item.group}</dd>` : nothing}
+        ${item.section ? html`<dt>${this.localize.term("umbriciansFeatureFlags_section")}</dt><dd>${item.section}</dd>` : nothing}
         <dt>${this.localize.term("umbriciansFeatureFlags_columnChanged")}</dt>
         <dd>${changedText(this.localize, item)}</dd>
       </dl>

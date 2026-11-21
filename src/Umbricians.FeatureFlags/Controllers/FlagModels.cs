@@ -9,8 +9,8 @@ internal sealed class FlagListItemResponseModel
 
     public string? Description { get; init; }
 
-    /// <summary>The group editors find it in, or null for none.</summary>
-    public string? Group { get; init; }
+    /// <summary>The section of the flag list it is in, or null for none.</summary>
+    public string? Section { get; init; }
 
     public required IReadOnlyList<string> Tags { get; init; }
 
@@ -88,10 +88,10 @@ internal sealed class UpdatedByModel
     public string? Name { get; init; }
 }
 
-/// <summary>What the flag list's filters and the tree offer.</summary>
+/// <summary>What the flag list's filters offer, and what the list says about the site.</summary>
 internal sealed class FlagSummaryResponseModel
 {
-    public required IReadOnlyList<FlagGroupCountModel> Groups { get; init; }
+    public required IReadOnlyList<FlagSectionCountModel> Sections { get; init; }
 
     public required IReadOnlyList<string> Tags { get; init; }
 
@@ -106,9 +106,9 @@ internal sealed class FlagSummaryResponseModel
     public required string Environment { get; init; }
 }
 
-internal sealed class FlagGroupCountModel
+internal sealed class FlagSectionCountModel
 {
-    /// <summary>The group's name, or null for flags in no group.</summary>
+    /// <summary>The section's name, or null for flags in no section.</summary>
     public string? Name { get; init; }
 
     public int Count { get; init; }

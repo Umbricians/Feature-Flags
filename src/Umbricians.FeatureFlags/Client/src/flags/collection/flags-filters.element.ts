@@ -9,7 +9,7 @@ import type { FeatureFlagsCollectionFilter } from "./flags-collection.repository
 type Option = { name: string; value: string; selected?: boolean };
 
 /**
- * The flag list's filters beside Umbraco's own search: state, what to show, group, tag and order. Changing one goes
+ * The flag list's filters beside Umbraco's own search: state, what to show, section, tag and order. Changing one goes
  * back to the first page, since the collection reloads from the server.
  */
 @customElement("umbricians-feature-flags-filters")
@@ -44,11 +44,11 @@ export class FeatureFlagsFiltersElement extends UmbLitElement {
 
   override render() {
     const term = (key: string) => this.localize.term(key);
-    const groups: Array<Option> = [
-      { name: term("umbriciansFeatureFlags_allGroups"), value: "*" },
-      ...(this._summary?.groups ?? []).map((group) => ({
-        name: `${group.name ?? term("umbriciansFeatureFlags_ungrouped")} (${group.count})`,
-        value: group.name ?? "",
+    const sectionOptions: Array<Option> = [
+      { name: term("umbriciansFeatureFlags_allSections"), value: "*" },
+      ...(this._summary?.sections ?? []).map((section) => ({
+        name: `${section.name ?? term("umbriciansFeatureFlags_noSection")} (${section.count})`,
+        value: section.name ?? "",
       })),
     ];
     const tags: Array<Option> = [
@@ -87,9 +87,9 @@ export class FeatureFlagsFiltersElement extends UmbLitElement {
         )}
         @change=${(e: UUISelectEvent) => this.#set({ show: (e.target.value || undefined) as FeatureFlagsCollectionFilter["show"] })}></uui-select>
       <uui-select
-        label=${term("umbriciansFeatureFlags_filterGroup")}
-        .options=${this.#options(groups, this._filter.group === undefined || this._filter.group === null ? "*" : this._filter.group)}
-        @change=${(e: UUISelectEvent) => this.#set({ group: e.target.value === "*" ? null : String(e.target.value) })}></uui-select>
+        label=${term("umbriciansFeatureFlags_filterSection")}
+        .options=${this.#options(sectionOptions, this._filter.section === undefined || this._filter.section === null ? "*" : this._filter.section)}
+        @change=${(e: UUISelectEvent) => this.#set({ section: e.target.value === "*" ? null : String(e.target.value) })}></uui-select>
       <uui-select
         label=${term("umbriciansFeatureFlags_filterTag")}
         .options=${this.#options(tags, this._filter.tag)}
@@ -101,7 +101,7 @@ export class FeatureFlagsFiltersElement extends UmbLitElement {
             { name: term("umbriciansFeatureFlags_sortName"), value: "" },
             { name: term("umbriciansFeatureFlags_sortUpdated"), value: "updated" },
           ],
-          this._filter.orderBy === "group" ? "" : this._filter.orderBy,
+          this._filter.orderBy === "section" ? "" : this._filter.orderBy,
         )}
         @change=${(e: UUISelectEvent) => this.#set({ orderBy: (e.target.value || undefined) as FeatureFlagsCollectionFilter["orderBy"] })}></uui-select>
     `;

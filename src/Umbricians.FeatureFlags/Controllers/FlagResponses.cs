@@ -67,7 +67,7 @@ internal sealed class FlagResponses
         {
             Name = flag.Name,
             Description = flag.Details.Description,
-            Group = flag.Details.Group,
+            Section = flag.Details.Section,
             Tags = flag.Details.Tags,
             DeclaredIn = DeclaredInName(flag.DeclaredIn),
             DeclaredTwice = flag.DeclaredTwice,

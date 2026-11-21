@@ -8,7 +8,7 @@ import type { FeatureFlagsCollectionFilter } from "./flags-collection.repository
 import "./flags-filters.element.js";
 import "./flag-switch.element.js";
 
-/** The flag list as a table, in sections by group. */
+/** The flag list as a table, in its sections. */
 @customElement("umbricians-feature-flags-table-view")
 export class FeatureFlagsTableViewElement extends UmbCollectionViewElementBase<FeatureFlagCollectionItem> {
   @state()
@@ -37,8 +37,8 @@ export class FeatureFlagsTableViewElement extends UmbCollectionViewElementBase<F
             (section) => html`
               ${this._orderBy === "updated"
                 ? nothing
-                : html`<uui-table-row class="group">
-                    <uui-table-cell>${section.name ?? this.localize.term("umbriciansFeatureFlags_ungrouped")}</uui-table-cell>
+                : html`<uui-table-row class="section">
+                    <uui-table-cell>${section.name ?? this.localize.term("umbriciansFeatureFlags_noSection")}</uui-table-cell>
                     <uui-table-cell></uui-table-cell>
                     <uui-table-cell></uui-table-cell>
                     <uui-table-cell></uui-table-cell>
@@ -86,7 +86,7 @@ export class FeatureFlagsTableViewElement extends UmbCollectionViewElementBase<F
       :host {
         display: block;
       }
-      uui-table-row.group uui-table-cell {
+      uui-table-row.section uui-table-cell {
         font-weight: bold;
         background: var(--uui-color-surface-alt);
       }

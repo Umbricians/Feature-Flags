@@ -50,9 +50,9 @@ internal sealed class FlagsController : FeatureFlagsControllerBase
     /// <param name="filter">Text the name or description contains.</param>
     /// <param name="state"><c>off</c>, <c>everyone</c>, <c>audience</c> or <c>custom</c>.</param>
     /// <param name="show"><c>declared</c> (the default), <c>changed</c>, <c>differs</c>, <c>twice</c> or <c>undeclared</c>.</param>
-    /// <param name="group">A group's name, or an empty value for flags in no group.</param>
+    /// <param name="section">A section's name, or an empty value for flags in no section.</param>
     /// <param name="tag">A tag.</param>
-    /// <param name="orderBy"><c>name</c> (the default), <c>group</c> or <c>updated</c>, most recent first.</param>
+    /// <param name="orderBy"><c>name</c> (the default), <c>section</c> or <c>updated</c>, most recent first.</param>
     /// <param name="cancellationToken">Cancelled when the request is.</param>
     [HttpGet("flags")]
     [ProducesResponseType<PagedViewModel<FlagListItemResponseModel>>(StatusCodes.Status200OK)]
@@ -63,7 +63,7 @@ internal sealed class FlagsController : FeatureFlagsControllerBase
         string? filter = null,
         string? state = null,
         string? show = null,
-        string? group = null,
+        string? section = null,
         string? tag = null,
         string? orderBy = null,
         CancellationToken cancellationToken = default)
@@ -94,7 +94,7 @@ internal sealed class FlagsController : FeatureFlagsControllerBase
         FlagQueryOrder? order = orderBy?.ToLowerInvariant() switch
         {
             null or "" or "name" => FlagQueryOrder.Name,
-            "group" => FlagQueryOrder.Group,
+            "section" => FlagQueryOrder.Section,
             "updated" => FlagQueryOrder.Updated,
             _ => null,
         };
@@ -107,8 +107,8 @@ internal sealed class FlagsController : FeatureFlagsControllerBase
             filter,
             stateFilter,
             showFilter.Value,
-            string.IsNullOrEmpty(group) ? null : group,
-            UngroupedOnly: group is not null && group.Length == 0,
+            string.IsNullOrEmpty(section) ? null : section,
+            NoSectionOnly: section is not null && section.Length == 0,
             string.IsNullOrEmpty(tag) ? null : tag,
             order.Value);
 
@@ -116,7 +116,7 @@ internal sealed class FlagsController : FeatureFlagsControllerBase
         return Ok(new PagedViewModel<FlagListItemResponseModel> { Total = total, Items = await _responses.ListItemsAsync(items) });
     }
 
-    /// <summary>The groups and tags flags are in, for the list's filters and the tree.</summary>
+    /// <summary>The sections and tags flags are in, for the list's filters, and what the list says about the site.</summary>
     [HttpGet("flags/summary")]
     [ProducesResponseType<FlagSummaryResponseModel>(StatusCodes.Status200OK)]
     public async Task<FlagSummaryResponseModel> Summary(CancellationToken cancellationToken)
@@ -125,10 +125,10 @@ internal sealed class FlagsController : FeatureFlagsControllerBase
         CatalogFlag[] declared = flags.Where(flag => flag.IsDeclared).ToArray();
         return new FlagSummaryResponseModel
         {
-            Groups = declared
-                .GroupBy(flag => flag.Details.Group, StringComparer.OrdinalIgnoreCase)
+            Sections = declared
+                .GroupBy(flag => flag.Details.Section, StringComparer.OrdinalIgnoreCase)
                 .OrderBy(g => g.Key is null ? 1 : 0).ThenBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
-                .Select(g => new FlagGroupCountModel { Name = g.Key, Count = g.Count() })
+                .Select(g => new FlagSectionCountModel { Name = g.Key, Count = g.Count() })
                 .ToArray(),
             Tags = declared.SelectMany(flag => flag.Details.Tags).Distinct(StringComparer.OrdinalIgnoreCase)
                 .Order(StringComparer.OrdinalIgnoreCase).ToArray(),

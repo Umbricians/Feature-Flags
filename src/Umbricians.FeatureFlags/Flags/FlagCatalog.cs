@@ -140,7 +140,7 @@ internal sealed class FlagCatalog
             IsDeclared: true,
             declaredIn,
             declaredTwice,
-            details with { Group = details.Group ?? GroupFromName(definition.Name) },
+            details with { Section = details.Section ?? SectionFromName(definition.Name) },
             defaultSettings,
             Display(defaultSettings, definition),
             entry?.Override,
@@ -160,7 +160,7 @@ internal sealed class FlagCatalog
             IsDeclared: true,
             _source.DeclaredIn,
             declaredTwice,
-            details with { Group = details.Group ?? GroupFromName(name) },
+            details with { Section = details.Section ?? SectionFromName(name) },
             DefaultSettings: null,
             DefaultState: FlagDisplayState.Custom,
             entry?.Override,
@@ -180,7 +180,7 @@ internal sealed class FlagCatalog
             IsDeclared: false,
             FlagDeclaredIn.Code,
             DeclaredTwice: false,
-            new FlagDetails(null, GroupFromName(entry.Override.FlagName), []),
+            new FlagDetails(null, SectionFromName(entry.Override.FlagName), []),
             DefaultSettings: null,
             DefaultState: FlagDisplayState.Off,
             entry.Override,
@@ -204,7 +204,7 @@ internal sealed class FlagCatalog
     }
 
     /// <summary>The text before the first <c>.</c> in a flag's name, when there is any.</summary>
-    internal static string? GroupFromName(string name)
+    internal static string? SectionFromName(string name)
     {
         int dot = name.IndexOf('.');
         return dot > 0 ? name[..dot] : null;
@@ -216,7 +216,7 @@ internal sealed class FlagCatalog
 /// <param name="IsDeclared">False for an override whose flag nobody declares any more.</param>
 /// <param name="DeclaredIn">Where the flag is declared; the site's flag source wins when code declares it too.</param>
 /// <param name="DeclaredTwice">Whether code and the flag source both declare it.</param>
-/// <param name="Details">Its description, group (from its name when none is given) and tags.</param>
+/// <param name="Details">Its description, section (from its name when none is given) and tags.</param>
 /// <param name="DefaultSettings">Its default as the backoffice reads it, or null when it uses more than the backoffice edits.</param>
 /// <param name="DefaultState">How its default is evaluated.</param>
 /// <param name="Override">An editor's override, when there is one.</param>

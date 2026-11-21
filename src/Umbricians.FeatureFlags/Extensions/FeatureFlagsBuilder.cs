@@ -23,17 +23,18 @@ public sealed class FeatureFlagsBuilder
     /// <param name="name">The name code checks, e.g. <c>Checkout.NewFlow</c>.</param>
     /// <param name="enabled">Whether the flag starts on for everyone. New flags should start off.</param>
     /// <param name="description">Shown to editors.</param>
-    /// <param name="group">The group editors find it in; by default the text before the first <c>.</c> in its name.</param>
+    /// <param name="section">The section of the flag list editors find it in; by default the text before the first <c>.</c> in
+    /// its name.</param>
     /// <param name="tags">Words editors can filter by.</param>
     public FeatureFlagsBuilder Declare(
         string name,
         bool enabled = false,
         string? description = null,
-        string? group = null,
+        string? section = null,
         IEnumerable<string>? tags = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        return Declare(FlagDefinitions.Simple(name, enabled), description, group, tags);
+        return Declare(FlagDefinitions.Simple(name, enabled), description, section, tags);
     }
 
     /// <summary>
@@ -43,12 +44,12 @@ public sealed class FeatureFlagsBuilder
     public FeatureFlagsBuilder Declare(
         FeatureDefinition definition,
         string? description = null,
-        string? group = null,
+        string? section = null,
         IEnumerable<string>? tags = null)
     {
         ArgumentNullException.ThrowIfNull(definition);
         ArgumentException.ThrowIfNullOrWhiteSpace(definition.Name);
-        Services.AddSingleton(new CodeFlagDeclaration(definition, new FlagDetails(description, group, tags?.ToArray() ?? [])));
+        Services.AddSingleton(new CodeFlagDeclaration(definition, new FlagDetails(description, section, tags?.ToArray() ?? [])));
         return this;
     }
 

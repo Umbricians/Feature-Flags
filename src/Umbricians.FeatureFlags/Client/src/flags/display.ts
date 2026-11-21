@@ -7,29 +7,29 @@ export interface FeatureFlagCollectionItem extends FeatureFlagListItem {
   entityType: string;
 }
 
-/** The name without its group in front, e.g. `NewFlow` for `Checkout.NewFlow` in the Checkout group. */
-export function shortName(item: Pick<FeatureFlagListItem, "name" | "group">): string {
-  const prefix = item.group ? `${item.group}.` : "";
+/** The name without its section in front, e.g. `NewFlow` for `Checkout.NewFlow` in the Checkout section. */
+export function shortName(item: Pick<FeatureFlagListItem, "name" | "section">): string {
+  const prefix = item.section ? `${item.section}.` : "";
   return prefix && item.name.toLowerCase().startsWith(prefix.toLowerCase()) && item.name.length > prefix.length
     ? item.name.slice(prefix.length)
     : item.name;
 }
 
-export interface FlagGroupSection<T> {
-  /** The group's name, or null for flags in no group. */
+export interface ListSection<T> {
+  /** The section's name, or null for flags in no section. */
   name: string | null;
   items: Array<T>;
 }
 
 /**
- * Splits a page of flags into sections by group, keeping their order. Sorted by last change, they stay in one section,
- * since grouping would undo that order.
+ * Splits a page of flags into its sections, keeping their order. Sorted by last change, they stay in one section,
+ * since splitting them would undo that order.
  */
-export function sections<T extends Pick<FeatureFlagListItem, "group">>(items: Array<T>, orderBy: FlagOrder | undefined): Array<FlagGroupSection<T>> {
+export function sections<T extends Pick<FeatureFlagListItem, "section">>(items: Array<T>, orderBy: FlagOrder | undefined): Array<ListSection<T>> {
   if (orderBy === "updated") return items.length ? [{ name: null, items }] : [];
-  const result: Array<FlagGroupSection<T>> = [];
+  const result: Array<ListSection<T>> = [];
   for (const item of items) {
-    const name = item.group ?? null;
+    const name = item.section ?? null;
     const last = result[result.length - 1];
     if (last && last.name === name) last.items.push(item);
     else result.push({ name, items: [item] });

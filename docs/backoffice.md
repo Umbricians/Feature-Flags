@@ -10,18 +10,18 @@ than a whole page. That is what makes it safe to try something with a few member
 
 Go to **Settings** and choose **Feature Flags** under **Advanced** in the tree.
 
-<img src="images/feature-flags-list.png" alt="The Feature Flags list, grouped under Checkout and Members, each flag with its state, an on/off switch, notes and when it last changed">
+<img src="images/feature-flags-list.png" alt="The Feature Flags list, in sections for Checkout and Members, each flag with its state, an on/off switch, notes and when it last changed">
 
 The tag at the top shows which environment you are on, such as Staging or Production. **Changes apply to this
 environment only**: switching a flag on in staging doesn't switch it on on the live site.
 
-Flags are grouped under headings, such as Checkout, with a description under each. To find one:
+Flags are listed in sections, such as Checkout, with a description under each. To find one:
 
 - type in **Type to filter** to search names and descriptions;
-- use the filters for state, group and tag;
+- use the filters for state, section and tag;
 - use **Show** to see only flags changed here, flags that differ from their default, flags declared twice, or
   undeclared flags;
-- sort by group or by when they last changed;
+- sort by section or by when they last changed;
 - switch between a list and cards with the button at the top right.
 
 The list shows 25 flags a page.

@@ -19,7 +19,7 @@ export interface FlagAudience {
 export interface FeatureFlagListItem {
   name: string;
   description: string | null;
-  group: string | null;
+  section: string | null;
   tags: Array<string>;
   declaredIn: FlagDeclaredIn;
   declaredTwice: boolean;
@@ -46,8 +46,8 @@ export interface FeatureFlag {
 }
 
 export interface FeatureFlagSummary {
-  /** Each group and how many flags it has; a null name is flags in no group. */
-  groups: Array<{ name: string | null; count: number }>;
+  /** Each section and how many flags it has; a null name is flags in no section. */
+  sections: Array<{ name: string | null; count: number }>;
   tags: Array<string>;
   total: number;
   undeclared: number;
@@ -64,7 +64,7 @@ export interface ProviderGroup {
 }
 
 export type FlagShow = "declared" | "changed" | "differs" | "twice" | "undeclared";
-export type FlagOrder = "name" | "group" | "updated";
+export type FlagOrder = "name" | "section" | "updated";
 
 export interface FlagQuery {
   skip?: number;
@@ -72,8 +72,8 @@ export interface FlagQuery {
   filter?: string;
   state?: FlagState | "";
   show?: FlagShow;
-  /** A group's name, or an empty string for flags in no group. */
-  group?: string | null;
+  /** A section's name, or an empty string for flags in no section. */
+  section?: string | null;
   tag?: string;
   orderBy?: FlagOrder;
 }

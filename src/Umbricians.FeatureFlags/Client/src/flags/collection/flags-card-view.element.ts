@@ -8,7 +8,7 @@ import type { FeatureFlagsCollectionFilter } from "./flags-collection.repository
 import "./flags-filters.element.js";
 import "./flag-switch.element.js";
 
-/** The flag list as cards, in sections by group. */
+/** The flag list as cards, in its sections. */
 @customElement("umbricians-feature-flags-card-view")
 export class FeatureFlagsCardViewElement extends UmbCollectionViewElementBase<FeatureFlagCollectionItem> {
   @state()
@@ -26,7 +26,7 @@ export class FeatureFlagsCardViewElement extends UmbCollectionViewElementBase<Fe
       <umbricians-feature-flags-filters></umbricians-feature-flags-filters>
       ${sections(this._items, this._orderBy).map(
         (section) => html`
-          ${this._orderBy === "updated" ? nothing : html`<h3>${section.name ?? this.localize.term("umbriciansFeatureFlags_ungrouped")}</h3>`}
+          ${this._orderBy === "updated" ? nothing : html`<h3>${section.name ?? this.localize.term("umbriciansFeatureFlags_noSection")}</h3>`}
           <div class="grid">${repeat(section.items, (item) => item.unique, (item) => this.#renderCard(item))}</div>
         `,
       )}

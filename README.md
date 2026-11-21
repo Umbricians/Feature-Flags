@@ -16,7 +16,7 @@ to that site and environment only, reach every server within seconds, and never 
 A flag doesn't have to switch on a whole new page. It can add one button, swap a search box, or change a price for
 the members it is on for.
 
-<img src="docs/images/feature-flags-list.png" alt="The Feature Flags list in Settings, with flags grouped under Checkout and Members, each showing its state, an on/off switch and notes such as Changed here">
+<img src="docs/images/feature-flags-list.png" alt="The Feature Flags list in Settings, with flags in sections for Checkout and Members, each showing its state, an on/off switch and notes such as Changed here">
 
 ## Documentation
 
@@ -70,7 +70,7 @@ builder.AddFeatureFlags(flags => flags
     .Declare("Checkout.ExpressPay", description: "One-click payment."));
 ```
 
-New flags should start off. A flag named `Checkout.ExpressPay` is listed under "Checkout" in the backoffice. More in
+New flags should start off. A flag named `Checkout.ExpressPay` is in the backoffice's "Checkout" section. More in
 [Declaring and checking flags](docs/declaring-flags.md).
 
 ## Checking a flag
@@ -124,7 +124,7 @@ Everything goes through one builder method, in a composer or `Program.cs`:
 
 ```csharp
 builder.AddFeatureFlags(flags => flags
-    .Declare("Checkout.NewFlow", description: "The redesigned checkout.", group: "Checkout", tags: ["beta"])
+    .Declare("Checkout.NewFlow", description: "The redesigned checkout.", section: "Checkout", tags: ["beta"])
     .AddGroupProvider<PremiumSubscribers>());
 ```
 
@@ -146,8 +146,8 @@ flags; changes need Change feature flags too.
 
 | Endpoint | |
 | --- | --- |
-| `GET flags?skip&take&filter&state&show&group&tag&orderBy` | A page of flags (at most 100), searched, filtered and sorted across every flag. |
-| `GET flags/summary` | The groups and tags in use, counts, whether overrides are read-only, and the environment's name. |
+| `GET flags?skip&take&filter&state&show&section&tag&orderBy` | A page of flags (at most 100), searched, filtered and sorted across every flag. |
+| `GET flags/summary` | The sections and tags in use, counts, whether overrides are read-only, and the environment's name. |
 | `GET flag?name=` | One flag, with its default, its saved setting and who it is on for. |
 | `GET provider-groups` | The groups the site's group providers offer. |
 | `PUT flag?name=` | Save a flag's state and audience. Body: `{ "enabled": true, "audience": { "members": [], "memberGroups": [], "groups": [] } }`, with `audience` null for everyone. |

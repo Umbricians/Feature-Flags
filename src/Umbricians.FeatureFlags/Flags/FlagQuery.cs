@@ -8,8 +8,8 @@ internal sealed record FlagQuery(
     string? Filter = null,
     FlagDisplayState? State = null,
     FlagQueryShow Show = FlagQueryShow.Declared,
-    string? Group = null,
-    bool UngroupedOnly = false,
+    string? Section = null,
+    bool NoSectionOnly = false,
     string? Tag = null,
     FlagQueryOrder OrderBy = FlagQueryOrder.Name)
 {
@@ -21,9 +21,9 @@ internal sealed record FlagQuery(
             FlagQueryOrder.Updated => matching
                 .OrderByDescending(flag => flag.Override?.UpdatedUtc ?? DateTime.MinValue)
                 .ThenBy(flag => flag.Name, StringComparer.OrdinalIgnoreCase),
-            FlagQueryOrder.Group => matching
-                .OrderBy(flag => flag.Details.Group is null ? 1 : 0)
-                .ThenBy(flag => flag.Details.Group, StringComparer.OrdinalIgnoreCase)
+            FlagQueryOrder.Section => matching
+                .OrderBy(flag => flag.Details.Section is null ? 1 : 0)
+                .ThenBy(flag => flag.Details.Section, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(flag => flag.Name, StringComparer.OrdinalIgnoreCase),
             _ => matching.OrderBy(flag => flag.Name, StringComparer.OrdinalIgnoreCase),
         };
@@ -48,8 +48,8 @@ internal sealed record FlagQuery(
             return false;
         }
 
-        if (UngroupedOnly ? flag.Details.Group is not null
-            : Group is not null && !string.Equals(flag.Details.Group, Group, StringComparison.OrdinalIgnoreCase))
+        if (NoSectionOnly ? flag.Details.Section is not null
+            : Section is not null && !string.Equals(flag.Details.Section, Section, StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
@@ -82,6 +82,6 @@ internal enum FlagQueryShow
 internal enum FlagQueryOrder
 {
     Name,
-    Group,
+    Section,
     Updated,
 }

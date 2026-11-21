@@ -19,7 +19,7 @@ public class DemoFlagsComposer : IComposer
     {
         builder.AddFeatureFlags(flags => flags
             .Declare(DarkMode, description: "Dark colours across the site.", tags: ["ui"])
-            .Declare(MemberDiscount, description: "10% off the price for the members it is on for.", group: "Pricing", tags: ["pricing"])
+            .Declare(MemberDiscount, description: "10% off the price for the members it is on for.", section: "Pricing", tags: ["pricing"])
             .AddGroupProvider<ExampleDomainGroupProvider>());
 
         builder.Services.Configure<DemoMembersOptions>(builder.Config.GetSection("FeatureFlagsDemo:Members"));
