@@ -86,6 +86,7 @@ export default {
     removed: (name: string) => `Removed the setting for ${name}.`,
 
     // Editor
+    settings: "Settings",
     offHelp: "Nobody gets the feature. Who it was for is kept for when it is switched back on.",
     everyoneHelp: "Every visitor, signed in or not.",
     audienceHelp: "Only the members and groups chosen below.",

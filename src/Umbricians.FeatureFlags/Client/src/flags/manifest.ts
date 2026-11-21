@@ -99,4 +99,31 @@ export const manifests: Array<UmbExtensionManifest> = [
     api: () => import("./workspace/flag-workspace.context.js"),
     meta: { entityType: FEATURE_FLAG_ENTITY_TYPE },
   },
+  // The editor's tabs, like the Log Viewer's Overview and Search.
+  {
+    type: "workspaceView",
+    alias: "Umbricians.FeatureFlags.WorkspaceView.Flag.Settings",
+    name: "Feature Flag Settings View",
+    element: () => import("./workspace/views/flag-settings-view.element.js"),
+    weight: 200,
+    meta: {
+      label: "#umbriciansFeatureFlags_settings",
+      pathname: "settings",
+      icon: "icon-flag",
+    },
+    conditions: [{ alias: UMB_WORKSPACE_CONDITION, match: FEATURE_FLAG_WORKSPACE_ALIAS }],
+  },
+  {
+    type: "workspaceView",
+    alias: "Umbricians.FeatureFlags.WorkspaceView.Flag.Definition",
+    name: "Feature Flag Definition View",
+    element: () => import("./workspace/views/flag-definition-view.element.js"),
+    weight: 100,
+    meta: {
+      label: "#umbriciansFeatureFlags_definition",
+      pathname: "definition",
+      icon: "icon-code",
+    },
+    conditions: [{ alias: UMB_WORKSPACE_CONDITION, match: FEATURE_FLAG_WORKSPACE_ALIAS }],
+  },
 ];
