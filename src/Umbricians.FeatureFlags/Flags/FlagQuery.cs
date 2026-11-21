@@ -14,6 +14,10 @@ internal sealed record FlagQuery(
     string? Tag = null,
     FlagQueryOrder OrderBy = FlagQueryOrder.Name)
 {
+    /// <summary>Sections in the order the list shows them: no section last, then by name, ignoring case.</summary>
+    public static IComparer<string?> SectionOrder { get; } = Comparer<string?>.Create((a, b) =>
+        a is null || b is null ? (a is null).CompareTo(b is null) : StringComparer.OrdinalIgnoreCase.Compare(a, b));
+
     public (IReadOnlyList<CatalogFlag> Items, int Total) Run(IEnumerable<CatalogFlag> flags, int skip, int take)
     {
         IEnumerable<CatalogFlag> matching = flags.Where(Matches);
@@ -23,8 +27,7 @@ internal sealed record FlagQuery(
                 .OrderByDescending(flag => flag.Override?.UpdatedUtc ?? DateTime.MinValue)
                 .ThenBy(flag => flag.Name, StringComparer.OrdinalIgnoreCase),
             FlagQueryOrder.Section => matching
-                .OrderBy(flag => flag.Details.Section is null ? 1 : 0)
-                .ThenBy(flag => flag.Details.Section, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(flag => flag.Details.Section, SectionOrder)
                 .ThenBy(flag => flag.Name, StringComparer.OrdinalIgnoreCase),
             _ => matching.OrderBy(flag => flag.Name, StringComparer.OrdinalIgnoreCase),
         };

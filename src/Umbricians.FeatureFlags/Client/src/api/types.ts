@@ -9,11 +9,38 @@ export interface AudienceCounts {
   groups: number;
 }
 
-/** Who a flag is on for: member keys, member group keys and ids of groups from the site's group providers. */
+/** What a group id in an audience is. `unknown` is a deleted member group's key or a provider group no longer offered. */
+export type AudienceGroupKind = "memberGroup" | "namedMemberGroup" | "providerGroup" | "unknown";
+
+/** A group in an audience: the id the flag stores, what the site knows it to be, and its name when it knows one. */
+export interface AudienceGroup {
+  id: string;
+  kind: AudienceGroupKind;
+  name: string | null;
+}
+
+/** Who a flag is on for: member keys and groups of every kind. */
 export interface FlagAudience {
   members: Array<string>;
-  memberGroups: Array<string>;
+  groups: Array<AudienceGroup>;
+}
+
+/** An audience as it is saved: member keys and every group's id. */
+export interface SaveAudience {
+  members: Array<string>;
   groups: Array<string>;
+}
+
+export interface FlagAction {
+  allowed: boolean;
+  reason: string | null;
+}
+
+export interface FlagActions {
+  switch: FlagAction;
+  save: FlagAction;
+  reset: FlagAction;
+  remove: FlagAction;
 }
 
 export interface FeatureFlagListItem {
@@ -31,8 +58,8 @@ export interface FeatureFlagListItem {
   audience: AudienceCounts | null;
   hasOverride: boolean;
   differsFromDefault: boolean;
-  editable: boolean;
-  readOnlyReason: string | null;
+  /** What an editor may do with it, as the catalog decides; each is refused with a reason when not allowed. */
+  actions: FlagActions;
   updatedBy: { key: string; name: string | null } | null;
   updatedUtc: string | null;
 }

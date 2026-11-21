@@ -105,7 +105,8 @@ configuration can.
 
 An editor's change is stored as an override: the flag's whole definition in Microsoft's `feature_management` JSON,
 with who saved it and when. When a flag has an override, the provider returns it instead of the flag source's
-default. Resetting deletes the override.
+default. Resetting deletes the override. A flag source that can't list its flags still has each flag read on its own,
+so the backoffice shows every flag it can read.
 
 - **The default changes later:** if a deploy changes a flag's default, an existing override still wins. The
   backoffice marks flags whose override differs from their current default, so nobody is surprised.
@@ -128,6 +129,10 @@ Storage is a package migration that adds one table, `umbriciansFeatureFlagsOverr
 | `definition` | `nvarchar(max)`: the flag in Microsoft's `feature_management` JSON |
 | `updatedBy` | the editor's user key |
 | `updatedUtc` | `datetime` |
+
+The migration, and saving overrides through Umbraco's scopes, are tested against SQL Server as well as SQLite, with a
+test site started in the tests. Two saves of a flag with no override can both try to add its row at once; the unique
+index refuses the second, which then updates the first's row instead.
 
 Keeping the definition as Microsoft's JSON is the decision that makes later features cheap: time windows,
 percentages and variants need no migration. The provider reads stored JSON with Microsoft's own
@@ -157,6 +162,14 @@ Feature Flags registers an `ITargetingContextAccessor` that reads the signed-in 
   appsettings, and editors' picks survive a rename), plus the groups every group provider gives them.
 - **Anonymous visitors:** no user id and no groups, so they are only included by *on for everyone*.
 
+Targeting keeps every group id in one list, so `AudienceGroups` tells the editor what each id is: a member group by
+key, a member group named in appsettings, a group a provider offers, or unknown (the key of a deleted member group,
+or a provider group no longer offered). The backoffice shows each kind where it belongs, keeps named and unknown
+groups when an editor saves, and lets the editor remove them. It reads the site's member groups and providers when
+asked and never caches them, since member groups change while the site runs. A provider that fails to list its
+groups is logged and offers none for that request. When a member group's key is saved, it is written the way
+targeting compares keys; every other id is kept as it was written.
+
 The accessor is registered so a site's own replaces it, for sites that identify people by email, by an external
 id or by something other than Umbraco members.
 
@@ -169,13 +182,11 @@ people another way replaces the accessor.
 
 **Open:**
 - **Name clashes.** A group provider's group could have the same name as a member group. Provider groups may need a
-  prefix, or a check at startup.
+  prefix, or a check at startup. Provider ids win in the editor: an id a provider offers is shown as the provider's
+  group even when a member group has that key.
 - **Percentages for anonymous visitors.** Microsoft's percentage rollout buckets people by user id. With no id,
   every anonymous visitor probably lands in the same bucket, so a percentage would include all of them or none.
   Check before percentages ship; a fix would give each visitor a lasting anonymous id, such as a cookie.
-- **Group names in appsettings in the backoffice.** Targeting matches member groups by name or key, but the
-  backoffice's picker works by key, so a group named in appsettings shows as "other group" in the editor. Whether
-  the backoffice should look names up.
 
 ### Group providers
 
@@ -197,7 +208,7 @@ them in the background and keeps answering from the copy it has until the new on
 waits on the database; only the server that saved the change waits for its own read, so the editor sees it at once.
 If a read fails, the last good copy stays in use and the read is tried again in the background. The one exception
 is a check that arrives before a server's first read has finished, which waits for it rather than answer with
-defaults that might switch on something an editor switched off. Member groups are looked up once per request.
+defaults that might switch on something an editor switched off. Each override's JSON is read once per reload, into what Microsoft evaluates and what the backoffice shows. Member groups are looked up once per request.
 
 A JSON cache refresher isn't needed: every change means "read them all again", so there is no payload to send.
 

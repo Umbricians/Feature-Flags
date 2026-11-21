@@ -1,16 +1,18 @@
 import { umbHttpClient } from "@umbraco-cms/backoffice/http-client";
+import { flagsQueryString } from "./query-string.js";
 import { FeatureFlagsRequestError } from "./request-error.js";
 import type {
   FeatureFlag,
   FeatureFlagListItem,
   FeatureFlagSummary,
-  FlagAudience,
   FlagQuery,
   PagedResult,
   ProviderGroup,
+  SaveAudience,
 } from "./types.js";
 
 export type * from "./types.js";
+export { flagsQueryString };
 
 const BASE_URL = "/umbraco/umbriciansfeatureflags/api/v1/";
 
@@ -39,20 +41,6 @@ async function request<T>(method: "GET" | "PUT" | "DELETE", path: string, body?:
 /** Flag names go in the query string, never the path: they may hold dots, slashes and spaces. */
 const nameQuery = (name: string) => `name=${encodeURIComponent(name)}`;
 
-export function flagsQueryString(query: FlagQuery): string {
-  const parameters = new URLSearchParams();
-  parameters.set("skip", String(query.skip ?? 0));
-  parameters.set("take", String(query.take ?? 25));
-  for (const key of ["filter", "state", "show", "tag", "orderBy"] as const) {
-    const value = query[key];
-    if (value) parameters.set(key, value);
-  }
-  if (query.marks?.length) parameters.set("marks", query.marks.join(","));
-  // An empty section asks for flags in no section, so it is sent even when empty.
-  if (query.section !== undefined && query.section !== null) parameters.set("section", query.section);
-  return parameters.toString();
-}
-
 export const fetchFlags = (query: FlagQuery) =>
   request<PagedResult<FeatureFlagListItem>>("GET", `flags?${flagsQueryString(query)}`);
 
@@ -63,7 +51,7 @@ export const fetchFlag = (name: string) => request<FeatureFlag>("GET", `flag?${n
 export const fetchProviderGroups = () => request<Array<ProviderGroup>>("GET", "provider-groups");
 
 /** Saves an editor's settings: on or off, and who for (null for everyone). */
-export const saveFlag = (name: string, enabled: boolean, audience: FlagAudience | null) =>
+export const saveFlag = (name: string, enabled: boolean, audience: SaveAudience | null) =>
   request<void>("PUT", `flag?${nameQuery(name)}`, { enabled, audience });
 
 /** Switches a flag on or off, keeping who it is for. */

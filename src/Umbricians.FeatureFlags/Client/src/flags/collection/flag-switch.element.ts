@@ -8,7 +8,7 @@ import { FeatureFlagsRequestError } from "../../api/request-error.js";
 import { FEATURE_FLAGS_PERMISSION_MANAGE } from "../../permissions/constants.js";
 import { observePermission } from "../../permissions/permissions.js";
 import { FEATURE_FLAGS_SUMMARY_CONTEXT } from "../summary.context.js";
-import { switchKind, type FeatureFlagCollectionItem } from "../display.js";
+import { quickAction, type FeatureFlagCollectionItem } from "../display.js";
 import { describeAudience } from "../describe.js";
 
 /**
@@ -112,19 +112,25 @@ export class FeatureFlagSwitchElement extends UmbLitElement {
   override render() {
     const item = this.item;
     if (!item) return html``;
-    const kind = switchKind(item, this._canManage);
+    const action = quickAction(item, this._canManage);
+    const reason = action.reason ?? this.localize.term("umbriciansFeatureFlags_needManage");
 
-    if (kind === "remove") {
-      return html`<uui-button look="secondary" compact ?disabled=${this._busy} label=${this.localize.term("umbriciansFeatureFlags_remove")} @click=${this.#remove}></uui-button>`;
+    if (action.kind === "remove") {
+      return html`<uui-button
+        look="secondary"
+        compact
+        title=${action.allowed ? "" : reason}
+        ?disabled=${!action.allowed || this._busy}
+        label=${this.localize.term("umbriciansFeatureFlags_remove")}
+        @click=${this.#remove}></uui-button>`;
     }
 
     const label = this.localize.term(item.enabled ? "umbriciansFeatureFlags_switchOff" : "umbriciansFeatureFlags_switchOn", item.name);
-    const reason = !this._canManage ? this.localize.term("umbriciansFeatureFlags_needManage") : item.readOnlyReason ?? "";
     return html`<uui-toggle
       aria-label=${label}
-      title=${kind === "readOnly" ? reason : label}
+      title=${action.allowed ? label : reason}
       .checked=${item.enabled}
-      ?disabled=${kind === "readOnly" || this._busy || !item.isDeclared}
+      ?disabled=${!action.allowed || this._busy}
       @change=${this.#toggle}></uui-toggle>`;
   }
 }

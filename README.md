@@ -146,13 +146,13 @@ flags; changes need Change feature flags too.
 
 | Endpoint | |
 | --- | --- |
-| `GET flags?skip&take&filter&state&show&marks&section&tag&orderBy` | A page of flags (at most 100), searched, filtered and sorted across every flag. `show` is `declared` or `undeclared`; `marks` narrows to flags with every one of `changed`, `differs` and `twice`. |
+| `GET flags?skip&take&filter&state&show&marks&section&tag&orderBy` | A page of flags (at most 100), searched, filtered and sorted across every flag. `show` is `declared` or `undeclared`; `marks` narrows to flags with every one of `changed`, `differs` and `twice`. `section` is a section's name, or empty for flags in no section; leave it out for every section. Items come with `actions` (`switch`, `save`, `reset`, `remove`), each allowed or not with a reason. |
 | `GET flags/summary` | The sections and tags in use, counts, whether overrides are read-only, and the environment's name. |
-| `GET flag?name=` | One flag, with its default, its saved setting and who it is on for. |
+| `GET flag?name=` | One flag, with its default, its saved setting and who it is on for. Each group in its audience comes with its kind (`memberGroup`, `namedMemberGroup`, `providerGroup` or `unknown`) and name. |
 | `GET provider-groups` | The groups the site's group providers offer. |
-| `PUT flag?name=` | Save a flag's state and audience. Body: `{ "enabled": true, "audience": { "members": [], "memberGroups": [], "groups": [] } }`, with `audience` null for everyone. |
+| `PUT flag?name=` | Save a flag's state and audience. Body: `{ "enabled": true, "audience": { "members": [], "groups": [] } }`, with `audience` null for everyone. `groups` holds member group keys or names and group providers' ids. |
 | `PUT flag/enabled?name=` | Switch a flag on or off, keeping its audience. Body: `{ "enabled": true }`. |
-| `DELETE flag?name=` | Reset a flag to its default, or remove the setting of a flag nobody declares any more. |
+| `DELETE flag?name=` | Reset a flag to its default, or remove the setting of a flag nobody declares any more. Refused (409) when nothing is saved, or on a read-only site. |
 
 ## Licence
 
@@ -161,10 +161,12 @@ flags; changes need Change feature flags too.
 ## Development
 
 ```
-src/Umbricians.FeatureFlags          the package (Razor class library + Client/ TypeScript)
-demo/Umbricians.FeatureFlags.Demo    Umbraco 17.8.0 site on SQLite that references the package
-tests/Umbricians.FeatureFlags.Tests  NUnit tests, run with `dotnet test`
-docs/design.md                       why the package works the way it does
+src/Umbricians.FeatureFlags                     the package (Razor class library + Client/ TypeScript)
+demo/Umbricians.FeatureFlags.Demo               Umbraco 17.8.0 site on SQLite that references the package
+tests/Umbricians.FeatureFlags.Tests             NUnit tests, run with `dotnet test`
+tests/Umbricians.FeatureFlags.IntegrationTests  NUnit tests on a real Umbraco and SQL Server; see CONTRIBUTING.md
+tests/Umbricians.FeatureFlags.TestSite          the Umbraco site the integration tests start
+docs/design.md                                  why the package works the way it does
 ```
 
 ```bash

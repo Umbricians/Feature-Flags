@@ -5,6 +5,7 @@ import type { UUIBooleanInputEvent, UUISelectEvent } from "@umbraco-cms/backoffi
 import { FEATURE_FLAGS_SUMMARY_CONTEXT } from "../summary.context.js";
 import type { FeatureFlagSummary } from "../../api/feature-flags.resource.js";
 import type { FlagMark } from "../../api/types.js";
+import { ALL_SECTIONS, sectionFromOption, sectionOption } from "../display.js";
 import type { FeatureFlagsCollectionFilter } from "./flags-collection.repository.js";
 
 type Option = { name: string; value: string; selected?: boolean };
@@ -54,7 +55,7 @@ export class FeatureFlagsFiltersElement extends UmbLitElement {
   override render() {
     const term = (key: string) => this.localize.term(key);
     const sectionOptions: Array<Option> = [
-      { name: term("umbriciansFeatureFlags_allSections"), value: "*" },
+      { name: term("umbriciansFeatureFlags_allSections"), value: ALL_SECTIONS },
       ...(this._summary?.sections ?? []).map((section) => ({
         name: `${section.name ?? term("umbriciansFeatureFlags_noSection")} (${section.count})`,
         value: section.name ?? "",
@@ -100,8 +101,8 @@ export class FeatureFlagsFiltersElement extends UmbLitElement {
         @change=${(e: UUISelectEvent) => this.#set({ show: (e.target.value || undefined) as FeatureFlagsCollectionFilter["show"] })}></uui-select>
       <uui-select
         label=${term("umbriciansFeatureFlags_filterSection")}
-        .options=${this.#options(sectionOptions, this._filter.section === undefined || this._filter.section === null ? "*" : this._filter.section)}
-        @change=${(e: UUISelectEvent) => this.#set({ section: e.target.value === "*" ? null : String(e.target.value) })}></uui-select>
+        .options=${this.#options(sectionOptions, sectionOption(this._filter.section))}
+        @change=${(e: UUISelectEvent) => this.#set({ section: sectionFromOption(String(e.target.value)) })}></uui-select>
       <uui-select
         label=${term("umbriciansFeatureFlags_filterTag")}
         .options=${this.#options(tags, this._filter.tag)}

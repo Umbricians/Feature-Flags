@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { audienceParts, joinList, sections, shortName, switchKind } from "./display.ts";
+import type { FlagActions } from "../api/types.ts";
+import { ALL_SECTIONS, audienceParts, joinList, mayDo, quickAction, sectionFromOption, sectionOption, sections, shortName } from "./display.ts";
 
 test("the section is taken off the front of the name", () => {
   assert.equal(shortName({ name: "Checkout.NewFlow", section: "Checkout" }), "NewFlow");
@@ -23,12 +24,38 @@ test("sorted by last change, a page stays in one section", () => {
   assert.equal(sections([], "updated").length, 0);
 });
 
-test("only editors who can manage flags get a switch, and undeclared flags get removed instead", () => {
-  assert.equal(switchKind({ isDeclared: true, editable: true }, true), "switch");
-  assert.equal(switchKind({ isDeclared: true, editable: true }, false), "readOnly");
-  assert.equal(switchKind({ isDeclared: true, editable: false }, true), "readOnly");
-  assert.equal(switchKind({ isDeclared: false, editable: false }, true), "remove");
-  assert.equal(switchKind({ isDeclared: false, editable: false }, false), "readOnly");
+const allowed = { allowed: true, reason: null };
+const refused = (reason: string) => ({ allowed: false, reason });
+const actions = (over: Partial<FlagActions> = {}): FlagActions => ({
+  switch: allowed,
+  save: allowed,
+  reset: allowed,
+  remove: refused("A declared flag can't be removed."),
+  ...over,
+});
+
+test("the catalog's refusal and its reason come before the permission", () => {
+  const item = { actions: actions({ save: refused("It has a time window.") }) };
+  assert.deepEqual(mayDo(item, "save", true), { allowed: false, reason: "It has a time window.", needsManage: false });
+  assert.deepEqual(mayDo(item, "save", false), { allowed: false, reason: "It has a time window.", needsManage: false });
+  assert.deepEqual(mayDo(item, "switch", true), { allowed: true, reason: null, needsManage: false });
+});
+
+test("an editor without Change feature flags is told they need it", () => {
+  const item = { actions: actions() };
+  assert.deepEqual(mayDo(item, "switch", false), { allowed: false, reason: null, needsManage: true });
+  assert.deepEqual(mayDo(item, "reset", false), { allowed: false, reason: null, needsManage: true });
+});
+
+test("an undeclared flag's quick action is Remove, refused on a read-only site", () => {
+  const undeclared = { isDeclared: false, actions: actions({ switch: refused("Undeclared."), remove: allowed }) };
+  assert.deepEqual(quickAction(undeclared, true), { kind: "remove", allowed: true, reason: null, needsManage: false });
+  assert.equal(quickAction(undeclared, false).needsManage, true);
+
+  const readOnly = { isDeclared: false, actions: actions({ remove: refused("Read-only.") }) };
+  assert.deepEqual(quickAction(readOnly, true), { kind: "remove", allowed: false, reason: "Read-only.", needsManage: false });
+
+  assert.equal(quickAction({ isDeclared: true, actions: actions() }, true).kind, "switch");
 });
 
 test("an audience lists only the parts with anyone in them", () => {
@@ -44,4 +71,14 @@ test("lists read as prose", () => {
   assert.equal(joinList(["a"], "and"), "a");
   assert.equal(joinList(["a", "b"], "and"), "a and b");
   assert.equal(joinList(["a", "b", "c"], "and"), "a, b and c");
+});
+
+test("\"all sections\" is its own option and means no section filter", () => {
+  assert.equal(sectionOption(undefined), ALL_SECTIONS);
+  assert.equal(sectionOption(null), ALL_SECTIONS);
+  assert.equal(sectionOption(""), "");
+  assert.equal(sectionOption("Checkout"), "Checkout");
+  assert.equal(sectionFromOption(ALL_SECTIONS), null);
+  assert.equal(sectionFromOption(""), "");
+  assert.equal(sectionFromOption("Checkout"), "Checkout");
 });

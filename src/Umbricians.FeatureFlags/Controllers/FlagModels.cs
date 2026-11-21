@@ -35,13 +35,32 @@ internal sealed class FlagListItemResponseModel
 
     public bool DiffersFromDefault { get; init; }
 
-    public bool Editable { get; init; }
-
-    public string? ReadOnlyReason { get; init; }
+    /// <summary>What an editor may do with it, each with the reason when not.</summary>
+    public required FlagActionsModel Actions { get; init; }
 
     public UpdatedByModel? UpdatedBy { get; init; }
 
     public DateTime? UpdatedUtc { get; init; }
+}
+
+/// <summary>What an editor may do with a flag.</summary>
+internal sealed class FlagActionsModel
+{
+    public required FlagActionModel Switch { get; init; }
+
+    public required FlagActionModel Save { get; init; }
+
+    public required FlagActionModel Reset { get; init; }
+
+    public required FlagActionModel Remove { get; init; }
+}
+
+/// <summary>Whether an editor may do one thing with a flag, and why not when they may not.</summary>
+internal sealed class FlagActionModel
+{
+    public bool Allowed { get; init; }
+
+    public string? Reason { get; init; }
 }
 
 /// <summary>A flag with everything its editor shows.</summary>
@@ -52,8 +71,8 @@ internal sealed class FlagResponseModel
     /// <summary>Its default: <c>off</c>, <c>everyone</c>, <c>audience</c> or <c>custom</c>.</summary>
     public required string DefaultState { get; init; }
 
-    /// <summary>Who it is on for now, by key and id, when the backoffice can read it.</summary>
-    public AudienceModel? AudienceDetail { get; init; }
+    /// <summary>Who it is on for now, with what each group is, when the backoffice can read it.</summary>
+    public AudienceDetailModel? AudienceDetail { get; init; }
 
     /// <summary>The override as stored, in Microsoft's <c>feature_management</c> JSON, when there is one.</summary>
     public string? OverrideDefinition { get; init; }
@@ -68,16 +87,35 @@ internal sealed class AudienceCountsModel
     public int Groups { get; init; }
 }
 
-/// <summary>Who a flag is on for.</summary>
-internal sealed class AudienceModel
+/// <summary>Who a flag is on for, as the editor shows it.</summary>
+internal sealed class AudienceDetailModel
 {
     /// <summary>Member keys.</summary>
     public IReadOnlyList<string> Members { get; init; } = [];
 
-    /// <summary>Member group keys.</summary>
-    public IReadOnlyList<string> MemberGroups { get; init; } = [];
+    public IReadOnlyList<AudienceGroupModel> Groups { get; init; } = [];
+}
 
-    /// <summary>Ids of groups from the site's group providers.</summary>
+/// <summary>A group in an audience, and what the site knows it to be.</summary>
+internal sealed class AudienceGroupModel
+{
+    /// <summary>What the flag stores: a member group's key or name, or a group provider's id.</summary>
+    public required string Id { get; init; }
+
+    /// <summary><c>memberGroup</c>, <c>namedMemberGroup</c>, <c>providerGroup</c> or <c>unknown</c>.</summary>
+    public required string Kind { get; init; }
+
+    /// <summary>What editors see, or null when the site doesn't know the group.</summary>
+    public string? Name { get; init; }
+}
+
+/// <summary>Who a flag is on for, as an editor saves it.</summary>
+internal sealed class SaveAudienceRequestModel
+{
+    /// <summary>Member keys.</summary>
+    public IReadOnlyList<string> Members { get; init; } = [];
+
+    /// <summary>Every group's id, of every kind: member group keys or names, and group providers' ids.</summary>
     public IReadOnlyList<string> Groups { get; init; } = [];
 }
 
@@ -130,7 +168,7 @@ internal sealed class SaveFlagRequestModel
     public bool Enabled { get; init; }
 
     /// <summary>Who the flag is on for, or null for everyone.</summary>
-    public AudienceModel? Audience { get; init; }
+    public SaveAudienceRequestModel? Audience { get; init; }
 }
 
 internal sealed class SetFlagEnabledRequestModel

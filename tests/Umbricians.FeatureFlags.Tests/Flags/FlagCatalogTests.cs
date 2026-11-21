@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.FeatureManagement;
 using Umbricians.FeatureFlags.Flags;
 
 namespace Umbricians.FeatureFlags.Tests.Flags;
@@ -36,7 +37,7 @@ public class FlagCatalogTests
             .And.Property(nameof(CatalogFlag.State)).EqualTo(FlagDisplayState.Everyone));
         Assert.That(flags["Search.Suggestions"].Details.Description, Is.EqualTo("From code."));
         Assert.That(flags["Sale"], Has.Property(nameof(CatalogFlag.State)).EqualTo(FlagDisplayState.Custom)
-            .And.Property(nameof(CatalogFlag.Editable)).False);
+            .And.Property(nameof(CatalogFlag.Actions)).Property(nameof(FlagActions.Save)).Property(nameof(FlagAction.Allowed)).False);
     }
 
     [Test]
@@ -51,62 +52,7 @@ public class FlagCatalogTests
         Assert.That(flags["Checkout.GiftCards"], Has.Property(nameof(CatalogFlag.DiffersFromDefault)).True
             .And.Property(nameof(CatalogFlag.State)).EqualTo(FlagDisplayState.Off));
         Assert.That(flags["Promo.Removed"], Has.Property(nameof(CatalogFlag.IsDeclared)).False
-            .And.Property(nameof(CatalogFlag.Editable)).False);
-    }
-
-    [Test]
-    public async Task Pages_after_searching_filtering_and_sorting_every_flag()
-    {
-        var site = new TestSite(Flags);
-        site.Store.With("Search.Suggestions", FlagSettings.Off).With("Promo.Removed", FlagSettings.Off);
-        IReadOnlyList<CatalogFlag> all = await Catalog(site).GetAllAsync(default);
-
-        (IReadOnlyList<CatalogFlag> firstPage, int total) = new FlagQuery().Run(all, 0, 2);
-        (IReadOnlyList<CatalogFlag> search, _) = new FlagQuery(Filter: "REDESIGNED").Run(all, 0, 10);
-        (IReadOnlyList<CatalogFlag> on, _) = new FlagQuery(State: FlagDisplayState.Everyone).Run(all, 0, 10);
-        (IReadOnlyList<CatalogFlag> changed, _) = new FlagQuery(Marks: FlagMarks.Changed).Run(all, 0, 10);
-        (IReadOnlyList<CatalogFlag> undeclared, _) = new FlagQuery(Undeclared: true).Run(all, 0, 10);
-        (IReadOnlyList<CatalogFlag> checkout, _) = new FlagQuery(Section: "checkout").Run(all, 0, 10);
-        (IReadOnlyList<CatalogFlag> noSection, _) = new FlagQuery(NoSectionOnly: true).Run(all, 0, 10);
-        (IReadOnlyList<CatalogFlag> tagged, _) = new FlagQuery(Tag: "Beta").Run(all, 0, 10);
-
-        Assert.That(total, Is.EqualTo(4));
-        Assert.That(firstPage.Select(f => f.Name), Is.EqualTo(new[] { "Checkout.GiftCards", "Checkout.NewFlow" }));
-        Assert.That(search.Select(f => f.Name), Is.EqualTo(new[] { "Checkout.NewFlow" }));
-        Assert.That(on.Select(f => f.Name), Is.EqualTo(new[] { "Checkout.GiftCards" }));
-        Assert.That(changed.Select(f => f.Name), Is.EqualTo(new[] { "Search.Suggestions" }));
-        Assert.That(undeclared.Select(f => f.Name), Is.EqualTo(new[] { "Promo.Removed" }));
-        Assert.That(checkout.Select(f => f.Name), Is.EqualTo(new[] { "Checkout.NewFlow" }));
-        Assert.That(noSection.Select(f => f.Name), Is.EqualTo(new[] { "Sale" }));
-        Assert.That(tagged.Select(f => f.Name), Is.EqualTo(new[] { "Checkout.NewFlow" }));
-    }
-
-    [Test]
-    public async Task Narrows_to_flags_with_every_mark_asked_for()
-    {
-        var site = new TestSite(Flags, before: services =>
-            services.AddSingleton(new CodeFlagDeclaration(FlagDefinitions.Simple("Search.Suggestions", false), FlagDetails.None)));
-        site.Store.With("Search.Suggestions", FlagSettings.Off).With("Sale", FlagSettings.Off);
-        IReadOnlyList<CatalogFlag> all = await Catalog(site).GetAllAsync(default);
-
-        (IReadOnlyList<CatalogFlag> changed, _) = new FlagQuery(Marks: FlagMarks.Changed).Run(all, 0, 10);
-        (IReadOnlyList<CatalogFlag> changedAndTwice, _) = new FlagQuery(Marks: FlagMarks.Changed | FlagMarks.DeclaredTwice).Run(all, 0, 10);
-
-        Assert.That(changed.Select(f => f.Name), Is.EquivalentTo(new[] { "Search.Suggestions", "Sale" }));
-        Assert.That(changedAndTwice.Select(f => f.Name), Is.EqualTo(new[] { "Search.Suggestions" }));
-    }
-
-    [Test]
-    public async Task Lists_the_most_recently_changed_first()
-    {
-        var site = new TestSite(Flags);
-        site.Store.With("Sale", FlagSettings.Off);
-        await Task.Delay(5);
-        site.Store.With("Checkout.GiftCards", FlagSettings.Off);
-
-        (IReadOnlyList<CatalogFlag> items, _) = new FlagQuery(OrderBy: FlagQueryOrder.Updated).Run(await Catalog(site).GetAllAsync(default), 0, 2);
-
-        Assert.That(items.Select(f => f.Name), Is.EqualTo(new[] { "Checkout.GiftCards", "Sale" }));
+            .And.Property(nameof(CatalogFlag.Actions)).Property(nameof(FlagActions.Save)).Property(nameof(FlagAction.Allowed)).False);
     }
 
     [Test]
@@ -123,8 +69,99 @@ public class FlagCatalogTests
 
         Assert.That(flags.Keys, Is.EquivalentTo(new[] { "Good", "Broken" }));
         Assert.That(flags["Good"].State, Is.EqualTo(FlagDisplayState.Everyone));
-        Assert.That(flags["Broken"], Has.Property(nameof(CatalogFlag.Editable)).False
+        Assert.That(flags["Broken"], Has.Property(nameof(CatalogFlag.Actions)).Property(nameof(FlagActions.Save)).Property(nameof(FlagAction.Allowed)).False
             .And.Property(nameof(CatalogFlag.State)).EqualTo(FlagDisplayState.Custom));
+    }
+
+    [Test]
+    public async Task A_site_flag_source_that_can_not_list_its_flags_still_shows_each_one_it_can_read()
+    {
+        var site = new TestSite(before: services =>
+        {
+            services.AddFeatureManagement();
+            services.AddSingleton<IFeatureDefinitionProvider>(new FailingListSource());
+            services.AddSingleton(new CodeFlagDeclaration(FlagDefinitions.Simple("B", false), FlagDetails.None));
+            services.AddSingleton(new CodeFlagDeclaration(FlagDefinitions.Simple("Broken", false), FlagDetails.None));
+        });
+        site.Store.With("C", FlagSettings.Off);
+
+        Dictionary<string, CatalogFlag> flags = (await Catalog(site).GetAllAsync(default)).ToDictionary(flag => flag.Name);
+
+        Assert.That(flags["A"].DeclaredIn, Is.EqualTo(FlagDeclaredIn.FlagSource));
+        Assert.That(flags["B"], Has.Property(nameof(CatalogFlag.DeclaredIn)).EqualTo(FlagDeclaredIn.FlagSource)
+            .And.Property(nameof(CatalogFlag.DeclaredTwice)).True);
+        Assert.That(flags["C"], Has.Property(nameof(CatalogFlag.IsDeclared)).True.And.Property(nameof(CatalogFlag.Override)).Not.Null);
+        Assert.That(flags["Broken"], Has.Property(nameof(CatalogFlag.Actions)).Property(nameof(FlagActions.Save)).Property(nameof(FlagAction.Allowed)).False
+            .And.Property(nameof(CatalogFlag.State)).EqualTo(FlagDisplayState.Custom));
+    }
+
+    [Test]
+    public async Task Finds_a_flag_by_name_whatever_its_case()
+    {
+        var site = new TestSite(Flags);
+
+        Assert.That((await Catalog(site).FindAsync("checkout.newflow", default))?.Name, Is.EqualTo("Checkout.NewFlow"));
+        Assert.That(await Catalog(site).FindAsync("Nobody", default), Is.Null);
+    }
+
+    [Test]
+    public async Task Overrides_are_shown_but_not_applied_when_they_are_read_only()
+    {
+        var site = new TestSite("""
+            { "Umbricians": { "FeatureFlags": { "Overrides": "ReadOnly" } },
+              "feature_management": { "feature_flags": [ { "id": "F", "enabled": false } ] } }
+            """);
+        site.Store.With("F", new FlagSettings(true, null));
+
+        CatalogFlag flag = (await Catalog(site).FindAsync("F", default))!;
+
+        Assert.That(flag, Has.Property(nameof(CatalogFlag.State)).EqualTo(FlagDisplayState.Off)
+            .And.Property(nameof(CatalogFlag.Actions)).Property(nameof(FlagActions.Save)).Property(nameof(FlagAction.Allowed)).False
+            .And.Property(nameof(CatalogFlag.DiffersFromDefault)).True
+            .And.Property(nameof(CatalogFlag.Override)).Not.Null);
+    }
+
+    [Test]
+    public async Task Says_which_actions_each_flag_allows_and_why()
+    {
+        var site = new TestSite(Flags);
+        site.Store.With("Checkout.GiftCards", FlagSettings.Off).With("Promo.Removed", FlagSettings.Off);
+        var readOnlySite = new TestSite("""
+            { "Umbricians": { "FeatureFlags": { "Overrides": "ReadOnly" } },
+              "feature_management": { "feature_flags": [ { "id": "F", "enabled": false } ] } }
+            """);
+        readOnlySite.Store.With("F", FlagSettings.Off).With("Gone", FlagSettings.Off);
+        site.Store.With("Sale", FlagSettings.Off);
+        IReadOnlyList<CatalogFlag> all = await Catalog(site).GetAllAsync(default);
+        FlagActions Of(string name) => all.Single(flag => flag.Name == name).Actions;
+        Dictionary<string, CatalogFlag> readOnly = (await Catalog(readOnlySite).GetAllAsync(default)).ToDictionary(flag => flag.Name);
+
+        FlagActions withOverride = Of("Checkout.GiftCards");
+        Assert.That((withOverride.Switch.Allowed, withOverride.Save.Allowed, withOverride.Reset.Allowed, withOverride.Remove.Allowed),
+            Is.EqualTo((true, true, true, false)));
+        Assert.That(withOverride.Remove.Reason, Does.Contain("reset it"));
+
+        FlagActions noOverride = Of("Checkout.NewFlow");
+        Assert.That((noOverride.Switch.Allowed, noOverride.Save.Allowed, noOverride.Reset.Allowed), Is.EqualTo((true, true, false)));
+        Assert.That(noOverride.Reset.Reason, Does.Contain("already uses its default"));
+
+        // The saved setting is readable, so Sale (declared with a time window) is editable once an override replaces it.
+        site.Store.WithJson("Sale", """{ "id": "Sale", "enabled": true, "conditions": { "client_filters": [ { "name": "Microsoft.TimeWindow", "parameters": { "Start": "Mon, 01 Jan 2024 00:00:00 GMT" } } ] } }""");
+        site.Refresh();
+        FlagActions custom = (await Catalog(site).FindAsync("Sale", default))!.Actions;
+        Assert.That((custom.Switch.Allowed, custom.Save.Allowed, custom.Reset.Allowed), Is.EqualTo((false, false, true)));
+        Assert.That(custom.Save.Reason, Does.Contain("Microsoft.TimeWindow"));
+
+        FlagActions undeclared = Of("Promo.Removed");
+        Assert.That((undeclared.Switch.Allowed, undeclared.Save.Allowed, undeclared.Reset.Allowed, undeclared.Remove.Allowed),
+            Is.EqualTo((false, false, false, true)));
+        Assert.That(undeclared.Save.Reason, Does.Contain("No flag source"));
+
+        FlagActions undeclaredReadOnly = readOnly["Gone"].Actions;
+        Assert.That(new[] { undeclaredReadOnly.Switch, undeclaredReadOnly.Save, undeclaredReadOnly.Reset, undeclaredReadOnly.Remove }.Select(a => a.Allowed),
+            Is.EqualTo(new[] { false, false, false, false }));
+        Assert.That(undeclaredReadOnly.Remove.Reason, Does.Contain("ReadOnly"));
+        Assert.That(readOnly["F"].Actions.Reset.Reason, Does.Contain("ReadOnly"));
     }
 
     private static FlagCatalog Catalog(TestSite site) => site.Provider.GetRequiredService<FlagCatalog>();

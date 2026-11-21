@@ -143,8 +143,9 @@ is simply off.
 
 ## How a flag is decided
 
-1. If an editor has saved a setting for the flag on this site, and `Overrides` isn't `ReadOnly`, it is used.
-2. Otherwise the flag's declaration in configuration is used.
+1. If the flag is declared, an editor has saved a setting for it, `Overrides` isn't `ReadOnly` and the setting can be
+   read, it is used.
+2. Otherwise the flag's declaration in the flag source (configuration or the site's own provider) is used.
 3. Otherwise its declaration in code.
 4. A flag nobody declares is off.
 

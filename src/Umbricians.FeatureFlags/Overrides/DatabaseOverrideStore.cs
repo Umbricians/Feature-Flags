@@ -11,6 +11,9 @@ namespace Umbricians.FeatureFlags.Overrides;
 /// </summary>
 internal sealed class DatabaseOverrideStore : IFeatureFlagOverrideStore
 {
+    // Enough for several editors saving the same new flag at the same moment; one of them inserts it and the rest update it.
+    private const int MaxSaveAttempts = 3;
+
     private readonly IScopeProvider _scopes;
 
     public DatabaseOverrideStore(IScopeProvider scopes) => _scopes = scopes;
@@ -24,6 +27,23 @@ internal sealed class DatabaseOverrideStore : IFeatureFlagOverrideStore
     }
 
     public async Task SaveAsync(FeatureFlagOverride featureFlagOverride, CancellationToken cancellationToken)
+    {
+        for (int attempt = 1; ; attempt++)
+        {
+            try
+            {
+                await SaveOnceAsync(featureFlagOverride);
+                return;
+            }
+            catch (Exception) when (attempt < MaxSaveAttempts)
+            {
+                // Two saves of a flag with no override can both find none and both insert it; the table's unique index
+                // refuses the second. That save was rolled back, so it reads again, finds the row and updates it.
+            }
+        }
+    }
+
+    private async Task SaveOnceAsync(FeatureFlagOverride featureFlagOverride)
     {
         using IScope scope = _scopes.CreateScope();
         FeatureFlagOverrideDto? row = Find(await FetchAllAsync(scope), featureFlagOverride.FlagName);

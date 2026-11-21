@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Umbricians.FeatureFlags.Flags;
+using Umbricians.FeatureFlags.Groups;
 using Umbricians.FeatureFlags.Overrides;
 
 namespace Umbricians.FeatureFlags.Tests.Overrides;
@@ -42,6 +43,37 @@ public class OverrideServiceTests
         Assert.That(await site.IsOnAsync("Checkout.NewFlow"), Is.True);
         Assert.That(FlagDefinitions.ReadOverride(site.Store.All.Single().Definition, out _)!.Audience!.Members,
             Is.EqualTo(new[] { Member.ToLowerInvariant() }));
+    }
+
+    [Test]
+    public async Task Saving_writes_member_group_keys_the_way_targeting_compares_them_and_leaves_provider_ids_as_they_are()
+    {
+        string providerId = "A1B2C3D4-0000-4000-8000-000000000000";
+        var site = new TestSite(Flags, before: services => services.AddSingleton<IFeatureFlagGroupProvider>(new TestProvider(providerId)));
+        site.MemberGroups.Add(Guid.Parse(Group), "Premium members");
+
+        await Service(site).SaveAsync("Checkout.NewFlow", new FlagSettings(true, new FlagAudience([], [Group.ToUpperInvariant(), providerId])), Editor, default);
+
+        Assert.That(FlagDefinitions.ReadOverride(site.Store.All.Single().Definition, out _)!.Audience!.Groups, Is.EqualTo(new[] { Group, providerId }));
+    }
+
+    [Test]
+    public async Task Saving_keeps_member_groups_named_by_name_and_unknown_ids()
+    {
+        var site = new TestSite(Flags);
+        site.MemberGroups.Add(Guid.NewGuid(), "VIPs");
+
+        await Service(site).SaveAsync("Checkout.NewFlow", new FlagSettings(true, new FlagAudience([], ["VIPs", "crm:gone", Group.ToUpperInvariant()])), Editor, default);
+
+        Assert.That(FlagDefinitions.ReadOverride(site.Store.All.Single().Definition, out _)!.Audience!.Groups,
+            Is.EqualTo(new[] { "VIPs", "crm:gone", Group.ToUpperInvariant() }));
+    }
+
+    private sealed class TestProvider(string id) : IFeatureFlagGroupProvider
+    {
+        public Task<IEnumerable<FeatureFlagGroup>> GetGroupsAsync(CancellationToken cancellationToken) => Task.FromResult<IEnumerable<FeatureFlagGroup>>([new FeatureFlagGroup(id, "Provided")]);
+
+        public Task<IEnumerable<string>> GetGroupIdsForMemberAsync(FeatureFlagMember member, CancellationToken cancellationToken) => Task.FromResult<IEnumerable<string>>([]);
     }
 
     [Test]
@@ -106,7 +138,48 @@ public class OverrideServiceTests
         OverrideResult reset = await service.ResetAsync("Checkout.NewFlow", default);
 
         Assert.That((save.Outcome, reset.Outcome), Is.EqualTo((OverrideOutcome.ReadOnly, OverrideOutcome.ReadOnly)));
+        Assert.That(reset.Reason, Does.Contain("ReadOnly"));
         Assert.That(site.Store.All, Has.Count.EqualTo(1));
+    }
+
+    [Test]
+    public async Task Removing_an_undeclared_flag_on_a_read_only_site_is_refused_with_the_read_only_reason()
+    {
+        var site = new TestSite("""
+            { "Umbricians": { "FeatureFlags": { "Overrides": "ReadOnly" } },
+              "feature_management": { "feature_flags": [ { "id": "Checkout.NewFlow", "enabled": false } ] } }
+            """);
+        site.Store.With("Promo.Removed", new FlagSettings(true, null));
+
+        OverrideResult remove = await Service(site).ResetAsync("Promo.Removed", default);
+
+        Assert.That(remove.Outcome, Is.EqualTo(OverrideOutcome.ReadOnly));
+        Assert.That(remove.Reason, Does.Contain("ReadOnly"));
+        Assert.That(site.Store.All, Has.Count.EqualTo(1));
+    }
+
+    [Test]
+    public async Task Resetting_a_flag_with_nothing_saved_is_refused()
+    {
+        var site = new TestSite(Flags);
+
+        OverrideResult reset = await Service(site).ResetAsync("Checkout.NewFlow", default);
+        OverrideResult unknown = await Service(site).ResetAsync("Nobody", default);
+
+        Assert.That(reset.Outcome, Is.EqualTo(OverrideOutcome.ReadOnly));
+        Assert.That(reset.Reason, Does.Contain("already uses its default"));
+        Assert.That(unknown.Outcome, Is.EqualTo(OverrideOutcome.NotFound));
+    }
+
+    [Test]
+    public async Task A_flag_the_backoffice_can_not_edit_can_not_be_switched()
+    {
+        var site = new TestSite(Flags);
+
+        OverrideResult result = await Service(site).SetEnabledAsync("Sale", false, Editor, default);
+
+        Assert.That(result.Outcome, Is.EqualTo(OverrideOutcome.ReadOnly));
+        Assert.That(result.Reason, Does.Contain("Microsoft.TimeWindow"));
     }
 
     [Test]

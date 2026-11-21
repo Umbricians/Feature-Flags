@@ -60,10 +60,12 @@ Choose a flag's name to open it.
 1. Under **State**, choose **Off**, **On for everyone** or **On for an audience**.
 2. For an audience, under **Audience** choose any of:
    - **Members:** particular people.
-   - **Member groups:** everyone in a member group.
+   - **Member groups:** everyone in a member group. A member group the developers named in configuration is listed
+     under the picker; remove it with its remove button.
    - **Other groups:** groups the developers worked out in code, such as "Premium customers". Only shown when the site
-     has some.
-3. Choose **Save**. **Unsaved changes** shows at the top until you do.
+     has some. A group the site no longer knows, such as a deleted member group or a group a provider stopped
+     offering, is listed here too. It is kept as saved until you remove it.
+3. Choose **Save**. **Unsaved changes** shows at the top until you save, or until you undo your changes.
 
 A member gets the feature if they are in any of the chosen members or groups, and only while they are signed in.
 
@@ -86,5 +88,5 @@ undone.
 - **You can see flags but not change them:** your user group has **View feature flags** but not **Change feature
   flags**. Ask an administrator.
 - **The list says flags can't be changed here:** the developers have set this site so flags are only changed in
-  its configuration. Every flag uses its default.
+  its configuration. Every flag uses its default, and Reset and Remove aren't offered either.
 - **One flag can't be changed:** it is **Custom**. A box at the top of its editor says why.

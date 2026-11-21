@@ -1,10 +1,13 @@
+using System.Reflection;
 using System.Text;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.FeatureManagement;
 using Microsoft.FeatureManagement.FeatureFilters;
 using Umbricians.FeatureFlags.Composers;
 using Umbricians.FeatureFlags.Flags;
+using Umbricians.FeatureFlags.Groups;
 using Umbricians.FeatureFlags.Overrides;
 
 namespace Umbricians.FeatureFlags.Tests;
@@ -63,6 +66,39 @@ internal sealed class InMemoryOverrideStore : IFeatureFlagOverrideStore
     public IReadOnlyCollection<FeatureFlagOverride> All => _overrides.Values;
 }
 
+/// <summary>Keeps the site's member groups in a list; a site without Umbraco has none.</summary>
+internal sealed class InMemoryMemberGroups : IMemberGroups
+{
+    public List<KnownMemberGroup> Groups { get; } = [];
+
+    public InMemoryMemberGroups Add(Guid key, string name)
+    {
+        Groups.Add(new KnownMemberGroup(key, name));
+        return this;
+    }
+
+    public Task<IReadOnlyList<KnownMemberGroup>> GetAllAsync(CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<KnownMemberGroup>>(Groups.ToArray());
+}
+
+/// <summary>
+/// A hand-written double for an Umbraco interface too big to implement by hand: every member answers through
+/// <see cref="Answer"/>, which returns null (the default) for the ones a test doesn't care about.
+/// </summary>
+internal class Stub : DispatchProxy
+{
+    public Func<string, object?[], object?> Answer { get; set; } = (_, _) => null;
+
+    public static T Of<T>(Func<string, object?[], object?> answer) where T : class
+    {
+        T proxy = Create<T, Stub>();
+        ((Stub)(object)proxy).Answer = answer;
+        return proxy;
+    }
+
+    protected override object? Invoke(MethodInfo? targetMethod, object?[]? args) => Answer(targetMethod!.Name, args ?? []);
+}
+
 /// <summary>Says the visitor is whoever the test sets.</summary>
 internal sealed class FixedTargetingContextAccessor : ITargetingContextAccessor
 {
@@ -88,6 +124,7 @@ internal sealed class TestSite
         services.AddLogging();
         services.AddSingleton<IConfiguration>(Configuration);
         services.AddSingleton<IFeatureFlagOverrideStore>(Store);
+        services.AddSingleton<IMemberGroups>(MemberGroups);
         services.AddSingleton<ITargetingContextAccessor>(Visitor);
         before?.Invoke(services);
         services.AddFeatureFlags(Configuration);
@@ -99,6 +136,8 @@ internal sealed class TestSite
     public IConfiguration Configuration { get; }
 
     public InMemoryOverrideStore Store { get; } = new();
+
+    public InMemoryMemberGroups MemberGroups { get; } = new();
 
     public FixedTargetingContextAccessor Visitor { get; } = new();
 
@@ -112,4 +151,38 @@ internal sealed class TestSite
 
     /// <summary>What happens on every server when an override is saved.</summary>
     public void Refresh() => Provider.GetRequiredService<OverrideCache>().ReloadAsync().GetAwaiter().GetResult();
+}
+
+/// <summary>
+/// A site's own flag source that can't list its flags: listing yields <c>A</c> and then throws. Asked for flags one at a
+/// time it knows <c>A</c>, <c>B</c> and <c>C</c>, throws for <c>Broken</c>, and knows nothing else.
+/// </summary>
+internal sealed class FailingListSource : IFeatureDefinitionProvider
+{
+    public Task<FeatureDefinition> GetFeatureDefinitionAsync(string featureName) => featureName switch
+    {
+        "A" or "B" or "C" => Task.FromResult(FlagDefinitions.Simple(featureName, true)),
+        "Broken" => throw new InvalidOperationException("Can't read this flag."),
+        _ => Task.FromResult<FeatureDefinition>(null!),
+    };
+
+    public async IAsyncEnumerable<FeatureDefinition> GetAllFeatureDefinitionsAsync()
+    {
+        yield return FlagDefinitions.Simple("A", true);
+        await Task.Yield();
+        throw new InvalidOperationException("Can't list the flags.");
+    }
+}
+
+/// <summary>Remembers what was logged, so a test can say what a site would be told.</summary>
+internal sealed class CollectingLogger<T> : ILogger<T>
+{
+    public List<(LogLevel Level, string Message, Exception? Exception)> Entries { get; } = [];
+
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+    public bool IsEnabled(LogLevel logLevel) => true;
+
+    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+        Entries.Add((logLevel, formatter(state, exception), exception));
 }

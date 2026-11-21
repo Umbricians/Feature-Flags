@@ -7,5 +7,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Umbricians.FeatureFlags.Tests/Umbricians.FeatureFlags.Tests.csproj" />
+    <Project Path="tests/Umbricians.FeatureFlags.IntegrationTests/Umbricians.FeatureFlags.IntegrationTests.csproj" />
+    <Project Path="tests/Umbricians.FeatureFlags.TestSite/Umbricians.FeatureFlags.TestSite.csproj" />
   </Folder>
 </Solution>

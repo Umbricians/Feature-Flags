@@ -1,7 +1,7 @@
 import { UmbContextBase } from "@umbraco-cms/backoffice/class-api";
 import type { UmbControllerHost } from "@umbraco-cms/backoffice/controller-api";
 import { UmbLocalizationController } from "@umbraco-cms/backoffice/localization-api";
-import { UmbArrayState, UmbBasicState, UmbBooleanState, UmbObjectState } from "@umbraco-cms/backoffice/observable-api";
+import { UmbArrayState, UmbBooleanState, UmbObjectState } from "@umbraco-cms/backoffice/observable-api";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import { umbConfirmModal } from "@umbraco-cms/backoffice/modal";
 import {
@@ -15,20 +15,28 @@ import {
   resetFlag,
   saveFlag,
   type FeatureFlag,
-  type FlagAudience,
   type ProviderGroup,
 } from "../../api/feature-flags.resource.js";
 import { FeatureFlagsRequestError } from "../../api/request-error.js";
 import { FEATURE_FLAG_ENTITY_TYPE, FEATURE_FLAG_WORKSPACE_ALIAS } from "../../constants.js";
 import { FEATURE_FLAGS_PERMISSION_MANAGE } from "../../permissions/constants.js";
 import { observePermission } from "../../permissions/permissions.js";
+import { emptyAudience } from "../audience.js";
 import { stateLabel } from "../describe.js";
+import { mayDo } from "../display.js";
 import { FeatureFlagEditorElement } from "./flag-editor.element.js";
-
-/** What the editor's state choice means: off (keeping any audience), on for everyone, or on for an audience. */
-export type FlagEditorMode = "off" | "everyone" | "audience";
-
-const emptyAudience = (): FlagAudience => ({ members: [], memberGroups: [], groups: [] });
+import {
+  canSave,
+  loadEditor,
+  removeGroup,
+  savePayload,
+  setMemberGroupKeys,
+  setMembers,
+  setMode,
+  setProviderGroup,
+  type FlagEditorMode,
+  type FlagEditorState,
+} from "./flag-editor-state.js";
 
 /**
  * The flag editor's workspace, at …/edit/{name}: loads one flag, holds the editor's unsaved changes, and saves or resets
@@ -44,14 +52,10 @@ export class FeatureFlagWorkspaceContext extends UmbContextBase implements UmbRo
   #providerGroups = new UmbArrayState<ProviderGroup>([], (group) => group.id);
   readonly providerGroups = this.#providerGroups.asObservable();
 
-  #mode = new UmbBasicState<FlagEditorMode>("off");
-  readonly mode = this.#mode.asObservable();
-
-  #audience = new UmbObjectState<FlagAudience>(emptyAudience());
-  readonly audience = this.#audience.asObservable();
-
-  #dirty = new UmbBooleanState(false);
-  readonly dirty = this.#dirty.asObservable();
+  #editor = new UmbObjectState<FlagEditorState | undefined>(undefined);
+  readonly mode = this.#editor.asObservablePart((state) => state?.mode ?? "off");
+  readonly audience = this.#editor.asObservablePart((state) => state?.audience ?? emptyAudience());
+  readonly dirty = this.#editor.asObservablePart((state) => state?.dirty ?? false);
 
   #saving = new UmbBooleanState(false);
   readonly saving = this.#saving.asObservable();
@@ -87,11 +91,6 @@ export class FeatureFlagWorkspaceContext extends UmbContextBase implements UmbRo
     return FEATURE_FLAG_ENTITY_TYPE;
   }
 
-  /** Whether the flag can be changed here: the backoffice can edit it and the user may change flags. */
-  isEditable() {
-    return !!this.#flag.getValue()?.flag.editable && this.#canManage.getValue();
-  }
-
   async load(name = this.#name) {
     if (!name) return;
     this.#name = name;
@@ -103,9 +102,7 @@ export class FeatureFlagWorkspaceContext extends UmbContextBase implements UmbRo
       ]);
       this.#flag.setValue(flag);
       this.#providerGroups.setValue(providerGroups);
-      this.#audience.setValue(flag.audienceDetail ?? emptyAudience());
-      this.#mode.setValue(!flag.flag.enabled ? "off" : flag.audienceDetail ? "audience" : "everyone");
-      this.#dirty.setValue(false);
+      this.#editor.setValue(loadEditor(flag));
       this.#notFound.setValue(false);
     } catch (error) {
       const notFound = error instanceof FeatureFlagsRequestError && error.status === 404;
@@ -117,29 +114,34 @@ export class FeatureFlagWorkspaceContext extends UmbContextBase implements UmbRo
   }
 
   setMode(mode: FlagEditorMode) {
-    this.#mode.setValue(mode);
-    this.#dirty.setValue(true);
+    this.#apply((state) => setMode(state, mode));
   }
 
-  updateAudience(change: Partial<FlagAudience>) {
-    this.#audience.update(change);
-    this.#dirty.setValue(true);
+  setMembers(keys: Array<string>) {
+    this.#apply((state) => setMembers(state, keys));
   }
 
-  toggleProviderGroup(id: string, checked: boolean) {
-    const groups = this.#audience.getValue().groups;
-    this.updateAudience({ groups: checked ? [...new Set([...groups, id])] : groups.filter((group) => group !== id) });
+  setMemberGroupKeys(keys: Array<string>) {
+    this.#apply((state) => setMemberGroupKeys(state, keys));
+  }
+
+  setProviderGroup(group: ProviderGroup, checked: boolean) {
+    this.#apply((state) => setProviderGroup(state, group, checked));
+  }
+
+  removeGroup(id: string) {
+    this.#apply((state) => removeGroup(state, id));
   }
 
   async save() {
-    const flag = this.#flag.getValue();
-    if (!flag || !this.isEditable()) return;
-    const mode = this.#mode.getValue();
+    const editor = this.#editor.getValue();
+    if (!editor || !canSave(editor, this.#canManage.getValue())) return;
+    const payload = savePayload(editor);
     this.#saving.setValue(true);
     try {
-      await saveFlag(flag.flag.name, mode !== "off", this.#audienceToSave(flag));
+      await saveFlag(editor.flag.flag.name, payload.enabled, payload.audience);
       this.#notifications?.peek("positive", {
-        data: { message: this.#localize.term("umbriciansFeatureFlags_saved", flag.flag.name) },
+        data: { message: this.#localize.term("umbriciansFeatureFlags_saved", editor.flag.flag.name) },
       });
       await this.load();
     } catch (error) {
@@ -149,16 +151,29 @@ export class FeatureFlagWorkspaceContext extends UmbContextBase implements UmbRo
     }
   }
 
+  /** Resets a declared flag to its default, or removes the setting of an undeclared one. */
   async reset() {
     const flag = this.#flag.getValue();
     if (!flag) return;
+    const removing = !flag.flag.isDeclared;
+    if (!mayDo(flag.flag, removing ? "remove" : "reset", this.#canManage.getValue()).allowed) return;
     try {
-      await umbConfirmModal(this, {
-        headline: this.#localize.term("umbriciansFeatureFlags_resetHeadline", flag.flag.name),
-        content: this.#localize.term("umbriciansFeatureFlags_resetMessage", stateLabel(this.#localize, flag.defaultState)),
-        color: "warning",
-        confirmLabel: this.#localize.term("umbriciansFeatureFlags_reset"),
-      });
+      await umbConfirmModal(
+        this,
+        removing
+          ? {
+              headline: this.#localize.term("umbriciansFeatureFlags_removeHeadline", flag.flag.name),
+              content: this.#localize.term("umbriciansFeatureFlags_removeMessage"),
+              color: "danger",
+              confirmLabel: this.#localize.term("umbriciansFeatureFlags_remove"),
+            }
+          : {
+              headline: this.#localize.term("umbriciansFeatureFlags_resetHeadline", flag.flag.name),
+              content: this.#localize.term("umbriciansFeatureFlags_resetMessage", stateLabel(this.#localize, flag.defaultState)),
+              color: "warning",
+              confirmLabel: this.#localize.term("umbriciansFeatureFlags_reset"),
+            },
+      );
     } catch {
       return;
     }
@@ -166,7 +181,9 @@ export class FeatureFlagWorkspaceContext extends UmbContextBase implements UmbRo
     try {
       await resetFlag(flag.flag.name);
       this.#notifications?.peek("positive", {
-        data: { message: this.#localize.term("umbriciansFeatureFlags_resetDone", flag.flag.name) },
+        data: {
+          message: this.#localize.term(removing ? "umbriciansFeatureFlags_removed" : "umbriciansFeatureFlags_resetDone", flag.flag.name),
+        },
       });
       await this.load();
     } catch (error) {
@@ -176,14 +193,9 @@ export class FeatureFlagWorkspaceContext extends UmbContextBase implements UmbRo
     }
   }
 
-  /** The audience to save: the chosen one when on for an audience, the one kept while off, or none for everyone. */
-  #audienceToSave(flag: FeatureFlag): FlagAudience | null {
-    const mode = this.#mode.getValue();
-    const audience = this.#audience.getValue();
-    if (mode === "everyone") return null;
-    if (mode === "audience") return audience;
-    const kept = audience.members.length + audience.memberGroups.length + audience.groups.length > 0;
-    return kept || flag.audienceDetail ? audience : null;
+  #apply(change: (state: FlagEditorState) => FlagEditorState) {
+    const state = this.#editor.getValue();
+    if (state) this.#editor.setValue(change(state));
   }
 
   #fail(error: unknown) {

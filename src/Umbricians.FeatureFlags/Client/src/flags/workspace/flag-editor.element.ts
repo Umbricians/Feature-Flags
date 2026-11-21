@@ -1,6 +1,7 @@
 import { customElement, html, nothing, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbLitElement } from "@umbraco-cms/backoffice/lit-element";
 import type { FeatureFlag } from "../../api/feature-flags.resource.js";
+import { mayDo } from "../display.js";
 import { flagListPath } from "../paths.js";
 import { FEATURE_FLAG_WORKSPACE_CONTEXT } from "./flag-workspace.context-token.js";
 
@@ -35,7 +36,10 @@ export class FeatureFlagEditorElement extends UmbLitElement {
 
   override render() {
     const flag = this._flag;
-    const editable = !!flag?.flag.editable && this._canManage;
+    const item = flag?.flag;
+    const undo = item?.isDeclared === false ? "remove" : "reset";
+    const canUndo = !!item && mayDo(item, undo, this._canManage).allowed;
+    const canSave = !!item && mayDo(item, "save", this._canManage).allowed;
     return html`<umb-workspace-editor
       headline=${flag?.flag.name ?? ""}
       .backPath=${flagListPath()}
@@ -47,8 +51,8 @@ export class FeatureFlagEditorElement extends UmbLitElement {
       <uui-button
         slot="actions"
         look="secondary"
-        label=${this.localize.term("umbriciansFeatureFlags_reset")}
-        ?disabled=${!flag?.flag.hasOverride || !this._canManage || this._saving}
+        label=${this.localize.term(undo === "remove" ? "umbriciansFeatureFlags_remove" : "umbriciansFeatureFlags_reset")}
+        ?disabled=${!canUndo || this._saving}
         @click=${() => this.#context?.reset()}></uui-button>
       <uui-button
         slot="actions"
@@ -56,7 +60,7 @@ export class FeatureFlagEditorElement extends UmbLitElement {
         color="positive"
         label=${this.localize.term("umbriciansFeatureFlags_save")}
         .state=${this._saving ? "waiting" : undefined}
-        ?disabled=${!editable || !this._dirty || this._saving}
+        ?disabled=${!canSave || !this._dirty || this._saving}
         @click=${() => this.#context?.save()}></uui-button>
     </umb-workspace-editor>`;
   }

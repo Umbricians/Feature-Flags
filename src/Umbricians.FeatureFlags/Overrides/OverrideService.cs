@@ -1,8 +1,6 @@
-using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core.Cache;
-using Umbricians.FeatureFlags.Configuration;
 using Umbricians.FeatureFlags.Flags;
-using Umbricians.FeatureFlags.Targeting;
+using Umbricians.FeatureFlags.Groups;
 
 namespace Umbricians.FeatureFlags.Overrides;
 
@@ -16,21 +14,21 @@ internal sealed class OverrideService
     private readonly OverrideCache _cache;
     private readonly DistributedCache? _distributedCache;
     private readonly TimeProvider _time;
-    private readonly IOptionsMonitor<FeatureFlagsOptions> _options;
+    private readonly AudienceGroups _groups;
 
     public OverrideService(
         IFeatureFlagOverrideStore store,
         FlagCatalog catalog,
         OverrideCache cache,
         TimeProvider time,
-        IOptionsMonitor<FeatureFlagsOptions> options,
+        AudienceGroups groups,
         DistributedCache? distributedCache = null)
     {
         _store = store;
         _catalog = catalog;
         _cache = cache;
         _time = time;
-        _options = options;
+        _groups = groups;
         _distributedCache = distributedCache;
     }
 
@@ -43,17 +41,7 @@ internal sealed class OverrideService
             return OverrideResult.NotFound;
         }
 
-        if (!flag.Editable)
-        {
-            return OverrideResult.ReadOnly(flag.ReadOnlyReason);
-        }
-
-        FlagSettings normalized = Normalize(settings);
-        await _store.SaveAsync(
-            new FeatureFlagOverride(flag.Name, FlagDefinitions.ToJson(flag.Name, normalized), userKey, _time.GetUtcNow().UtcDateTime),
-            cancellationToken);
-        await RefreshAsync();
-        return OverrideResult.Saved;
+        return await SaveFlagAsync(flag, settings, userKey, cancellationToken);
     }
 
     /// <summary>Switches a flag on or off, keeping its audience.</summary>
@@ -65,15 +53,33 @@ internal sealed class OverrideService
             return OverrideResult.NotFound;
         }
 
-        if (!flag.Editable || flag.Settings is null)
+        if (!flag.Actions.Switch.Allowed)
         {
-            return OverrideResult.ReadOnly(flag.ReadOnlyReason);
+            return OverrideResult.ReadOnly(flag.Actions.Switch.Reason);
         }
 
-        return await SaveAsync(flag.Name, flag.Settings with { Enabled = enabled }, userKey, cancellationToken);
+        return await SaveFlagAsync(flag, flag.Settings! with { Enabled = enabled }, userKey, cancellationToken);
     }
 
-    /// <summary>Removes a flag's override, so it goes back to its default; for an undeclared flag, removes it.</summary>
+    /// <summary>Saves settings for a flag that has been found and is declared, if the backoffice may change it.</summary>
+    private async Task<OverrideResult> SaveFlagAsync(CatalogFlag flag, FlagSettings settings, Guid? userKey, CancellationToken cancellationToken)
+    {
+        if (!flag.Actions.Save.Allowed)
+        {
+            return OverrideResult.ReadOnly(flag.Actions.Save.Reason);
+        }
+
+        FlagSettings normalized = settings.Audience is null
+            ? settings
+            : settings with { Audience = (await _groups.ReadAsync(cancellationToken)).Normalize(settings.Audience) };
+        await _store.SaveAsync(
+            new FeatureFlagOverride(flag.Name, FlagDefinitions.ToJson(flag.Name, normalized), userKey, _time.GetUtcNow().UtcDateTime),
+            cancellationToken);
+        await RefreshAsync();
+        return OverrideResult.Saved;
+    }
+
+    /// <summary>Removes a flag's override, so it goes back to its default; for an undeclared flag, removes it. Refused when the catalog says so.</summary>
     public async Task<OverrideResult> ResetAsync(string flagName, CancellationToken cancellationToken)
     {
         CatalogFlag? flag = await _catalog.FindAsync(flagName, cancellationToken);
@@ -82,16 +88,10 @@ internal sealed class OverrideService
             return OverrideResult.NotFound;
         }
 
-        // Any flag can go back to its default, even one whose override the backoffice can't edit, unless the site
-        // has switched backoffice settings off altogether.
-        if (_options.CurrentValue.OverridesAreReadOnly())
+        FlagAction action = flag.IsDeclared ? flag.Actions.Reset : flag.Actions.Remove;
+        if (!action.Allowed)
         {
-            return OverrideResult.ReadOnly(flag.ReadOnlyReason);
-        }
-
-        if (flag.Override is null)
-        {
-            return OverrideResult.Saved;
+            return OverrideResult.ReadOnly(action.Reason);
         }
 
         await _store.DeleteAsync(flag.Name, cancellationToken);
@@ -112,6 +112,8 @@ internal sealed class OverrideService
 
         var removed = new HashSet<string>(ids, StringComparer.OrdinalIgnoreCase);
         bool changed = false;
+        // This reads the store and the JSON itself, not the cache: it writes back, so it must start from what is stored,
+        // never from a copy that may be a moment behind.
         foreach (FeatureFlagOverride saved in await _store.GetAllAsync(cancellationToken))
         {
             FlagSettings? settings = FlagDefinitions.ReadOverride(saved.Definition, out _);
@@ -146,23 +148,6 @@ internal sealed class OverrideService
         // its own read, so whatever the editor does next sees the change.
         _distributedCache?.RefreshAll(FeatureFlagsCacheRefresher.UniqueId);
         return _cache.ReloadAsync();
-    }
-
-    /// <summary>Writes keys the way targeting compares them, and drops blanks and repeats.</summary>
-    private static FlagSettings Normalize(FlagSettings settings)
-    {
-        if (settings.Audience is null)
-        {
-            return settings;
-        }
-
-        static string[] Clean(IEnumerable<string> ids) => ids
-            .Where(id => !string.IsNullOrWhiteSpace(id))
-            .Select(id => Guid.TryParse(id, out Guid key) ? TargetingIds.For(key) : id.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-
-        return settings with { Audience = new FlagAudience(Clean(settings.Audience.Members), Clean(settings.Audience.Groups)) };
     }
 }
 
