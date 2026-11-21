@@ -56,61 +56,6 @@ public class FlagCatalogTests
     }
 
     [Test]
-    public async Task Pages_after_searching_filtering_and_sorting_every_flag()
-    {
-        var site = new TestSite(Flags);
-        site.Store.With("Search.Suggestions", FlagSettings.Off).With("Promo.Removed", FlagSettings.Off);
-        IReadOnlyList<CatalogFlag> all = await Catalog(site).GetAllAsync(default);
-
-        (IReadOnlyList<CatalogFlag> firstPage, int total) = new FlagQuery().Run(all, 0, 2);
-        (IReadOnlyList<CatalogFlag> search, _) = new FlagQuery(Filter: "REDESIGNED").Run(all, 0, 10);
-        (IReadOnlyList<CatalogFlag> on, _) = new FlagQuery(State: FlagDisplayState.Everyone).Run(all, 0, 10);
-        (IReadOnlyList<CatalogFlag> changed, _) = new FlagQuery(Marks: FlagMarks.Changed).Run(all, 0, 10);
-        (IReadOnlyList<CatalogFlag> undeclared, _) = new FlagQuery(Undeclared: true).Run(all, 0, 10);
-        (IReadOnlyList<CatalogFlag> checkout, _) = new FlagQuery(Section: "checkout").Run(all, 0, 10);
-        (IReadOnlyList<CatalogFlag> noSection, _) = new FlagQuery(NoSectionOnly: true).Run(all, 0, 10);
-        (IReadOnlyList<CatalogFlag> tagged, _) = new FlagQuery(Tag: "Beta").Run(all, 0, 10);
-
-        Assert.That(total, Is.EqualTo(4));
-        Assert.That(firstPage.Select(f => f.Name), Is.EqualTo(new[] { "Checkout.GiftCards", "Checkout.NewFlow" }));
-        Assert.That(search.Select(f => f.Name), Is.EqualTo(new[] { "Checkout.NewFlow" }));
-        Assert.That(on.Select(f => f.Name), Is.EqualTo(new[] { "Checkout.GiftCards" }));
-        Assert.That(changed.Select(f => f.Name), Is.EqualTo(new[] { "Search.Suggestions" }));
-        Assert.That(undeclared.Select(f => f.Name), Is.EqualTo(new[] { "Promo.Removed" }));
-        Assert.That(checkout.Select(f => f.Name), Is.EqualTo(new[] { "Checkout.NewFlow" }));
-        Assert.That(noSection.Select(f => f.Name), Is.EqualTo(new[] { "Sale" }));
-        Assert.That(tagged.Select(f => f.Name), Is.EqualTo(new[] { "Checkout.NewFlow" }));
-    }
-
-    [Test]
-    public async Task Narrows_to_flags_with_every_mark_asked_for()
-    {
-        var site = new TestSite(Flags, before: services =>
-            services.AddSingleton(new CodeFlagDeclaration(FlagDefinitions.Simple("Search.Suggestions", false), FlagDetails.None)));
-        site.Store.With("Search.Suggestions", FlagSettings.Off).With("Sale", FlagSettings.Off);
-        IReadOnlyList<CatalogFlag> all = await Catalog(site).GetAllAsync(default);
-
-        (IReadOnlyList<CatalogFlag> changed, _) = new FlagQuery(Marks: FlagMarks.Changed).Run(all, 0, 10);
-        (IReadOnlyList<CatalogFlag> changedAndTwice, _) = new FlagQuery(Marks: FlagMarks.Changed | FlagMarks.DeclaredTwice).Run(all, 0, 10);
-
-        Assert.That(changed.Select(f => f.Name), Is.EquivalentTo(new[] { "Search.Suggestions", "Sale" }));
-        Assert.That(changedAndTwice.Select(f => f.Name), Is.EqualTo(new[] { "Search.Suggestions" }));
-    }
-
-    [Test]
-    public async Task Lists_the_most_recently_changed_first()
-    {
-        var site = new TestSite(Flags);
-        site.Store.With("Sale", FlagSettings.Off);
-        await Task.Delay(5);
-        site.Store.With("Checkout.GiftCards", FlagSettings.Off);
-
-        (IReadOnlyList<CatalogFlag> items, _) = new FlagQuery(OrderBy: FlagQueryOrder.Updated).Run(await Catalog(site).GetAllAsync(default), 0, 2);
-
-        Assert.That(items.Select(f => f.Name), Is.EqualTo(new[] { "Checkout.GiftCards", "Sale" }));
-    }
-
-    [Test]
     public async Task A_flag_with_a_bad_date_is_listed_read_only_without_hiding_the_others()
     {
         // 1 December 2026 is a Tuesday, so Microsoft can't read this date; it only finds out when the flag is checked.

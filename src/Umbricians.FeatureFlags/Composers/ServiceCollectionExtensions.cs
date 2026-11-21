@@ -53,6 +53,7 @@ internal static class ServiceCollectionExtensions
         services.TryAddSingleton<IFeatureFlagOverrideStore, DatabaseOverrideStore>();
         services.TryAddSingleton<FlagResolution>();
         services.TryAddSingleton<FlagCatalog>();
+        services.TryAddSingleton<FlagList>();
         services.TryAddSingleton<IMemberGroups, UmbracoMemberGroups>();
         services.TryAddSingleton<AudienceGroups>();
         services.TryAddSingleton<OverrideService>();

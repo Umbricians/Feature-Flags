@@ -1,7 +1,6 @@
-using Umbricians.FeatureFlags.Flags;
 using Umbricians.FeatureFlags.Groups;
 
-namespace Umbricians.FeatureFlags.Controllers;
+namespace Umbricians.FeatureFlags.Flags;
 
 /// <summary>The words the API uses for a flag's state and for the list's filters, each written once, both ways.</summary>
 internal static class ApiNames

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { FlagActions } from "../api/types.ts";
-import { audienceParts, joinList, mayDo, quickAction, sections, shortName } from "./display.ts";
+import { ALL_SECTIONS, audienceParts, joinList, mayDo, quickAction, sectionFromOption, sectionOption, sections, shortName } from "./display.ts";
 
 test("the section is taken off the front of the name", () => {
   assert.equal(shortName({ name: "Checkout.NewFlow", section: "Checkout" }), "NewFlow");
@@ -71,4 +71,14 @@ test("lists read as prose", () => {
   assert.equal(joinList(["a"], "and"), "a");
   assert.equal(joinList(["a", "b"], "and"), "a and b");
   assert.equal(joinList(["a", "b", "c"], "and"), "a, b and c");
+});
+
+test("\"all sections\" is its own option and means no section filter", () => {
+  assert.equal(sectionOption(undefined), ALL_SECTIONS);
+  assert.equal(sectionOption(null), ALL_SECTIONS);
+  assert.equal(sectionOption(""), "");
+  assert.equal(sectionOption("Checkout"), "Checkout");
+  assert.equal(sectionFromOption(ALL_SECTIONS), null);
+  assert.equal(sectionFromOption(""), "");
+  assert.equal(sectionFromOption("Checkout"), "Checkout");
 });

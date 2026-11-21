@@ -66,10 +66,10 @@ public class FlagApiTests
         site.Provider.GetRequiredService<AudienceGroups>());
 
     private static FlagsController Controller(TestSite site, string userName = "Ada") => new(
+        site.Provider.GetRequiredService<FlagList>(),
         site.Provider.GetRequiredService<FlagCatalog>(),
         Responses(site, userName),
         site.Provider.GetRequiredService<AudienceGroups>(),
-        site.Provider.GetRequiredService<IOptionsMonitor<FeatureFlagsOptions>>(),
         new TestEnvironment());
 
     private static ManageFlagsController Manager(TestSite site) => new(

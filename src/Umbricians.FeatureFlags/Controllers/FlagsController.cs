@@ -2,10 +2,8 @@ using Asp.Versioning;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Options;
 using Umbraco.Cms.Api.Common.ViewModels.Pagination;
 using Umbraco.Cms.Web.Common.Routing;
-using Umbricians.FeatureFlags.Configuration;
 using Umbricians.FeatureFlags.Flags;
 using Umbricians.FeatureFlags.Groups;
 using Umbricians.FeatureFlags.Security;
@@ -22,25 +20,23 @@ namespace Umbricians.FeatureFlags.Controllers;
 [FeatureFlagsPermission(Constants.Permissions.View)]
 internal sealed class FlagsController : FeatureFlagsControllerBase
 {
-    private const int MaxPageSize = 100;
-
+    private readonly FlagList _list;
     private readonly FlagCatalog _catalog;
     private readonly FlagResponses _responses;
     private readonly AudienceGroups _audienceGroups;
-    private readonly IOptionsMonitor<FeatureFlagsOptions> _options;
     private readonly IHostEnvironment _environment;
 
     public FlagsController(
+        FlagList list,
         FlagCatalog catalog,
         FlagResponses responses,
         AudienceGroups audienceGroups,
-        IOptionsMonitor<FeatureFlagsOptions> options,
         IHostEnvironment environment)
     {
+        _list = list;
         _catalog = catalog;
         _responses = responses;
         _audienceGroups = audienceGroups;
-        _options = options;
         _environment = environment;
     }
 
@@ -70,31 +66,10 @@ internal sealed class FlagsController : FeatureFlagsControllerBase
         string? orderBy = null,
         CancellationToken cancellationToken = default)
     {
-        if (skip < 0 || take < 1 || take > MaxPageSize)
-        {
-            return BadRequest(new ProblemDetails { Title = "Invalid page", Detail = $"skip must be 0 or more, and take between 1 and {MaxPageSize}." });
-        }
-
-        if (!ApiNames.TryParseState(state, out FlagDisplayState? stateFilter)
-            || !ApiNames.TryParseShow(show, out bool undeclared)
-            || !ApiNames.TryParseMarks(marks, out FlagMarks markFilter)
-            || !ApiNames.TryParseOrder(orderBy, out FlagQueryOrder order))
-        {
-            return BadRequest(new ProblemDetails { Title = "Invalid filter", Detail = "state, show, marks or orderBy has a value the API doesn't know." });
-        }
-
-        var query = new FlagQuery(
-            filter,
-            stateFilter,
-            undeclared,
-            markFilter,
-            string.IsNullOrEmpty(section) ? null : section,
-            NoSectionOnly: section is not null && section.Length == 0,
-            string.IsNullOrEmpty(tag) ? null : tag,
-            order);
-
-        (IReadOnlyList<CatalogFlag> items, int total) = query.Run(await _catalog.GetAllAsync(cancellationToken), skip, take);
-        return Ok(new PagedViewModel<FlagListItemResponseModel> { Total = total, Items = await _responses.ListItemsAsync(items, cancellationToken) });
+        FlagListResult result = await _list.PageAsync(new FlagListRequest(skip, take, filter, state, show, marks, section, tag, orderBy), cancellationToken);
+        return result.Problem is { } problem
+            ? BadRequest(new ProblemDetails { Title = problem.Title, Detail = problem.Detail })
+            : Ok(new PagedViewModel<FlagListItemResponseModel> { Total = result.Total, Items = await _responses.ListItemsAsync(result.Items, cancellationToken) });
     }
 
     /// <summary>The sections and tags flags are in, for the list's filters, and what the list says about the site.</summary>
@@ -102,20 +77,14 @@ internal sealed class FlagsController : FeatureFlagsControllerBase
     [ProducesResponseType<FlagSummaryResponseModel>(StatusCodes.Status200OK)]
     public async Task<FlagSummaryResponseModel> Summary(CancellationToken cancellationToken)
     {
-        IReadOnlyList<CatalogFlag> flags = await _catalog.GetAllAsync(cancellationToken);
-        CatalogFlag[] declared = flags.Where(flag => flag.IsDeclared).ToArray();
+        FlagListSummary summary = await _list.SummaryAsync(cancellationToken);
         return new FlagSummaryResponseModel
         {
-            Sections = declared
-                .GroupBy(flag => flag.Details.Section, StringComparer.OrdinalIgnoreCase)
-                .OrderBy(g => g.Key is null ? 1 : 0).ThenBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
-                .Select(g => new FlagSectionCountModel { Name = g.Key, Count = g.Count() })
-                .ToArray(),
-            Tags = declared.SelectMany(flag => flag.Details.Tags).Distinct(StringComparer.OrdinalIgnoreCase)
-                .Order(StringComparer.OrdinalIgnoreCase).ToArray(),
-            Total = declared.Length,
-            Undeclared = flags.Count - declared.Length,
-            ReadOnly = _options.CurrentValue.OverridesAreReadOnly(),
+            Sections = summary.Sections.Select(section => new FlagSectionCountModel { Name = section.Name, Count = section.Count }).ToArray(),
+            Tags = summary.Tags,
+            Total = summary.Total,
+            Undeclared = summary.Undeclared,
+            ReadOnly = summary.ReadOnly,
             Environment = _environment.EnvironmentName,
         };
     }

@@ -7,6 +7,19 @@ export interface FeatureFlagCollectionItem extends FeatureFlagListItem {
   entityType: string;
 }
 
+/** The flag list's "all sections" choice. It is a select's value, never sent to the server. */
+export const ALL_SECTIONS = "*";
+
+/** The select's value for a section filter: the section's name, "" for flags in no section, or all sections. */
+export function sectionOption(section: string | null | undefined): string {
+  return section === undefined || section === null ? ALL_SECTIONS : section;
+}
+
+/** The section filter for a select's value; null for every section. */
+export function sectionFromOption(value: string): string | null {
+  return value === ALL_SECTIONS ? null : value;
+}
+
 /** The name without its section in front, e.g. `NewFlow` for `Checkout.NewFlow` in the Checkout section. */
 export function shortName(item: Pick<FeatureFlagListItem, "name" | "section">): string {
   const prefix = item.section ? `${item.section}.` : "";
