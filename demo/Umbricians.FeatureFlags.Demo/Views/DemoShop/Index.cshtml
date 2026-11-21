@@ -1,5 +1,6 @@
 @model DemoShopModel
 @{
+    string Money(decimal value) => "£" + value.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
     Layout = null;
     // Each part a flag switches is wrapped in Microsoft's <feature> tag helper, exactly as a site would write it.
     // data-flag only labels the part when "Show flagged areas" is on in the demo page.
@@ -50,6 +51,8 @@
         .gift { display: flex; gap: 8px; margin: 12px 0; }
         .gift input { flex: 1; padding: 9px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--text); }
         .gift span { padding: 9px 14px; border-radius: 10px; border: 1px solid var(--line); }
+        .was { text-decoration: line-through; color: var(--muted); font-weight: 400; font-size: 0.75em; margin-right: 8px; }
+        .member-price { color: #b23a2a; }
         .flagged { position: relative; }
         .outline .flagged { outline: 2px dashed #d99a00; outline-offset: 4px; border-radius: 6px; }
         .outline .flagged::after { content: attr(data-flag); position: absolute; top: -14px; right: 6px; background: #d99a00; color: #111; font: 600 11px/1.6 ui-monospace, Menlo, monospace; padding: 0 6px; border-radius: 4px; z-index: 3; white-space: nowrap; }
@@ -123,7 +126,15 @@
             <p class="muted" style="margin:0 0 6px">Ridgeline</p>
             <h1>Trail Shell Jacket</h1>
             <p class="muted" style="margin:0">Waterproof, breathable and light enough to forget you packed it.</p>
-            <div class="price">£149.00</div>
+            @* Pricing.MemberDiscount is checked in DemoShopController, not here: the view only shows the price it is given. *@
+            @if (Model.Discounted)
+            {
+                <div class="price flagged" data-flag="Pricing.MemberDiscount · checked in C#"><span class="was">@Money(Model.FullPrice)</span><span class="member-price">@Money(Model.Price)</span> <span class="pill">Member price</span></div>
+            }
+            else
+            {
+                <div class="price">@Money(Model.Price)</div>
+            }
             <div>Size</div>
             <div class="sizes"><span>S</span><span class="on">M</span><span>L</span><span>XL</span></div>
             <span class="button primary">Add to basket</span>
@@ -133,7 +144,7 @@
 
             <div class="basket">
                 <h2>Your basket</h2>
-                <div class="row"><span>Trail Shell Jacket, M</span><span>£149.00</span></div>
+                <div class="row"><span>Trail Shell Jacket, M</span><span>@Money(Model.Price)</span></div>
                 <div class="row muted"><span>Delivery</span><span>Free</span></div>
                 <feature name="Checkout.NewFlow">
                     <div class="onepage flagged" data-flag="Checkout.NewFlow">One-page checkout: delivery, payment and review together.</div>
@@ -144,7 +155,7 @@
                 <feature name="Checkout.GiftCards">
                     <div class="gift flagged" data-flag="Checkout.GiftCards"><input placeholder="Gift card code" aria-label="Gift card code"><span>Apply</span></div>
                 </feature>
-                <div class="row" style="font-weight:700;border-top:1px solid var(--line);margin-top:8px;padding-top:12px"><span>Total</span><span>£149.00</span></div>
+                <div class="row" style="font-weight:700;border-top:1px solid var(--line);margin-top:8px;padding-top:12px"><span>Total</span><span>@Money(Model.Price)</span></div>
                 <span class="button primary" style="margin-top:12px">Checkout</span>
             </div>
         </div>

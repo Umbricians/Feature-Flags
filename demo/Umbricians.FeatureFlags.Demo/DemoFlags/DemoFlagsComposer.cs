@@ -9,10 +9,17 @@ namespace Umbricians.FeatureFlags.Demo.DemoFlags;
 /// </summary>
 public class DemoFlagsComposer : IComposer
 {
+    public const string DarkMode = "DarkMode";
+    public const string MemberDiscount = "Pricing.MemberDiscount";
+
+    /// <summary>The flags declared here in code rather than in appsettings, so the demo page can label them.</summary>
+    public static readonly IReadOnlySet<string> DeclaredInCode = new HashSet<string> { DarkMode, MemberDiscount };
+
     public void Compose(IUmbracoBuilder builder)
     {
         builder.AddFeatureFlags(flags => flags
-            .Declare("DarkMode", description: "Dark colours across the site.", tags: ["ui"])
+            .Declare(DarkMode, description: "Dark colours across the site.", tags: ["ui"])
+            .Declare(MemberDiscount, description: "10% off the price for the members it is on for.", group: "Pricing", tags: ["pricing"])
             .AddGroupProvider<ExampleDomainGroupProvider>());
 
         builder.Services.Configure<DemoMembersOptions>(builder.Config.GetSection("FeatureFlagsDemo:Members"));

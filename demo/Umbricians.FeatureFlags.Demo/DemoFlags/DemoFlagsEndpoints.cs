@@ -32,7 +32,8 @@ public static class DemoFlagsEndpoints
             await foreach (string name in features.GetFeatureNamesAsync())
             {
                 bool on = await features.IsEnabledAsync(name);
-                flags.Append($"""<li><span>{Encode(name)}</span><b class="{(on ? "on" : "off")}">{(on ? "On" : "Off")}</b></li>""");
+                string source = DemoFlagsComposer.DeclaredInCode.Contains(name) ? "Code" : "appsettings";
+                flags.Append($"""<li><span>{Encode(name)}<small>{source}</small></span><b class="{(on ? "on" : "off")}">{(on ? "On" : "Off")}</b></li>""");
             }
 
             var people = new StringBuilder();
@@ -65,7 +66,7 @@ public static class DemoFlagsEndpoints
                 button.person strong{display:block;font-size:14px}button.person small{color:#5e5e66;font-size:12px}
                 label.toggle{display:flex;gap:8px;align-items:center;font-size:14px;cursor:pointer}
                 ul{list-style:none;margin:0;padding:0}li{display:flex;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid #eef0f4;font-size:13px}
-                li span{font-family:ui-monospace,Menlo,monospace;word-break:break-all}b.on{color:#0b5c36}b.off{color:#8a8a93}
+                li span{font-family:ui-monospace,Menlo,monospace;word-break:break-all}li span small{display:block;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-size:11px;color:#8a8a93;margin-top:2px}b.on{color:#0b5c36}b.off{color:#8a8a93}
                 a.backoffice{display:block;margin-top:16px;text-align:center;background:#1b264f;color:#fff;border-radius:8px;padding:10px;text-decoration:none;font-size:14px;font-weight:600}
                 </style></head>
                 <body>
@@ -84,6 +85,7 @@ public static class DemoFlagsEndpoints
                   <h2>Page</h2>
                   <label class="toggle"><input type="checkbox" {{(outline ? "checked" : "")}} onchange="location.href='{{Path}}?outline='+(this.checked?'1':'0')"> Show flagged areas</label>
                   <h2>Flags for this visitor</h2>
+                  <p style="font-size:12px;color:#5e5e66;margin-bottom:6px">Under each flag: where a developer declared it.</p>
                   <ul>{{flags}}</ul>
                   <a class="backoffice" href="/umbraco/section/settings/workspace/umbricians-feature-flags-root" target="_blank" rel="noopener">Change flags in the backoffice</a>
                   <p style="margin-top:10px;font-size:12px;color:#5e5e66">After changing a flag, reload this page to see the result.</p>

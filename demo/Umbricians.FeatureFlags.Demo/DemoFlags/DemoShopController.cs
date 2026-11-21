@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using Microsoft.FeatureManagement;
 using Umbraco.Cms.Core.Security;
 
 namespace Umbricians.FeatureFlags.Demo.DemoFlags;
@@ -13,12 +14,16 @@ public class DemoShopController : Controller
 {
     private readonly IMemberManager _members;
     private readonly IOptions<DemoMembersOptions> _options;
+    private readonly IFeatureManagerSnapshot _features;
 
-    public DemoShopController(IMemberManager members, IOptions<DemoMembersOptions> options)
+    public DemoShopController(IMemberManager members, IOptions<DemoMembersOptions> options, IFeatureManagerSnapshot features)
     {
         _members = members;
         _options = options;
+        _features = features;
     }
+
+    private const decimal FullPrice = 149.00m;
 
     [HttpGet("flags/shop")]
     public async Task<IActionResult> Index(string? outline = null)
@@ -29,9 +34,21 @@ public class DemoShopController : Controller
         }
 
         MemberIdentityUser? member = await _members.GetCurrentMemberAsync();
-        return View("~/Views/DemoShop/Index.cshtml", new DemoShopModel(member?.Name, outline == "1"));
+
+        // A flag checked in C#, not in the markup: it changes the price the server works out, and the view just shows
+        // whatever price it is given.
+        decimal price = FullPrice;
+        if (await _features.IsEnabledAsync(DemoFlagsComposer.MemberDiscount))
+        {
+            price = Math.Round(FullPrice * 0.9m, 2);
+        }
+
+        return View("~/Views/DemoShop/Index.cshtml", new DemoShopModel(member?.Name, outline == "1", FullPrice, price));
     }
 }
 
-/// <summary>Who is looking at the shop, and whether to outline the parts flags switch.</summary>
-public record DemoShopModel(string? MemberName, bool Outline);
+/// <summary>Who is looking at the shop, whether to outline the parts flags switch, and the price worked out for them.</summary>
+public record DemoShopModel(string? MemberName, bool Outline, decimal FullPrice, decimal Price)
+{
+    public bool Discounted => Price < FullPrice;
+}
