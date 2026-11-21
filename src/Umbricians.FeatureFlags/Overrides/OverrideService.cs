@@ -84,7 +84,7 @@ internal sealed class OverrideService
 
         // Any flag can go back to its default, even one whose override the backoffice can't edit, unless the site
         // has switched backoffice settings off altogether.
-        if (_options.CurrentValue.Overrides != FeatureFlagsOverrides.Enabled)
+        if (_options.CurrentValue.OverridesAreReadOnly())
         {
             return OverrideResult.ReadOnly(flag.ReadOnlyReason);
         }

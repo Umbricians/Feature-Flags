@@ -11,10 +11,9 @@ namespace Umbricians.FeatureFlags.Extensions;
 /// </summary>
 public sealed class FeatureFlagsBuilder
 {
-    internal FeatureFlagsBuilder(IServiceCollection services) => Services = services;
+    private readonly IServiceCollection _services;
 
-    /// <summary>The site's services.</summary>
-    public IServiceCollection Services { get; }
+    internal FeatureFlagsBuilder(IServiceCollection services) => _services = services;
 
     /// <summary>
     /// Declares a flag that is off, or on for everyone, until an editor changes it. A flag the site's configuration
@@ -49,7 +48,7 @@ public sealed class FeatureFlagsBuilder
     {
         ArgumentNullException.ThrowIfNull(definition);
         ArgumentException.ThrowIfNullOrWhiteSpace(definition.Name);
-        Services.AddSingleton(new CodeFlagDeclaration(definition, new FlagDetails(description, section, tags?.ToArray() ?? [])));
+        _services.AddSingleton(new CodeFlagDeclaration(definition, new FlagDetails(description, section, tags?.ToArray() ?? [])));
         return this;
     }
 
@@ -60,7 +59,7 @@ public sealed class FeatureFlagsBuilder
     public FeatureFlagsBuilder AddGroupProvider<TProvider>()
         where TProvider : class, IFeatureFlagGroupProvider
     {
-        Services.TryAddEnumerable(ServiceDescriptor.Singleton<IFeatureFlagGroupProvider, TProvider>());
+        _services.TryAddEnumerable(ServiceDescriptor.Singleton<IFeatureFlagGroupProvider, TProvider>());
         return this;
     }
 }

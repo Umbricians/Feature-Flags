@@ -14,6 +14,16 @@ internal sealed record FlagDetails(string? Description, string? Section, IReadOn
     /// <summary>Each detail from this, or from <paramref name="fallback"/> where this has none.</summary>
     public FlagDetails Or(FlagDetails fallback) =>
         new(Description ?? fallback.Description, Section ?? fallback.Section, Tags.Count > 0 ? Tags : fallback.Tags);
+
+    /// <summary>These details, with the section taken from the flag's name when none was given.</summary>
+    public FlagDetails ForFlag(string name) => Section is null ? this with { Section = SectionFromName(name) } : this;
+
+    /// <summary>The text before the first <c>.</c> in a flag's name, when there is any.</summary>
+    private static string? SectionFromName(string name)
+    {
+        int dot = name.IndexOf('.');
+        return dot > 0 ? name[..dot] : null;
+    }
 }
 
 /// <summary>Where a declared flag comes from.</summary>

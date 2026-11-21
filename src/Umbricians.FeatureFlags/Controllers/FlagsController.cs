@@ -115,7 +115,7 @@ internal sealed class FlagsController : FeatureFlagsControllerBase
                 .Order(StringComparer.OrdinalIgnoreCase).ToArray(),
             Total = declared.Length,
             Undeclared = flags.Count - declared.Length,
-            ReadOnly = _options.CurrentValue.Overrides != FeatureFlagsOverrides.Enabled,
+            ReadOnly = _options.CurrentValue.OverridesAreReadOnly(),
             Environment = _environment.EnvironmentName,
         };
     }

@@ -38,7 +38,7 @@ internal sealed class FlagCatalog
     public async Task<IReadOnlyList<CatalogFlag>> GetAllAsync(CancellationToken cancellationToken)
     {
         OverrideCache.Snapshot snapshot = await _overrides.GetAsync(cancellationToken);
-        bool readOnly = _options.CurrentValue.Overrides != FeatureFlagsOverrides.Enabled;
+        bool readOnly = _options.CurrentValue.OverridesAreReadOnly();
 
         var flags = new Dictionary<string, CatalogFlag>(StringComparer.OrdinalIgnoreCase);
         void AddDeclared(FeatureDefinition definition)
@@ -140,7 +140,7 @@ internal sealed class FlagCatalog
             IsDeclared: true,
             declaredIn,
             declaredTwice,
-            details with { Section = details.Section ?? SectionFromName(definition.Name) },
+            details.ForFlag(definition.Name),
             defaultSettings,
             Display(defaultSettings, definition),
             entry?.Override,
@@ -160,7 +160,7 @@ internal sealed class FlagCatalog
             IsDeclared: true,
             _source.DeclaredIn,
             declaredTwice,
-            details with { Section = details.Section ?? SectionFromName(name) },
+            details.ForFlag(name),
             DefaultSettings: null,
             DefaultState: FlagDisplayState.Custom,
             entry?.Override,
@@ -180,7 +180,7 @@ internal sealed class FlagCatalog
             IsDeclared: false,
             FlagDeclaredIn.Code,
             DeclaredTwice: false,
-            new FlagDetails(null, SectionFromName(entry.Override.FlagName), []),
+            FlagDetails.None.ForFlag(entry.Override.FlagName),
             DefaultSettings: null,
             DefaultState: FlagDisplayState.Off,
             entry.Override,
@@ -201,13 +201,6 @@ internal sealed class FlagCatalog
         return definition.Status == FeatureStatus.Disabled || definition.EnabledFor?.Any() != true
             ? FlagDisplayState.Off
             : FlagDisplayState.Custom;
-    }
-
-    /// <summary>The text before the first <c>.</c> in a flag's name, when there is any.</summary>
-    internal static string? SectionFromName(string name)
-    {
-        int dot = name.IndexOf('.');
-        return dot > 0 ? name[..dot] : null;
     }
 }
 
