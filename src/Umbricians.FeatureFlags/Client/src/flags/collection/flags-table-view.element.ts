@@ -38,7 +38,11 @@ export class FeatureFlagsTableViewElement extends UmbCollectionViewElementBase<F
               ${this._orderBy === "updated"
                 ? nothing
                 : html`<uui-table-row class="group">
-                    <uui-table-cell colspan="5">${section.name ?? this.localize.term("umbriciansFeatureFlags_ungrouped")}</uui-table-cell>
+                    <uui-table-cell>${section.name ?? this.localize.term("umbriciansFeatureFlags_ungrouped")}</uui-table-cell>
+                    <uui-table-cell></uui-table-cell>
+                    <uui-table-cell></uui-table-cell>
+                    <uui-table-cell></uui-table-cell>
+                    <uui-table-cell></uui-table-cell>
                   </uui-table-row>`}
               ${repeat(section.items, (item) => item.unique, (item) => this.#renderRow(item))}
             `,

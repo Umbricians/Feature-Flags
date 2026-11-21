@@ -121,8 +121,7 @@ export class FeatureFlagSwitchElement extends UmbLitElement {
     const label = this.localize.term(item.enabled ? "umbriciansFeatureFlags_switchOff" : "umbriciansFeatureFlags_switchOn", item.name);
     const reason = !this._canManage ? this.localize.term("umbriciansFeatureFlags_needManage") : item.readOnlyReason ?? "";
     return html`<uui-toggle
-      label=${label}
-      hide-label
+      aria-label=${label}
       title=${kind === "readOnly" ? reason : label}
       .checked=${item.enabled}
       ?disabled=${kind === "readOnly" || this._busy || !item.isDeclared}

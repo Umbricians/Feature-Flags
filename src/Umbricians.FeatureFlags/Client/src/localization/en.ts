@@ -49,7 +49,7 @@ export default {
     showDiffers: "Differs from default",
     showTwice: "Declared twice",
     showUndeclared: (count: number) => `Undeclared flags (${count})`,
-    sortName: "Name",
+    sortName: "Group, then name",
     sortUpdated: "Last changed",
     stateOff: "Off",
     stateEveryone: "On for everyone",

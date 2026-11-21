@@ -101,7 +101,7 @@ export class FeatureFlagsFiltersElement extends UmbLitElement {
             { name: term("umbriciansFeatureFlags_sortName"), value: "" },
             { name: term("umbriciansFeatureFlags_sortUpdated"), value: "updated" },
           ],
-          this._filter.orderBy === "name" ? "" : this._filter.orderBy,
+          this._filter.orderBy === "group" ? "" : this._filter.orderBy,
         )}
         @change=${(e: UUISelectEvent) => this.#set({ orderBy: (e.target.value || undefined) as FeatureFlagsCollectionFilter["orderBy"] })}></uui-select>
     `;

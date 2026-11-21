@@ -205,14 +205,10 @@ export class FeatureFlagEditorElement extends UmbLitElement {
                 ?disabled=${readOnly}
                 @change=${(e: UUIRadioGroupEvent) => this.#change({ mode: e.target.value as Mode })}>
                 ${(["off", "everyone", "audience"] as const).map(
-                  (mode) => html`<uui-radio value=${mode} label=${stateLabel(this.localize, mode)}>
-                    <div class="option">
-                      <strong>${stateLabel(this.localize, mode)}</strong>
-                      <small>${this.localize.term(helpTerms[mode])}</small>
-                    </div>
-                  </uui-radio>`,
+                  (mode) => html`<uui-radio value=${mode} label=${stateLabel(this.localize, mode)}></uui-radio>`,
                 )}
-              </uui-radio-group>`}
+              </uui-radio-group>
+              <p class="hint state-help">${this.localize.term(helpTerms[this._mode])}</p>`}
         </uui-box>
         ${this._mode === "audience" ? this.#renderAudience(readOnly) : nothing}
         <uui-box headline=${this.localize.term("umbriciansFeatureFlags_definition")}>
@@ -323,9 +319,8 @@ export class FeatureFlagEditorElement extends UmbLitElement {
         flex-direction: column;
         gap: var(--uui-size-space-4);
       }
-      .option {
-        display: flex;
-        flex-direction: column;
+      .state-help {
+        margin-bottom: 0;
       }
       small,
       .hint {
