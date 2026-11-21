@@ -65,7 +65,7 @@ Choose a flag's name to open it.
    - **Other groups:** groups the developers worked out in code, such as "Premium customers". Only shown when the site
      has some. A group the site no longer knows, such as a deleted member group or a group a provider stopped
      offering, is listed here too. It is kept as saved until you remove it.
-3. Choose **Save**. **Unsaved changes** shows at the top until you do.
+3. Choose **Save**. **Unsaved changes** shows at the top until you save, or until you undo your changes.
 
 A member gets the feature if they are in any of the chosen members or groups, and only while they are signed in.
 

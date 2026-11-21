@@ -7,7 +7,7 @@ import { countAudience, emptyAudience, groupsOfKind, hasGroup, memberGroupKeys }
 import { mayDo } from "../../display.js";
 import { changedText, describeAudience, stateLabel } from "../../describe.js";
 import { FEATURE_FLAG_WORKSPACE_CONTEXT } from "../flag-workspace.context-token.js";
-import type { FlagEditorMode } from "../flag-workspace.context.js";
+import type { FlagEditorMode } from "../flag-editor-state.js";
 
 const helpTerms: Record<FlagEditorMode, string> = {
   off: "umbriciansFeatureFlags_offHelp",
