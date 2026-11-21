@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <!-- Umbricians Feature Flags: a switch, switched on, with a flag standing in its knob. One colour: Electric Blue #0F90FF. -->
+  <!-- Umbricians Feature Flags: a switch, switched on, with a flag standing in its knob, in Electric Blue #0F90FF on a Navy #0B1F3A tile. logo-mark.svg is the switch alone; logo-black.svg is the one-colour version. -->
   <title>Umbricians Feature Flags</title>
   <defs>
     <mask id="knob" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512">
@@ -7,7 +7,8 @@
       <circle cx="364" cy="256" r="86" fill="#000"/>
     </mask>
   </defs>
-  <g fill="#0F90FF">
+  <rect width="512" height="512" rx="112" fill="#0B1F3A"/>
+  <g fill="#0F90FF" transform="translate(256 256) scale(0.8) translate(-256 -256)">
     <rect x="40" y="148" width="432" height="216" rx="108" mask="url(#knob)"/>
     <rect x="326" y="200" width="16" height="112" rx="8"/>
     <path d="M330 204 L408 232 L330 260 Z" stroke="#0F90FF" stroke-width="8" stroke-linejoin="round"/>
