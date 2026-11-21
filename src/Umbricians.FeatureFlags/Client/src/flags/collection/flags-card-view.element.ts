@@ -1,9 +1,9 @@
 import { css, customElement, html, nothing, repeat, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbCollectionViewElementBase, UMB_COLLECTION_CONTEXT } from "@umbraco-cms/backoffice/collection";
 import { UmbTextStyles } from "@umbraco-cms/backoffice/style";
-import { sections, shortName, stateColor, type FeatureFlagCollectionItem } from "../display.js";
-import { changedText, describeAudience, markers, stateLabel } from "../describe.js";
-import { editFlagPath } from "../paths.js";
+import { sections, type FeatureFlagCollectionItem } from "../display.js";
+import { changedText } from "../describe.js";
+import { audienceNote, flagName, markerTags, stateTag } from "./flag-item.templates.js";
 import type { FeatureFlagsCollectionFilter } from "./flags-collection.repository.js";
 import "./flags-filters.element.js";
 import "./flag-switch.element.js";
@@ -34,23 +34,19 @@ export class FeatureFlagsCardViewElement extends UmbCollectionViewElementBase<Fe
   }
 
   #renderCard(item: FeatureFlagCollectionItem) {
-    const audience = item.audience ? describeAudience(this.localize, item.audience) : "";
     return html`<uui-box>
       <div class="top">
         <div class="name">
-          ${item.isDeclared
-            ? html`<a href=${editFlagPath(item.name)} title=${item.name}>${this._orderBy === "updated" ? item.name : shortName(item)}</a>`
-            : html`<strong title=${item.name}>${item.name}</strong>`}
+          ${flagName(item, this._orderBy)}
           ${item.description ? html`<small>${item.description}</small>` : nothing}
         </div>
         <umbricians-feature-flags-switch .item=${item}></umbricians-feature-flags-switch>
       </div>
       <div class="row">
-        <uui-tag color=${stateColor(item.state)} look=${item.state === "off" ? "secondary" : "primary"}>${stateLabel(this.localize, item.state)}</uui-tag>
-        ${audience ? html`<small>${item.state === "off" ? this.localize.term("umbriciansFeatureFlags_keeps", audience) : audience}</small>` : nothing}
+        ${stateTag(this.localize, item)} ${audienceNote(this.localize, item)}
       </div>
       <div class="row">
-        ${markers(this.localize, item).map((marker) => html`<uui-tag color=${marker.color} look="outline">${marker.label}</uui-tag>`)}
+        ${markerTags(this.localize, item)}
         ${item.tags.map((tag) => html`<uui-tag look="placeholder">${tag}</uui-tag>`)}
       </div>
       <small class="changed">${changedText(this.localize, item)}</small>
