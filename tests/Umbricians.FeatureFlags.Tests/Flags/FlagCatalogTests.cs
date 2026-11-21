@@ -37,7 +37,7 @@ public class FlagCatalogTests
             .And.Property(nameof(CatalogFlag.State)).EqualTo(FlagDisplayState.Everyone));
         Assert.That(flags["Search.Suggestions"].Details.Description, Is.EqualTo("From code."));
         Assert.That(flags["Sale"], Has.Property(nameof(CatalogFlag.State)).EqualTo(FlagDisplayState.Custom)
-            .And.Property(nameof(CatalogFlag.Editable)).False);
+            .And.Property(nameof(CatalogFlag.Actions)).Property(nameof(FlagActions.Save)).Property(nameof(FlagAction.Allowed)).False);
     }
 
     [Test]
@@ -52,7 +52,7 @@ public class FlagCatalogTests
         Assert.That(flags["Checkout.GiftCards"], Has.Property(nameof(CatalogFlag.DiffersFromDefault)).True
             .And.Property(nameof(CatalogFlag.State)).EqualTo(FlagDisplayState.Off));
         Assert.That(flags["Promo.Removed"], Has.Property(nameof(CatalogFlag.IsDeclared)).False
-            .And.Property(nameof(CatalogFlag.Editable)).False);
+            .And.Property(nameof(CatalogFlag.Actions)).Property(nameof(FlagActions.Save)).Property(nameof(FlagAction.Allowed)).False);
     }
 
     [Test]
@@ -124,7 +124,7 @@ public class FlagCatalogTests
 
         Assert.That(flags.Keys, Is.EquivalentTo(new[] { "Good", "Broken" }));
         Assert.That(flags["Good"].State, Is.EqualTo(FlagDisplayState.Everyone));
-        Assert.That(flags["Broken"], Has.Property(nameof(CatalogFlag.Editable)).False
+        Assert.That(flags["Broken"], Has.Property(nameof(CatalogFlag.Actions)).Property(nameof(FlagActions.Save)).Property(nameof(FlagAction.Allowed)).False
             .And.Property(nameof(CatalogFlag.State)).EqualTo(FlagDisplayState.Custom));
     }
 
@@ -146,7 +146,7 @@ public class FlagCatalogTests
         Assert.That(flags["B"], Has.Property(nameof(CatalogFlag.DeclaredIn)).EqualTo(FlagDeclaredIn.FlagSource)
             .And.Property(nameof(CatalogFlag.DeclaredTwice)).True);
         Assert.That(flags["C"], Has.Property(nameof(CatalogFlag.IsDeclared)).True.And.Property(nameof(CatalogFlag.Override)).Not.Null);
-        Assert.That(flags["Broken"], Has.Property(nameof(CatalogFlag.Editable)).False
+        Assert.That(flags["Broken"], Has.Property(nameof(CatalogFlag.Actions)).Property(nameof(FlagActions.Save)).Property(nameof(FlagAction.Allowed)).False
             .And.Property(nameof(CatalogFlag.State)).EqualTo(FlagDisplayState.Custom));
     }
 
@@ -171,9 +171,52 @@ public class FlagCatalogTests
         CatalogFlag flag = (await Catalog(site).FindAsync("F", default))!;
 
         Assert.That(flag, Has.Property(nameof(CatalogFlag.State)).EqualTo(FlagDisplayState.Off)
-            .And.Property(nameof(CatalogFlag.Editable)).False
+            .And.Property(nameof(CatalogFlag.Actions)).Property(nameof(FlagActions.Save)).Property(nameof(FlagAction.Allowed)).False
             .And.Property(nameof(CatalogFlag.DiffersFromDefault)).True
             .And.Property(nameof(CatalogFlag.Override)).Not.Null);
+    }
+
+    [Test]
+    public async Task Says_which_actions_each_flag_allows_and_why()
+    {
+        var site = new TestSite(Flags);
+        site.Store.With("Checkout.GiftCards", FlagSettings.Off).With("Promo.Removed", FlagSettings.Off);
+        var readOnlySite = new TestSite("""
+            { "Umbricians": { "FeatureFlags": { "Overrides": "ReadOnly" } },
+              "feature_management": { "feature_flags": [ { "id": "F", "enabled": false } ] } }
+            """);
+        readOnlySite.Store.With("F", FlagSettings.Off).With("Gone", FlagSettings.Off);
+        site.Store.With("Sale", FlagSettings.Off);
+        IReadOnlyList<CatalogFlag> all = await Catalog(site).GetAllAsync(default);
+        FlagActions Of(string name) => all.Single(flag => flag.Name == name).Actions;
+        Dictionary<string, CatalogFlag> readOnly = (await Catalog(readOnlySite).GetAllAsync(default)).ToDictionary(flag => flag.Name);
+
+        FlagActions withOverride = Of("Checkout.GiftCards");
+        Assert.That((withOverride.Switch.Allowed, withOverride.Save.Allowed, withOverride.Reset.Allowed, withOverride.Remove.Allowed),
+            Is.EqualTo((true, true, true, false)));
+        Assert.That(withOverride.Remove.Reason, Does.Contain("reset it"));
+
+        FlagActions noOverride = Of("Checkout.NewFlow");
+        Assert.That((noOverride.Switch.Allowed, noOverride.Save.Allowed, noOverride.Reset.Allowed), Is.EqualTo((true, true, false)));
+        Assert.That(noOverride.Reset.Reason, Does.Contain("already uses its default"));
+
+        // The saved setting is readable, so Sale (declared with a time window) is editable once an override replaces it.
+        site.Store.WithJson("Sale", """{ "id": "Sale", "enabled": true, "conditions": { "client_filters": [ { "name": "Microsoft.TimeWindow", "parameters": { "Start": "Mon, 01 Jan 2024 00:00:00 GMT" } } ] } }""");
+        site.Refresh();
+        FlagActions custom = (await Catalog(site).FindAsync("Sale", default))!.Actions;
+        Assert.That((custom.Switch.Allowed, custom.Save.Allowed, custom.Reset.Allowed), Is.EqualTo((false, false, true)));
+        Assert.That(custom.Save.Reason, Does.Contain("Microsoft.TimeWindow"));
+
+        FlagActions undeclared = Of("Promo.Removed");
+        Assert.That((undeclared.Switch.Allowed, undeclared.Save.Allowed, undeclared.Reset.Allowed, undeclared.Remove.Allowed),
+            Is.EqualTo((false, false, false, true)));
+        Assert.That(undeclared.Save.Reason, Does.Contain("No flag source"));
+
+        FlagActions undeclaredReadOnly = readOnly["Gone"].Actions;
+        Assert.That(new[] { undeclaredReadOnly.Switch, undeclaredReadOnly.Save, undeclaredReadOnly.Reset, undeclaredReadOnly.Remove }.Select(a => a.Allowed),
+            Is.EqualTo(new[] { false, false, false, false }));
+        Assert.That(undeclaredReadOnly.Remove.Reason, Does.Contain("ReadOnly"));
+        Assert.That(readOnly["F"].Actions.Reset.Reason, Does.Contain("ReadOnly"));
     }
 
     private static FlagCatalog Catalog(TestSite site) => site.Provider.GetRequiredService<FlagCatalog>();

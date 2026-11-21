@@ -138,7 +138,48 @@ public class OverrideServiceTests
         OverrideResult reset = await service.ResetAsync("Checkout.NewFlow", default);
 
         Assert.That((save.Outcome, reset.Outcome), Is.EqualTo((OverrideOutcome.ReadOnly, OverrideOutcome.ReadOnly)));
+        Assert.That(reset.Reason, Does.Contain("ReadOnly"));
         Assert.That(site.Store.All, Has.Count.EqualTo(1));
+    }
+
+    [Test]
+    public async Task Removing_an_undeclared_flag_on_a_read_only_site_is_refused_with_the_read_only_reason()
+    {
+        var site = new TestSite("""
+            { "Umbricians": { "FeatureFlags": { "Overrides": "ReadOnly" } },
+              "feature_management": { "feature_flags": [ { "id": "Checkout.NewFlow", "enabled": false } ] } }
+            """);
+        site.Store.With("Promo.Removed", new FlagSettings(true, null));
+
+        OverrideResult remove = await Service(site).ResetAsync("Promo.Removed", default);
+
+        Assert.That(remove.Outcome, Is.EqualTo(OverrideOutcome.ReadOnly));
+        Assert.That(remove.Reason, Does.Contain("ReadOnly"));
+        Assert.That(site.Store.All, Has.Count.EqualTo(1));
+    }
+
+    [Test]
+    public async Task Resetting_a_flag_with_nothing_saved_is_refused()
+    {
+        var site = new TestSite(Flags);
+
+        OverrideResult reset = await Service(site).ResetAsync("Checkout.NewFlow", default);
+        OverrideResult unknown = await Service(site).ResetAsync("Nobody", default);
+
+        Assert.That(reset.Outcome, Is.EqualTo(OverrideOutcome.ReadOnly));
+        Assert.That(reset.Reason, Does.Contain("already uses its default"));
+        Assert.That(unknown.Outcome, Is.EqualTo(OverrideOutcome.NotFound));
+    }
+
+    [Test]
+    public async Task A_flag_the_backoffice_can_not_edit_can_not_be_switched()
+    {
+        var site = new TestSite(Flags);
+
+        OverrideResult result = await Service(site).SetEnabledAsync("Sale", false, Editor, default);
+
+        Assert.That(result.Outcome, Is.EqualTo(OverrideOutcome.ReadOnly));
+        Assert.That(result.Reason, Does.Contain("Microsoft.TimeWindow"));
     }
 
     [Test]

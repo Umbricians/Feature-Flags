@@ -35,13 +35,32 @@ internal sealed class FlagListItemResponseModel
 
     public bool DiffersFromDefault { get; init; }
 
-    public bool Editable { get; init; }
-
-    public string? ReadOnlyReason { get; init; }
+    /// <summary>What an editor may do with it, each with the reason when not.</summary>
+    public required FlagActionsModel Actions { get; init; }
 
     public UpdatedByModel? UpdatedBy { get; init; }
 
     public DateTime? UpdatedUtc { get; init; }
+}
+
+/// <summary>What an editor may do with a flag.</summary>
+internal sealed class FlagActionsModel
+{
+    public required FlagActionModel Switch { get; init; }
+
+    public required FlagActionModel Save { get; init; }
+
+    public required FlagActionModel Reset { get; init; }
+
+    public required FlagActionModel Remove { get; init; }
+}
+
+/// <summary>Whether an editor may do one thing with a flag, and why not when they may not.</summary>
+internal sealed class FlagActionModel
+{
+    public bool Allowed { get; init; }
+
+    public string? Reason { get; init; }
 }
 
 /// <summary>A flag with everything its editor shows.</summary>

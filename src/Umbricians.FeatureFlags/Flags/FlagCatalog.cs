@@ -35,8 +35,8 @@ internal sealed class FlagCatalog
 
         return resolved.Flags.Select(flag => flag switch
         {
-            { Declared: null } => Undeclared(flag.Override!),
-            { Declared.ReadError: { } error } => Unreadable(flag.Declared, FlagDetailsFor(flag.Declared), flag.Override, error),
+            { Declared: null } => Undeclared(flag.Override!, readOnly),
+            { Declared.ReadError: { } error } => Unreadable(flag.Declared, FlagDetailsFor(flag.Declared), flag.Override, error, readOnly),
             _ => Describe(flag, FlagDetailsFor(flag.Declared), readOnly),
         }).ToArray();
     }
@@ -55,6 +55,37 @@ internal sealed class FlagCatalog
             : _configurationDetails.Find(declared.Name).Or(fromCode);
     }
 
+    private const string ReadOnlySiteReason = "Settings from the backoffice are switched off on this site (Umbricians:FeatureFlags:Overrides is ReadOnly).";
+    private const string UndeclaredReason = "No flag source declares this flag any more, so its setting has no effect.";
+    private const string NoOverrideReason = "It has no setting saved here, so it already uses its default.";
+    private const string DeclaredReason = "A declared flag can't be removed; reset it to go back to its default.";
+    private const string UnreadableSettingsReason = "Its settings can't be read, so the backoffice can't change them.";
+
+    /// <summary>What an editor may do with a flag. The one place that decides: the service enforces it, the API reports it.</summary>
+    private static FlagActions ActionsFor(bool readOnlySite, bool isDeclared, FlagSettings? settings, string? notEditableReason, bool hasOverride)
+    {
+        if (readOnlySite)
+        {
+            FlagAction refused = FlagAction.Refuse(ReadOnlySiteReason);
+            return new FlagActions(refused, refused, refused, refused);
+        }
+
+        if (!isDeclared)
+        {
+            FlagAction undeclared = FlagAction.Refuse(UndeclaredReason);
+            return new FlagActions(undeclared, undeclared, undeclared, FlagAction.Allow);
+        }
+
+        FlagAction edit = settings is not null && notEditableReason is null
+            ? FlagAction.Allow
+            : FlagAction.Refuse(notEditableReason ?? UnreadableSettingsReason);
+        return new FlagActions(
+            edit,
+            edit,
+            hasOverride ? FlagAction.Allow : FlagAction.Refuse(NoOverrideReason),
+            FlagAction.Refuse(DeclaredReason));
+    }
+
     private static CatalogFlag Describe(ResolvedFlag flag, FlagDetails details, bool readOnly)
     {
         DeclaredFlag declared = flag.Declared!;
@@ -70,9 +101,7 @@ internal sealed class FlagCatalog
             ? Display(overrideSettings, flag.Definition!)
             : Display(defaultSettings, defaultDefinition);
 
-        string? readOnlyReason = readOnly
-            ? "Settings from the backoffice are switched off on this site (Umbricians:FeatureFlags:Overrides is ReadOnly)."
-            : entry is not null ? overrideReason : defaultReason;
+        string? notEditableReason = entry is not null ? overrideReason : defaultReason;
 
         bool differs = entry is not null
             && (overrideSettings is null || defaultSettings is null || !overrideSettings.SameAs(defaultSettings));
@@ -88,12 +117,11 @@ internal sealed class FlagCatalog
             entry?.Override,
             settings,
             state,
-            Editable: readOnlyReason is null && settings is not null,
-            readOnlyReason,
+            ActionsFor(readOnly, isDeclared: true, settings, notEditableReason, hasOverride: entry is not null),
             differs);
     }
 
-    private static CatalogFlag Unreadable(DeclaredFlag declared, FlagDetails details, SavedOverride? entry, Exception exception)
+    private static CatalogFlag Unreadable(DeclaredFlag declared, FlagDetails details, SavedOverride? entry, Exception exception, bool readOnly)
     {
         string reason = $"Its definition can't be read, so checking it fails: {(exception.InnerException ?? exception).Message}";
         return new CatalogFlag(
@@ -107,12 +135,11 @@ internal sealed class FlagCatalog
             entry?.Override,
             Settings: null,
             State: FlagDisplayState.Custom,
-            Editable: false,
-            reason,
+            ActionsFor(readOnly, isDeclared: true, settings: null, reason, hasOverride: entry is not null),
             DiffersFromDefault: entry is not null);
     }
 
-    private static CatalogFlag Undeclared(SavedOverride entry)
+    private static CatalogFlag Undeclared(SavedOverride entry, bool readOnly)
     {
         FlagSettings? settings = entry.Settings;
         FlagDisplayState state = settings is null ? FlagDisplayState.Custom : (FlagDisplayState)settings.State;
@@ -127,8 +154,7 @@ internal sealed class FlagCatalog
             entry.Override,
             settings,
             state,
-            Editable: false,
-            "No flag source declares this flag any more, so its setting has no effect.",
+            ActionsFor(readOnly, isDeclared: false, settings, notEditableReason: null, hasOverride: true),
             DiffersFromDefault: false);
     }
 
@@ -156,8 +182,7 @@ internal sealed class FlagCatalog
 /// <param name="Override">An editor's override, when there is one.</param>
 /// <param name="Settings">What applies now, when the backoffice can read it.</param>
 /// <param name="State">How it is evaluated now.</param>
-/// <param name="Editable">Whether the backoffice can change it.</param>
-/// <param name="ReadOnlyReason">Why the backoffice can't change it, when it can't.</param>
+/// <param name="Actions">What an editor may do with it, each with the reason when not.</param>
 /// <param name="DiffersFromDefault">Whether its override says something different from its default.</param>
 internal sealed record CatalogFlag(
     string Name,
@@ -170,8 +195,7 @@ internal sealed record CatalogFlag(
     FeatureFlagOverride? Override,
     FlagSettings? Settings,
     FlagDisplayState State,
-    bool Editable,
-    string? ReadOnlyReason,
+    FlagActions Actions,
     bool DiffersFromDefault);
 
 /// <summary>How a flag is evaluated, as the flag list shows it.</summary>

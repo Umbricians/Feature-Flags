@@ -1,5 +1,5 @@
 // How flags are shown. No backoffice imports, so Node can test it.
-import type { AudienceCounts, FeatureFlagListItem, FlagOrder, FlagState } from "../api/types.js";
+import type { AudienceCounts, FeatureFlagListItem, FlagActions, FlagOrder, FlagState } from "../api/types.js";
 
 /** A flag as a collection item: its unique is its name. */
 export interface FeatureFlagCollectionItem extends FeatureFlagListItem {
@@ -37,12 +37,31 @@ export function sections<T extends Pick<FeatureFlagListItem, "section">>(items: 
   return result;
 }
 
-/** What the quick switch does for a flag: switch it, nothing (read-only), or remove it (undeclared). */
-export type SwitchKind = "switch" | "readOnly" | "remove";
+export type FlagActionName = keyof FlagActions;
 
-export function switchKind(item: Pick<FeatureFlagListItem, "isDeclared" | "editable">, canManage: boolean): SwitchKind {
-  if (!item.isDeclared) return canManage ? "remove" : "readOnly";
-  return item.editable && canManage ? "switch" : "readOnly";
+export interface Permitted {
+  allowed: boolean;
+  /** Why not, when the catalog refuses it; null when allowed, or when only the user's permission is missing. */
+  reason: string | null;
+  /** True when the catalog allows it but the user lacks the Change feature flags permission. */
+  needsManage: boolean;
+}
+
+/** The catalog's answer, then the user's Change feature flags permission. */
+export function mayDo(item: Pick<FeatureFlagListItem, "actions">, action: FlagActionName, canManage: boolean): Permitted {
+  const answer = item.actions[action];
+  if (!answer.allowed) return { allowed: false, reason: answer.reason, needsManage: false };
+  if (!canManage) return { allowed: false, reason: null, needsManage: true };
+  return { allowed: true, reason: null, needsManage: false };
+}
+
+/** The list's quick action: a switch for a declared flag, Remove for an undeclared one. */
+export function quickAction(
+  item: Pick<FeatureFlagListItem, "isDeclared" | "actions">,
+  canManage: boolean,
+): Permitted & { kind: "switch" | "remove" } {
+  const kind = item.isDeclared ? "switch" : "remove";
+  return { ...mayDo(item, kind, canManage), kind };
 }
 
 /** The tag colour for a state. */

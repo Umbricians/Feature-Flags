@@ -4,6 +4,7 @@ import { UmbTextStyles } from "@umbraco-cms/backoffice/style";
 import type { UUIRadioGroupEvent } from "@umbraco-cms/backoffice/external/uui";
 import type { AudienceGroup, FeatureFlag, FlagAudience, ProviderGroup } from "../../../api/feature-flags.resource.js";
 import { countAudience, emptyAudience, groupsOfKind, hasGroup, memberGroupKeys } from "../../audience.js";
+import { mayDo } from "../../display.js";
 import { changedText, describeAudience, stateLabel } from "../../describe.js";
 import { FEATURE_FLAG_WORKSPACE_CONTEXT } from "../flag-workspace.context-token.js";
 import type { FlagEditorMode } from "../flag-workspace.context.js";
@@ -44,16 +45,17 @@ export class FeatureFlagSettingsViewElement extends UmbLitElement {
   override render() {
     const flag = this._flag;
     if (!flag) return nothing;
-    const readOnly = !(flag.flag.editable && this._canManage);
+    const save = mayDo(flag.flag, "save", this._canManage);
+    const readOnly = !save.allowed;
     return html`<div class="layout">
       <div class="main">
-        ${flag.flag.readOnlyReason || !this._canManage
+        ${!save.allowed
           ? html`<uui-box class="notice" headline=${this.localize.term("umbriciansFeatureFlags_readOnlyFlag")}>
-              ${flag.flag.readOnlyReason ?? this.localize.term("umbriciansFeatureFlags_needManage")}
+              ${save.reason ?? this.localize.term("umbriciansFeatureFlags_needManage")}
             </uui-box>`
           : nothing}
         <uui-box headline=${this.localize.term("umbriciansFeatureFlags_columnState")}>
-          ${flag.flag.state === "custom" && !flag.flag.editable
+          ${flag.flag.state === "custom" && !flag.flag.actions.save.allowed
             ? html`<p>${this.localize.term("umbriciansFeatureFlags_customState")}</p>`
             : html`<uui-radio-group
                   .value=${this._mode}

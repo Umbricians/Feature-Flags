@@ -1,6 +1,4 @@
-using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core.Cache;
-using Umbricians.FeatureFlags.Configuration;
 using Umbricians.FeatureFlags.Flags;
 using Umbricians.FeatureFlags.Groups;
 
@@ -16,7 +14,6 @@ internal sealed class OverrideService
     private readonly OverrideCache _cache;
     private readonly DistributedCache? _distributedCache;
     private readonly TimeProvider _time;
-    private readonly IOptionsMonitor<FeatureFlagsOptions> _options;
     private readonly AudienceGroups _groups;
 
     public OverrideService(
@@ -24,7 +21,6 @@ internal sealed class OverrideService
         FlagCatalog catalog,
         OverrideCache cache,
         TimeProvider time,
-        IOptionsMonitor<FeatureFlagsOptions> options,
         AudienceGroups groups,
         DistributedCache? distributedCache = null)
     {
@@ -32,7 +28,6 @@ internal sealed class OverrideService
         _catalog = catalog;
         _cache = cache;
         _time = time;
-        _options = options;
         _groups = groups;
         _distributedCache = distributedCache;
     }
@@ -58,20 +53,20 @@ internal sealed class OverrideService
             return OverrideResult.NotFound;
         }
 
-        if (!flag.Editable || flag.Settings is null)
+        if (!flag.Actions.Switch.Allowed)
         {
-            return OverrideResult.ReadOnly(flag.ReadOnlyReason);
+            return OverrideResult.ReadOnly(flag.Actions.Switch.Reason);
         }
 
-        return await SaveFlagAsync(flag, flag.Settings with { Enabled = enabled }, userKey, cancellationToken);
+        return await SaveFlagAsync(flag, flag.Settings! with { Enabled = enabled }, userKey, cancellationToken);
     }
 
     /// <summary>Saves settings for a flag that has been found and is declared, if the backoffice may change it.</summary>
     private async Task<OverrideResult> SaveFlagAsync(CatalogFlag flag, FlagSettings settings, Guid? userKey, CancellationToken cancellationToken)
     {
-        if (!flag.Editable)
+        if (!flag.Actions.Save.Allowed)
         {
-            return OverrideResult.ReadOnly(flag.ReadOnlyReason);
+            return OverrideResult.ReadOnly(flag.Actions.Save.Reason);
         }
 
         FlagSettings normalized = settings.Audience is null
@@ -84,7 +79,7 @@ internal sealed class OverrideService
         return OverrideResult.Saved;
     }
 
-    /// <summary>Removes a flag's override, so it goes back to its default; for an undeclared flag, removes it.</summary>
+    /// <summary>Removes a flag's override, so it goes back to its default; for an undeclared flag, removes it. Refused when the catalog says so.</summary>
     public async Task<OverrideResult> ResetAsync(string flagName, CancellationToken cancellationToken)
     {
         CatalogFlag? flag = await _catalog.FindAsync(flagName, cancellationToken);
@@ -93,16 +88,10 @@ internal sealed class OverrideService
             return OverrideResult.NotFound;
         }
 
-        // Any flag can go back to its default, even one whose override the backoffice can't edit, unless the site
-        // has switched backoffice settings off altogether.
-        if (_options.CurrentValue.OverridesAreReadOnly())
+        FlagAction action = flag.IsDeclared ? flag.Actions.Reset : flag.Actions.Remove;
+        if (!action.Allowed)
         {
-            return OverrideResult.ReadOnly(flag.ReadOnlyReason);
-        }
-
-        if (flag.Override is null)
-        {
-            return OverrideResult.Saved;
+            return OverrideResult.ReadOnly(action.Reason);
         }
 
         await _store.DeleteAsync(flag.Name, cancellationToken);

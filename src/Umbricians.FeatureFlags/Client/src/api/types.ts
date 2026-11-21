@@ -31,6 +31,18 @@ export interface SaveAudience {
   groups: Array<string>;
 }
 
+export interface FlagAction {
+  allowed: boolean;
+  reason: string | null;
+}
+
+export interface FlagActions {
+  switch: FlagAction;
+  save: FlagAction;
+  reset: FlagAction;
+  remove: FlagAction;
+}
+
 export interface FeatureFlagListItem {
   name: string;
   description: string | null;
@@ -46,8 +58,8 @@ export interface FeatureFlagListItem {
   audience: AudienceCounts | null;
   hasOverride: boolean;
   differsFromDefault: boolean;
-  editable: boolean;
-  readOnlyReason: string | null;
+  /** What an editor may do with it, as the catalog decides; each is refused with a reason when not allowed. */
+  actions: FlagActions;
   updatedBy: { key: string; name: string | null } | null;
   updatedUtc: string | null;
 }

@@ -146,13 +146,13 @@ flags; changes need Change feature flags too.
 
 | Endpoint | |
 | --- | --- |
-| `GET flags?skip&take&filter&state&show&marks&section&tag&orderBy` | A page of flags (at most 100), searched, filtered and sorted across every flag. `show` is `declared` or `undeclared`; `marks` narrows to flags with every one of `changed`, `differs` and `twice`. |
+| `GET flags?skip&take&filter&state&show&marks&section&tag&orderBy` | A page of flags (at most 100), searched, filtered and sorted across every flag. `show` is `declared` or `undeclared`; `marks` narrows to flags with every one of `changed`, `differs` and `twice`. Items come with `actions` (`switch`, `save`, `reset`, `remove`), each allowed or not with a reason. |
 | `GET flags/summary` | The sections and tags in use, counts, whether overrides are read-only, and the environment's name. |
 | `GET flag?name=` | One flag, with its default, its saved setting and who it is on for. Each group in its audience comes with its kind (`memberGroup`, `namedMemberGroup`, `providerGroup` or `unknown`) and name. |
 | `GET provider-groups` | The groups the site's group providers offer. |
 | `PUT flag?name=` | Save a flag's state and audience. Body: `{ "enabled": true, "audience": { "members": [], "groups": [] } }`, with `audience` null for everyone. `groups` holds member group keys or names and group providers' ids. |
 | `PUT flag/enabled?name=` | Switch a flag on or off, keeping its audience. Body: `{ "enabled": true }`. |
-| `DELETE flag?name=` | Reset a flag to its default, or remove the setting of a flag nobody declares any more. |
+| `DELETE flag?name=` | Reset a flag to its default, or remove the setting of a flag nobody declares any more. Refused (409) when nothing is saved, or on a read-only site. |
 
 ## Licence
 

@@ -73,6 +73,16 @@ internal sealed class FlagResponses
         return new AudienceCountsModel { Members = audience.Members.Count, MemberGroups = memberGroups, Groups = kinds.Length - memberGroups };
     }
 
+    private static FlagActionsModel Actions(FlagActions actions) => new()
+    {
+        Switch = Action(actions.Switch),
+        Save = Action(actions.Save),
+        Reset = Action(actions.Reset),
+        Remove = Action(actions.Remove),
+    };
+
+    private static FlagActionModel Action(FlagAction action) => new() { Allowed = action.Allowed, Reason = action.Reason };
+
     private static FlagListItemResponseModel ListItem(CatalogFlag flag, GroupDirectory? groups, IReadOnlyDictionary<Guid, string?> userNames)
     {
         Guid? updatedBy = flag.Override?.UpdatedBy;
@@ -90,8 +100,7 @@ internal sealed class FlagResponses
             Audience = flag.Settings?.Audience is { } audience ? Counts(audience, groups!) : null,
             HasOverride = flag.Override is not null,
             DiffersFromDefault = flag.DiffersFromDefault,
-            Editable = flag.Editable,
-            ReadOnlyReason = flag.ReadOnlyReason,
+            Actions = Actions(flag.Actions),
             UpdatedBy = updatedBy is null ? null : new UpdatedByModel { Key = updatedBy.Value, Name = userNames.GetValueOrDefault(updatedBy.Value) },
             UpdatedUtc = flag.Override?.UpdatedUtc,
         };

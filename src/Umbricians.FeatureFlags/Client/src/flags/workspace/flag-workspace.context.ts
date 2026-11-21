@@ -31,6 +31,7 @@ import {
   withProviderGroup,
 } from "../audience.js";
 import { stateLabel } from "../describe.js";
+import { mayDo } from "../display.js";
 import { FeatureFlagEditorElement } from "./flag-editor.element.js";
 
 /** What the editor's state choice means: off (keeping any audience), on for everyone, or on for an audience. */
@@ -93,9 +94,10 @@ export class FeatureFlagWorkspaceContext extends UmbContextBase implements UmbRo
     return FEATURE_FLAG_ENTITY_TYPE;
   }
 
-  /** Whether the flag can be changed here: the backoffice can edit it and the user may change flags. */
+  /** Whether the flag can be saved here: the catalog allows it and the user may change flags. */
   isEditable() {
-    return !!this.#flag.getValue()?.flag.editable && this.#canManage.getValue();
+    const flag = this.#flag.getValue()?.flag;
+    return !!flag && mayDo(flag, "save", this.#canManage.getValue()).allowed;
   }
 
   async load(name = this.#name) {
@@ -161,16 +163,29 @@ export class FeatureFlagWorkspaceContext extends UmbContextBase implements UmbRo
     }
   }
 
+  /** Resets a declared flag to its default, or removes the setting of an undeclared one. */
   async reset() {
     const flag = this.#flag.getValue();
     if (!flag) return;
+    const removing = !flag.flag.isDeclared;
+    if (!mayDo(flag.flag, removing ? "remove" : "reset", this.#canManage.getValue()).allowed) return;
     try {
-      await umbConfirmModal(this, {
-        headline: this.#localize.term("umbriciansFeatureFlags_resetHeadline", flag.flag.name),
-        content: this.#localize.term("umbriciansFeatureFlags_resetMessage", stateLabel(this.#localize, flag.defaultState)),
-        color: "warning",
-        confirmLabel: this.#localize.term("umbriciansFeatureFlags_reset"),
-      });
+      await umbConfirmModal(
+        this,
+        removing
+          ? {
+              headline: this.#localize.term("umbriciansFeatureFlags_removeHeadline", flag.flag.name),
+              content: this.#localize.term("umbriciansFeatureFlags_removeMessage"),
+              color: "danger",
+              confirmLabel: this.#localize.term("umbriciansFeatureFlags_remove"),
+            }
+          : {
+              headline: this.#localize.term("umbriciansFeatureFlags_resetHeadline", flag.flag.name),
+              content: this.#localize.term("umbriciansFeatureFlags_resetMessage", stateLabel(this.#localize, flag.defaultState)),
+              color: "warning",
+              confirmLabel: this.#localize.term("umbriciansFeatureFlags_reset"),
+            },
+      );
     } catch {
       return;
     }
@@ -178,7 +193,9 @@ export class FeatureFlagWorkspaceContext extends UmbContextBase implements UmbRo
     try {
       await resetFlag(flag.flag.name);
       this.#notifications?.peek("positive", {
-        data: { message: this.#localize.term("umbriciansFeatureFlags_resetDone", flag.flag.name) },
+        data: {
+          message: this.#localize.term(removing ? "umbriciansFeatureFlags_removed" : "umbriciansFeatureFlags_resetDone", flag.flag.name),
+        },
       });
       await this.load();
     } catch (error) {

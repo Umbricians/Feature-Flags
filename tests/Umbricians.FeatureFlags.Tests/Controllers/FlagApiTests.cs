@@ -109,6 +109,23 @@ public class FlagApiTests
     }
 
     [Test]
+    public async Task A_flag_lists_what_may_be_done_with_it_and_why_not()
+    {
+        TestSite site = Site();
+        site.Store.With("Search", FlagSettings.Off).With("Promo.Removed", FlagSettings.Off);
+        site.Refresh();
+
+        FlagActionsModel withOverride = (await GetFlagAsync(Controller(site), "Search")).Flag.Actions;
+        FlagActionsModel noOverride = (await GetFlagAsync(Controller(site), "Checkout")).Flag.Actions;
+        FlagActionsModel undeclared = (await GetFlagAsync(Controller(site), "Promo.Removed")).Flag.Actions;
+
+        Assert.That((withOverride.Switch.Allowed, withOverride.Reset.Allowed, withOverride.Remove.Allowed), Is.EqualTo((true, true, false)));
+        Assert.That(noOverride.Reset, Has.Property(nameof(FlagActionModel.Allowed)).False
+            .And.Property(nameof(FlagActionModel.Reason)).Contain("already uses its default"));
+        Assert.That((undeclared.Save.Allowed, undeclared.Remove.Allowed, undeclared.Remove.Reason), Is.EqualTo((false, true, (string?)null)));
+    }
+
+    [Test]
     public async Task A_flag_without_an_audience_has_no_audience_detail()
     {
         TestSite site = Site();

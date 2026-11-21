@@ -88,5 +88,5 @@ undone.
 - **You can see flags but not change them:** your user group has **View feature flags** but not **Change feature
   flags**. Ask an administrator.
 - **The list says flags can't be changed here:** the developers have set this site so flags are only changed in
-  its configuration. Every flag uses its default.
+  its configuration. Every flag uses its default, and Reset and Remove aren't offered either.
 - **One flag can't be changed:** it is **Custom**. A box at the top of its editor says why.
