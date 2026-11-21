@@ -198,7 +198,7 @@ them in the background and keeps answering from the copy it has until the new on
 waits on the database; only the server that saved the change waits for its own read, so the editor sees it at once.
 If a read fails, the last good copy stays in use and the read is tried again in the background. The one exception
 is a check that arrives before a server's first read has finished, which waits for it rather than answer with
-defaults that might switch on something an editor switched off. Member groups are looked up once per request.
+defaults that might switch on something an editor switched off. Each override's JSON is read once per reload, into what Microsoft evaluates and what the backoffice shows. Member groups are looked up once per request.
 
 A JSON cache refresher isn't needed: every change means "read them all again", so there is no payload to send.
 

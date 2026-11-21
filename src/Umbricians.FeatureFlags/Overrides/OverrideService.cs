@@ -43,17 +43,7 @@ internal sealed class OverrideService
             return OverrideResult.NotFound;
         }
 
-        if (!flag.Editable)
-        {
-            return OverrideResult.ReadOnly(flag.ReadOnlyReason);
-        }
-
-        FlagSettings normalized = Normalize(settings);
-        await _store.SaveAsync(
-            new FeatureFlagOverride(flag.Name, FlagDefinitions.ToJson(flag.Name, normalized), userKey, _time.GetUtcNow().UtcDateTime),
-            cancellationToken);
-        await RefreshAsync();
-        return OverrideResult.Saved;
+        return await SaveFlagAsync(flag, settings, userKey, cancellationToken);
     }
 
     /// <summary>Switches a flag on or off, keeping its audience.</summary>
@@ -70,7 +60,23 @@ internal sealed class OverrideService
             return OverrideResult.ReadOnly(flag.ReadOnlyReason);
         }
 
-        return await SaveAsync(flag.Name, flag.Settings with { Enabled = enabled }, userKey, cancellationToken);
+        return await SaveFlagAsync(flag, flag.Settings with { Enabled = enabled }, userKey, cancellationToken);
+    }
+
+    /// <summary>Saves settings for a flag that has been found and is declared, if the backoffice may change it.</summary>
+    private async Task<OverrideResult> SaveFlagAsync(CatalogFlag flag, FlagSettings settings, Guid? userKey, CancellationToken cancellationToken)
+    {
+        if (!flag.Editable)
+        {
+            return OverrideResult.ReadOnly(flag.ReadOnlyReason);
+        }
+
+        FlagSettings normalized = Normalize(settings);
+        await _store.SaveAsync(
+            new FeatureFlagOverride(flag.Name, FlagDefinitions.ToJson(flag.Name, normalized), userKey, _time.GetUtcNow().UtcDateTime),
+            cancellationToken);
+        await RefreshAsync();
+        return OverrideResult.Saved;
     }
 
     /// <summary>Removes a flag's override, so it goes back to its default; for an undeclared flag, removes it.</summary>
@@ -112,6 +118,8 @@ internal sealed class OverrideService
 
         var removed = new HashSet<string>(ids, StringComparer.OrdinalIgnoreCase);
         bool changed = false;
+        // This reads the store and the JSON itself, not the cache: it writes back, so it must start from what is stored,
+        // never from a copy that may be a moment behind.
         foreach (FeatureFlagOverride saved in await _store.GetAllAsync(cancellationToken))
         {
             FlagSettings? settings = FlagDefinitions.ReadOverride(saved.Definition, out _);

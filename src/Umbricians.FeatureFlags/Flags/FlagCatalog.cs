@@ -41,6 +41,8 @@ internal sealed class FlagCatalog
         }).ToArray();
     }
 
+    // Finds the flag in the whole list, not by asking the flag source for one name: the list is what the editor sees,
+    // so a change is checked against exactly that.
     public async Task<CatalogFlag?> FindAsync(string name, CancellationToken cancellationToken) =>
         (await GetAllAsync(cancellationToken)).FirstOrDefault(flag => string.Equals(flag.Name, name, StringComparison.OrdinalIgnoreCase));
 
@@ -57,15 +59,11 @@ internal sealed class FlagCatalog
     {
         DeclaredFlag declared = flag.Declared!;
         FeatureDefinition defaultDefinition = declared.Default!;
-        OverrideCache.Entry? entry = flag.Override;
+        SavedOverride? entry = flag.Override;
         FlagSettings? defaultSettings = FlagDefinitions.ToSettings(defaultDefinition, out string? defaultReason);
 
-        FlagSettings? overrideSettings = null;
-        string? overrideReason = null;
-        if (entry is not null)
-        {
-            overrideSettings = FlagDefinitions.ReadOverride(entry.Override.Definition, out overrideReason);
-        }
+        FlagSettings? overrideSettings = entry?.Settings;
+        string? overrideReason = entry?.NotEditableReason;
 
         FlagSettings? settings = flag.OverrideApplies ? overrideSettings : defaultSettings;
         FlagDisplayState state = flag.OverrideApplies
@@ -95,7 +93,7 @@ internal sealed class FlagCatalog
             differs);
     }
 
-    private static CatalogFlag Unreadable(DeclaredFlag declared, FlagDetails details, OverrideCache.Entry? entry, Exception exception)
+    private static CatalogFlag Unreadable(DeclaredFlag declared, FlagDetails details, SavedOverride? entry, Exception exception)
     {
         string reason = $"Its definition can't be read, so checking it fails: {(exception.InnerException ?? exception).Message}";
         return new CatalogFlag(
@@ -114,9 +112,9 @@ internal sealed class FlagCatalog
             DiffersFromDefault: entry is not null);
     }
 
-    private static CatalogFlag Undeclared(OverrideCache.Entry entry)
+    private static CatalogFlag Undeclared(SavedOverride entry)
     {
-        FlagSettings? settings = FlagDefinitions.ReadOverride(entry.Override.Definition, out _);
+        FlagSettings? settings = entry.Settings;
         FlagDisplayState state = settings is null ? FlagDisplayState.Custom : (FlagDisplayState)settings.State;
         return new CatalogFlag(
             entry.Override.FlagName,

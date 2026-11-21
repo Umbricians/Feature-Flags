@@ -1,6 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.FeatureManagement;
 using Umbricians.FeatureFlags.Flags;
 
 namespace Umbricians.FeatureFlags.Overrides;
@@ -119,7 +118,7 @@ internal sealed class OverrideCache
             catch (Exception exception)
             {
                 _logger.LogError(exception, "Feature Flags couldn't read the settings saved in the backoffice.");
-                _snapshot ??= new Snapshot(new Dictionary<string, Entry>(StringComparer.OrdinalIgnoreCase), _time.GetUtcNow() + RetryAfterFailure);
+                _snapshot ??= new Snapshot(new Dictionary<string, SavedOverride>(StringComparer.OrdinalIgnoreCase), _time.GetUtcNow() + RetryAfterFailure);
             }
 
             lock (_gate)
@@ -146,29 +145,17 @@ internal sealed class OverrideCache
             _logger.LogWarning(exception,
                 "Feature Flags couldn't read the settings saved in the backoffice, so flags keep the settings read last, or "
                 + "their defaults if there are none yet. If the package was just installed, its migration may not have run yet.");
-            return new Snapshot(new Dictionary<string, Entry>(StringComparer.OrdinalIgnoreCase), _time.GetUtcNow() + RetryAfterFailure);
+            return new Snapshot(new Dictionary<string, SavedOverride>(StringComparer.OrdinalIgnoreCase), _time.GetUtcNow() + RetryAfterFailure);
         }
 
-        Dictionary<string, FeatureDefinition> definitions = await FlagDefinitions.ParseAsync(
-            overrides.Select(o => (o.FlagName, o.Definition)),
+        IReadOnlyDictionary<string, SavedOverride> entries = await SavedOverride.ReadAllAsync(
+            overrides,
             (flagName, exception) => _logger.LogWarning(exception,
                 "Feature Flags couldn't read the setting saved for the flag '{FlagName}', so it uses its default.", flagName));
-
-        var entries = new Dictionary<string, Entry>(StringComparer.OrdinalIgnoreCase);
-        foreach (FeatureFlagOverride featureFlagOverride in overrides)
-        {
-            definitions.TryGetValue(featureFlagOverride.FlagName, out FeatureDefinition? definition);
-            entries[featureFlagOverride.FlagName] = new Entry(featureFlagOverride, definition);
-        }
 
         return new Snapshot(entries, null);
     }
 
     /// <summary>The overrides as last read. <see cref="RetryAt"/> is set when the latest read failed.</summary>
-    public sealed record Snapshot(IReadOnlyDictionary<string, Entry> Overrides, DateTimeOffset? RetryAt);
-
-    /// <summary>
-    /// A saved override and its definition, which is null when its JSON can't be read; the flag then uses its default.
-    /// </summary>
-    public sealed record Entry(FeatureFlagOverride Override, FeatureDefinition? Definition);
+    public sealed record Snapshot(IReadOnlyDictionary<string, SavedOverride> Overrides, DateTimeOffset? RetryAt);
 }

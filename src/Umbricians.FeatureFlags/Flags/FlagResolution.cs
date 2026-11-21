@@ -61,7 +61,7 @@ internal sealed class FlagResolution
         }
 
         // Read-only overrides never apply, so a check doesn't even look at them.
-        OverrideCache.Entry? entry = null;
+        SavedOverride? entry = null;
         if (!_options.CurrentValue.OverridesAreReadOnly())
         {
             OverrideCache.Snapshot snapshot = await _overrides.GetAsync();
@@ -85,11 +85,11 @@ internal sealed class FlagResolution
         foreach (DeclaredFlag flag in declared.Flags)
         {
             seen.Add(flag.Name);
-            snapshot.Overrides.TryGetValue(flag.Name, out OverrideCache.Entry? entry);
+            snapshot.Overrides.TryGetValue(flag.Name, out SavedOverride? entry);
             resolved.Add(Resolve(flag, entry));
         }
 
-        foreach (OverrideCache.Entry entry in snapshot.Overrides.Values)
+        foreach (SavedOverride entry in snapshot.Overrides.Values)
         {
             if (!seen.Contains(entry.Override.FlagName))
             {
@@ -100,7 +100,7 @@ internal sealed class FlagResolution
         return new ResolvedFlags(resolved, declared.ListingError);
     }
 
-    private ResolvedFlag Resolve(DeclaredFlag declared, OverrideCache.Entry? entry)
+    private ResolvedFlag Resolve(DeclaredFlag declared, SavedOverride? entry)
     {
         if (declared.Default is null)
         {
@@ -204,7 +204,7 @@ internal sealed record DeclaredFlag(string Name, FeatureDefinition? Default, Fla
 internal sealed record DeclaredFlags(IReadOnlyList<DeclaredFlag> Flags, Exception? ListingError);
 
 /// <summary>A flag with what applies now. <paramref name="Definition"/> is what Microsoft evaluates, null when the flag is undeclared or unreadable.</summary>
-internal sealed record ResolvedFlag(string Name, DeclaredFlag? Declared, OverrideCache.Entry? Override, bool OverrideApplies, FeatureDefinition? Definition)
+internal sealed record ResolvedFlag(string Name, DeclaredFlag? Declared, SavedOverride? Override, bool OverrideApplies, FeatureDefinition? Definition)
 {
     public bool IsDeclared => Declared is not null;
 }
