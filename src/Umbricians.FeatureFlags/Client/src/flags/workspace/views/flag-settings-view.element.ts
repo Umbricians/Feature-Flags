@@ -18,7 +18,7 @@ const helpTerms: Record<FlagEditorMode, string> = {
  * The flag editor's Settings tab: whether the flag is on, and who for. A flag that is switched off keeps its audience,
  * so switching it back on restores it. Flags the backoffice can't edit are shown read-only with the reason.
  */
-@customElement("umbricians-feature-flag-settings-view")
+@customElement("umbricians-feature-flags-settings-view")
 export class FeatureFlagSettingsViewElement extends UmbLitElement {
   #context?: typeof FEATURE_FLAG_WORKSPACE_CONTEXT.TYPE;
 
@@ -216,6 +216,6 @@ export { FeatureFlagSettingsViewElement as element };
 
 declare global {
   interface HTMLElementTagNameMap {
-    "umbricians-feature-flag-settings-view": FeatureFlagSettingsViewElement;
+    "umbricians-feature-flags-settings-view": FeatureFlagSettingsViewElement;
   }
 }

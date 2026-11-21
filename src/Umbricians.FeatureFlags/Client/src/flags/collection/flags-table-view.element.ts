@@ -70,7 +70,7 @@ export class FeatureFlagsTableViewElement extends UmbCollectionViewElementBase<F
           ? html`<small class="audience">${item.state === "off" ? this.localize.term("umbriciansFeatureFlags_keeps", audience) : audience}</small>`
           : nothing}
       </uui-table-cell>
-      <uui-table-cell><umbricians-feature-flag-switch .item=${item}></umbricians-feature-flag-switch></uui-table-cell>
+      <uui-table-cell><umbricians-feature-flags-switch .item=${item}></umbricians-feature-flags-switch></uui-table-cell>
       <uui-table-cell>
         <div class="markers">
           ${markers(this.localize, item).map((marker) => html`<uui-tag color=${marker.color} look="outline">${marker.label}</uui-tag>`)}

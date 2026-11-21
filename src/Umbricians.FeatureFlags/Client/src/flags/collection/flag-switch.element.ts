@@ -15,7 +15,7 @@ import { describeAudience } from "../describe.js";
  * A flag's quick switch in the list. Switching off happens at once, since turning a broken feature off should be one
  * click; switching on asks first, saying who it will be on for. An undeclared flag gets a Remove button instead.
  */
-@customElement("umbricians-feature-flag-switch")
+@customElement("umbricians-feature-flags-switch")
 export class FeatureFlagSwitchElement extends UmbLitElement {
   @property({ attribute: false })
   item?: FeatureFlagCollectionItem;
@@ -131,6 +131,6 @@ export class FeatureFlagSwitchElement extends UmbLitElement {
 
 declare global {
   interface HTMLElementTagNameMap {
-    "umbricians-feature-flag-switch": FeatureFlagSwitchElement;
+    "umbricians-feature-flags-switch": FeatureFlagSwitchElement;
   }
 }

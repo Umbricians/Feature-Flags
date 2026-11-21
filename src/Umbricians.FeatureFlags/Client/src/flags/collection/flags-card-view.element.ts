@@ -43,7 +43,7 @@ export class FeatureFlagsCardViewElement extends UmbCollectionViewElementBase<Fe
             : html`<strong title=${item.name}>${item.name}</strong>`}
           ${item.description ? html`<small>${item.description}</small>` : nothing}
         </div>
-        <umbricians-feature-flag-switch .item=${item}></umbricians-feature-flag-switch>
+        <umbricians-feature-flags-switch .item=${item}></umbricians-feature-flags-switch>
       </div>
       <div class="row">
         <uui-tag color=${stateColor(item.state)} look=${item.state === "off" ? "secondary" : "primary"}>${stateLabel(this.localize, item.state)}</uui-tag>

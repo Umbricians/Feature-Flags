@@ -8,7 +8,7 @@ import { FEATURE_FLAG_WORKSPACE_CONTEXT } from "./flag-workspace.context-token.j
  * The flag editor's frame: the flag's name, its tabs (Settings, Definition, registered as workspace views) and the
  * Save and Reset buttons, which act on the workspace's shared state whichever tab is open.
  */
-@customElement("umbricians-feature-flag-editor")
+@customElement("umbricians-feature-flags-editor")
 export class FeatureFlagEditorElement extends UmbLitElement {
   #context?: typeof FEATURE_FLAG_WORKSPACE_CONTEXT.TYPE;
 
@@ -64,6 +64,6 @@ export class FeatureFlagEditorElement extends UmbLitElement {
 
 declare global {
   interface HTMLElementTagNameMap {
-    "umbricians-feature-flag-editor": FeatureFlagEditorElement;
+    "umbricians-feature-flags-editor": FeatureFlagEditorElement;
   }
 }
