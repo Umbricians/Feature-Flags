@@ -19,6 +19,7 @@ public class FeatureFlagsComposer : IComposer
         builder.CacheRefreshers().Add<FeatureFlagsCacheRefresher>();
         builder.AddNotificationAsyncHandler<MemberDeletedNotification, MemberDeletedHandler>();
         builder.AddNotificationAsyncHandler<MemberGroupDeletedNotification, MemberGroupDeletedHandler>();
+        builder.AddNotificationHandler<UmbracoApplicationStartedNotification, OverrideCacheWarmup>();
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, StartupChecks>();
     }
 }

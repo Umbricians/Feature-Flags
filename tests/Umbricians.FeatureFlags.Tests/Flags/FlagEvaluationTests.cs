@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.FeatureManagement;
 using Umbricians.FeatureFlags.Flags;
+using Umbricians.FeatureFlags.Overrides;
 
 namespace Umbricians.FeatureFlags.Tests.Flags;
 
@@ -166,6 +167,41 @@ public class FlagEvaluationTests
         bool after = await site.IsOnAsync("Checkout.NewFlow");
 
         Assert.That((readsBefore, site.Store.Reads, after), Is.EqualTo((1, 2, true)));
+    }
+
+    [Test]
+    public async Task Checking_a_flag_after_a_change_answers_from_memory_while_the_overrides_are_read_again()
+    {
+        var site = new TestSite(DeclaredOff);
+        Assert.That(await site.IsOnAsync("Checkout.NewFlow"), Is.False);
+
+        site.Store.With("Checkout.NewFlow", new FlagSettings(true, null));
+        site.Store.Hold = new TaskCompletionSource();
+        OverrideCache cache = site.Provider.GetRequiredService<OverrideCache>();
+        cache.Reload();
+
+        Task<bool> check = site.IsOnAsync("Checkout.NewFlow");
+        bool answeredWithoutWaiting = await Task.WhenAny(check, Task.Delay(TimeSpan.FromSeconds(5))) == check;
+        bool during = await check;
+
+        site.Store.Hold.SetResult();
+        await cache.ReloadAsync();
+        bool after = await site.IsOnAsync("Checkout.NewFlow");
+
+        Assert.That((answeredWithoutWaiting, during, after), Is.EqualTo((true, false, true)));
+    }
+
+    [Test]
+    public async Task A_failed_read_keeps_the_settings_read_last()
+    {
+        var site = new TestSite("""{ "feature_management": { "feature_flags": [ { "id": "Search", "enabled": true } ] } }""");
+        site.Store.With("Search", FlagSettings.Off);
+        Assert.That(await site.IsOnAsync("Search"), Is.False);
+
+        site.Store.Fail = true;
+        site.Refresh();
+
+        Assert.That(await site.IsOnAsync("Search"), Is.False);
     }
 
     [Test]
