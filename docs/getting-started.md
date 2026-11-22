@@ -92,9 +92,34 @@ Administrators can already change flags. For anyone else, go to **Users → User
 - [ ] Only the user groups that should change flags on production have **Change feature flags**.
 - [ ] If your flag source, such as Azure App Configuration, should stay in charge, set
       `Umbricians:FeatureFlags:Overrides` to `ReadOnly` (see the [README](../README.md#configuration)).
-- [ ] The startup log has no warnings from Feature Flags (see below).
+- [ ] The **Feature Flags** health check is green: go to **Settings → Health Check**, run the **Feature Flags** group,
+      and fix any error or warning (each result is explained [below](#the-health-check)). The startup log says the same.
 - [ ] Pages whose content changes per member aren't served from a shared cache, such as output caching or a CDN,
       or one member's version is shown to everyone.
+
+## The health check
+
+Settings → Health Check → Feature Flags checks the set-up and lists what is wrong. Errors and warnings name the flags
+involved; info results only give a count. Nothing here has a button: fix it where the problem is. The startup log
+reports every error and warning with the same words.
+
+| Result | What it means and what to do |
+| --- | --- |
+| <a id="settings-cant-be-read"></a>**Error:** the saved settings can't be read | The store is failing, or the package's migration hasn't run. Flags use their defaults, or the settings read last. Run the site's upgrade and check the database. |
+| <a id="feature-management-registered-twice"></a>**Error:** Microsoft.FeatureManagement is registered more than once | The site calls `AddFeatureManagement()` after Umbraco is added. Remove the call, or move it before Umbraco is added. |
+| <a id="filters-share-a-name"></a>**Error:** more than one feature filter has the same name | Usually Microsoft's `WithTargeting<T>()` added after Umbraco. Move it before Umbraco is added, so Feature Flags replaces Microsoft's filter. |
+| <a id="flag-source-registered-late"></a>**Error:** the flag source is registered after Feature Flags | A custom `IFeatureDefinitionProvider` was registered after Umbraco, so settings from the backoffice have no effect. Register it before Umbraco is added. |
+| <a id="a-saved-setting-cant-be-read"></a>**Warning:** a saved setting can't be read | The named flags use their defaults. Open each in the backoffice and save it again, or reset it. |
+| <a id="a-definition-cant-be-read"></a>**Warning:** a declared flag's definition can't be read | Checking the named flags fails. Fix their declaration in appsettings or in the flag source. |
+| <a id="the-flag-source-cant-list-its-flags"></a>**Warning:** the flag source can't list its flags | The backoffice shows only the flags it could read one by one. Check the flag source, such as Azure App Configuration. |
+| <a id="a-group-provider-fails"></a>**Warning:** a group provider fails to list its groups | The editor offers none of that provider's groups. It is given five seconds to answer. Check what the provider depends on. |
+| <a id="a-flag-is-declared-twice"></a>**Warning:** a flag is declared both in code and by the flag source | The flag source's declaration is used. Remove one of the two. |
+| <a id="a-root-condition-names-a-deleted-root"></a>**Warning:** a Root condition names a deleted root | Choose another root for the named flags, or remove the condition. |
+| <a id="undeclared-flags"></a>**Info:** undeclared flags are waiting to be removed | Settings are saved for flags nobody declares any more. Remove them from the list's Undeclared flags filter. |
+| <a id="overrides-are-read-only"></a>**Info:** overrides are read-only | `Overrides` is `ReadOnly`, so the backoffice can't change flags. That's expected if your flag source is in charge. |
+| <a id="flags-with-a-custom-state"></a>**Info:** flags are in a custom state | The backoffice can't edit them; change them where they are declared. |
+| <a id="the-health-check-cant-run-a-check"></a>**Warning:** Feature Flags couldn't check something | One part of the check threw. The log has the details; the other results are still shown. |
+| <a id="everything-is-fine"></a>**Success:** everything is fine | No errors or warnings. |
 
 ## Troubleshooting
 

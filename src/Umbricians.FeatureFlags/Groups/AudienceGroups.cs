@@ -48,6 +48,31 @@ internal sealed class AudienceGroups(IMemberGroups memberGroups, IEnumerable<IFe
 
         return new GroupDirectory(offered, await memberGroups.GetAllAsync(cancellationToken));
     }
+
+    /// <summary>
+    /// Asks every group provider for its groups, for the health check and startup log, and says which ones failed.
+    /// A provider that takes longer than <paramref name="timeout"/> counts as failed, so a hanging provider can't hang
+    /// the check. Providers are asked afresh rather than remembered, so the answer is true now.
+    /// </summary>
+    public async Task<IReadOnlyList<string>> FindFailingProvidersAsync(TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        var failing = new List<string>();
+        foreach (IFeatureFlagGroupProvider provider in providers)
+        {
+            try
+            {
+                using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                limit.CancelAfter(timeout);
+                await provider.GetGroupsAsync(limit.Token).WaitAsync(timeout, cancellationToken);
+            }
+            catch (Exception exception) when (!cancellationToken.IsCancellationRequested || exception is not OperationCanceledException)
+            {
+                failing.Add(provider.GetType().FullName ?? provider.GetType().Name);
+            }
+        }
+
+        return failing;
+    }
 }
 
 /// <summary>What the site's groups were when <see cref="AudienceGroups.ReadAsync"/> read them.</summary>

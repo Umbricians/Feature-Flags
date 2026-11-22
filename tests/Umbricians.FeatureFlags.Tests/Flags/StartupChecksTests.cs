@@ -27,7 +27,7 @@ public class StartupChecksTests
 
         Assert.That(entries, Has.Count.EqualTo(1));
         Assert.That(entries[0].Level, Is.EqualTo(LogLevel.Warning));
-        Assert.That(entries[0].Message, Does.Contain("'BetaSearch'").And.Contain("both in code and by the site's flag source"));
+        Assert.That(entries[0].Message, Does.Contain("BetaSearch").And.Contain("both in code and by the site's flag source"));
     }
 
     [Test]
@@ -41,19 +41,20 @@ public class StartupChecksTests
 
         var entries = await Run(site);
 
-        Assert.That(entries.Select(entry => entry.Message), Has.Some.Contain("couldn't list the flags the site's flag source declares"));
-        Assert.That(entries.Select(entry => entry.Message), Has.Some.Contain("'B'"));
-        Assert.That(entries.Where(entry => entry.Message.Contains("couldn't list the flags the site's flag source declares")).Single().Exception, Is.Not.Null);
+        Assert.That(entries.Select(entry => entry.Message), Has.Some.Contain("flag source can't list its flags"));
+        Assert.That(entries.Select(entry => entry.Message), Has.Some.Contain("declared both in code and by the site's flag source, and the flag source's declaration is used: B"));
+        Assert.That(entries.Where(entry => entry.Message.Contains("flag source can't list its flags")).Single().Exception, Is.Not.Null);
     }
 
     [Test]
-    public async Task A_flag_source_registered_after_Feature_Flags_is_warned_about()
+    public async Task A_flag_source_registered_after_Feature_Flags_is_an_error()
     {
         var site = new TestSite(after: services => services.AddSingleton<IFeatureDefinitionProvider>(new FailingListSource()));
 
         var entries = await Run(site);
 
-        Assert.That(entries.Select(entry => entry.Message), Has.Some.Contain("registered its own flag source after Feature Flags"));
+        Assert.That(entries, Has.Some.Matches<(LogLevel Level, string Message, Exception? Exception)>(
+            entry => entry.Level == LogLevel.Error && entry.Message.Contains("registered its own flag source after Feature Flags")));
     }
 
     [Test]
