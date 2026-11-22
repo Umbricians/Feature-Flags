@@ -16,7 +16,9 @@ namespace Umbricians.FeatureFlags.Targeting;
 /// <summary>
 /// Tells Microsoft.FeatureManagement's targeting who the signed-in member is: their key as the user id, and as groups
 /// the key and name of each of their member groups plus the groups every <see cref="IFeatureFlagGroupProvider"/> puts
-/// them in. The member is the one signed in with the member cookie or with a Delivery API member token. A visitor who isn't signed in has no user id and no groups. Worked out once per request.
+/// them in. The member is the one signed in with the member cookie or with a Delivery API member token. A token is
+/// only recognised on this package's headless endpoint and other /umbraco/ paths, where Umbraco's token handling runs;
+/// on a site page the member cookie is what counts. A visitor who isn't signed in has no user id and no groups. Worked out once per request.
 /// </summary>
 /// <remarks>
 /// A site that identifies people another way registers its own <see cref="ITargetingContextAccessor"/>, which wins.

@@ -80,6 +80,10 @@ settings). Without a token, or with one that isn't a member's, the request is a 
 rollouts are off for them, as everywhere else in Feature Flags. A member signed in with the cookie is recognised too.
 The same lookup is used for every request in the site, not only this endpoint.
 
+A member token is recognised on this endpoint and on the other `/umbraco/` paths, because that is where Umbraco's
+token handling runs. On a page of your own site (outside `/umbraco/`) a bearer token may not be recognised, so those
+pages know a member by the member cookie.
+
 ### Which site
 
 Send the `Start-Item` header, as you do to the Delivery API, to place the request in a root, so a
