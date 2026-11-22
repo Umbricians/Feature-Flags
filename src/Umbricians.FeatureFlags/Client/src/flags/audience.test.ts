@@ -181,3 +181,24 @@ test("the excluded side is edited with the same functions and keeps every group'
 test("counts include the percentage and what is left out", () => {
   assert.deepEqual(countAudience(withEverything), { members: 1, memberGroups: 1, groups: 1, partialGroups: 1, defaultPercentage: 25, excludedMembers: 1, excludedGroups: 1 });
 });
+
+const named: FlagAudience = {
+  ...emptyAudience(),
+  groups: [{ id: "Beta testers", kind: "namedMemberGroup", name: "Beta testers", memberGroupKey: "key-9", percentage: 50 }],
+};
+
+test("a group named by name that matches a member group shows in the picker", () => {
+  assert.deepEqual(memberGroupKeys(named), ["key-9"]);
+});
+
+test("choosing a member group that is already there by name adds nothing, and unchoosing it removes it", () => {
+  assert.deepEqual(withMemberGroupKeys(named, ["key-9"]).groups, named.groups);
+  assert.deepEqual(withMemberGroupKeys(named, ["KEY-9"]).groups, named.groups);
+  assert.deepEqual(withMemberGroupKeys(named, []).groups, []);
+});
+
+test("a named group's member group key is kept when the audience is read from parameters", () => {
+  const known = named.groups;
+  const read = audienceFromParameters({ Audience: { Groups: [{ Name: "Beta testers", RolloutPercentage: 50 }] } }, known);
+  assert.equal(read.groups[0].memberGroupKey, "key-9");
+});

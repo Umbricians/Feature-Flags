@@ -56,7 +56,7 @@ internal sealed class FlagResponses
     private static AudienceGroupModel GroupModel(string id, GroupDirectory groups, int percentage)
     {
         AudienceGroup group = groups.Classify(id);
-        return new AudienceGroupModel { Id = group.Id, Kind = ApiNames.GroupKind(group.Kind), Name = group.Name, Percentage = percentage };
+        return new AudienceGroupModel { Id = group.Id, Kind = ApiNames.GroupKind(group.Kind), Name = group.Name, MemberGroupKey = group.MemberGroupKey, Percentage = percentage };
     }
 
     /// <summary>How many of each an audience has: member groups include those named in appsettings; unknown ids count with provider groups.</summary>

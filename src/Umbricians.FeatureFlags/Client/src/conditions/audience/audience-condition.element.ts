@@ -121,7 +121,8 @@ export class AudienceConditionElement extends UmbLitElement implements Umbrician
   #renderPickers(whole: FlagAudience, side: AudienceSide) {
     const audience = sideOf(whole, side);
     const selection = (e: Event) => [...(e.target as unknown as { selection: Array<string> }).selection];
-    const named = groupsOfKind(audience, "namedMemberGroup");
+    // A group named by name that matches a member group shows in the picker like any other, so only one that doesn't is a tag.
+    const named = groupsOfKind(audience, "namedMemberGroup").filter((group) => !group.memberGroupKey);
     const unknown = groupsOfKind(audience, "unknown");
     // The pickers fire their own change events, which stop here: the flag editor hears only this element's.
     const picked = (e: Event, apply: (audience: FlagAudience) => FlagAudience) => {

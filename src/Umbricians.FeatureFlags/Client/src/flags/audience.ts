@@ -49,19 +49,28 @@ export function groupsOfKind(audience: FlagAudience, ...kinds: Array<AudienceGro
   return audience.groups.filter((group) => kinds.includes(group.kind));
 }
 
-/** The member groups the picker holds: only those the site knows by key. */
+/** The key of the member group a group is, when the site knows it: a member group by key, or one named by its name. */
+function keyOf(group: AudienceGroup): string | null {
+  return group.kind === "memberGroup" ? group.id : group.kind === "namedMemberGroup" ? (group.memberGroupKey ?? null) : null;
+}
+
+/** The member groups the picker holds: those the site knows by key, and those named by name that it can match to one. */
 export function memberGroupKeys(audience: FlagAudience): Array<string> {
-  return groupsOfKind(audience, "memberGroup").map((group) => group.id);
+  return audience.groups.flatMap((group) => keyOf(group) ?? []);
 }
 
 /**
  * Replaces the member groups chosen by key with those the picker now holds, keeping the names of the ones still there.
- * Every other group stays as it was, in its place, so groups the picker can't show survive a change to it.
+ * A group named by name that is one of those member groups stays as it was, so choosing it again adds nothing. Every other group stays as it was, in its place, so groups the picker can't show survive a change to it.
  */
 export function withMemberGroupKeys(audience: FlagAudience, keys: Array<string>): FlagAudience {
-  const kept = audience.groups.filter((group) => group.kind !== "memberGroup" || keys.includes(group.id));
+  const sameKey = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
+  const kept = audience.groups.filter((group) => {
+    const key = keyOf(group);
+    return key === null || keys.some((chosen) => sameKey(chosen, key));
+  });
   const added = keys
-    .filter((key) => !kept.some((group) => group.id === key))
+    .filter((key) => !kept.some((group) => keyOf(group) !== null && sameKey(keyOf(group)!, key)))
     .map((key): AudienceGroup => ({ id: key, kind: "memberGroup", name: null, percentage: 100 }));
   return { ...audience, groups: [...kept, ...added] };
 }
@@ -127,7 +136,13 @@ export function audienceFromParameters(parameters: Record<string, unknown>, know
   const exclusion = child(audience, "Exclusion");
   const describe = (id: string, percentage: number): AudienceGroup => {
     const found = known.find((group) => group.id === id);
-    return { id, kind: found?.kind ?? (GUID.test(id) ? "memberGroup" : "unknown"), name: found?.name ?? null, percentage };
+    return {
+      id,
+      kind: found?.kind ?? (GUID.test(id) ? "memberGroup" : "unknown"),
+      name: found?.name ?? null,
+      ...(found?.memberGroupKey ? { memberGroupKey: found.memberGroupKey } : {}),
+      percentage,
+    };
   };
   const texts = (list: unknown) => (Array.isArray(list) ? list.map(textOf).filter((id): id is string => id !== null) : []);
   const groups = child(audience, "Groups");

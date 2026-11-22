@@ -58,7 +58,7 @@ public class AudienceGroupsTests
 
         GroupDirectory directory = await ReadAsync(site);
 
-        Assert.That(directory.Classify("Premium members"), Is.EqualTo(new AudienceGroup("Premium members", AudienceGroupKind.NamedMemberGroup, "Premium members")));
+        Assert.That(directory.Classify("Premium members"), Is.EqualTo(new AudienceGroup("Premium members", AudienceGroupKind.NamedMemberGroup, "Premium members", PremiumKey)));
         Assert.That(directory.Classify("premium members").Kind, Is.EqualTo(AudienceGroupKind.Unknown));
     }
 

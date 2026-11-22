@@ -23,6 +23,8 @@ export interface AudienceGroup {
   id: string;
   kind: AudienceGroupKind;
   name: string | null;
+  /** For a `namedMemberGroup`, the key of the member group with that name, so it can be shown as that member group. */
+  memberGroupKey?: string | null;
   /** The percentage of the group that is included, 0 to 100. Always 100 for a group that is left out. */
   percentage: number;
 }

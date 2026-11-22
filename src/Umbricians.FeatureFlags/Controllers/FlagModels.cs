@@ -167,6 +167,9 @@ internal sealed class AudienceGroupModel
     /// <summary>What editors see, or null when the site doesn't know the group.</summary>
     public string? Name { get; init; }
 
+    /// <summary>For a <c>namedMemberGroup</c>, the key of the member group with that name; otherwise null.</summary>
+    public Guid? MemberGroupKey { get; init; }
+
     /// <summary>The percentage of the group that is included, 0 to 100; 100 for a group left out.</summary>
     public int Percentage { get; init; } = 100;
 }
