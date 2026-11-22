@@ -10,6 +10,7 @@ src/Umbricians.FeatureFlags/wwwroot/App_Plugins/UmbriciansFeatureFlags/
 
 # Local dotnet pack output
 artifacts/
+artifacts-npm/
 
 # Demo site runtime data, and the JSON schemas Umbraco copies in on every build
 demo/**/umbraco/Data/
