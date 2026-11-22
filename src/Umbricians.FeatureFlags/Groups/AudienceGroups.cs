@@ -89,12 +89,15 @@ internal sealed class GroupDirectory(IReadOnlyList<FeatureFlagGroup> providerGro
 
         // A group's percentage follows it to the way its id is written, the first of any repeats winning.
         var percentages = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        // Every percentage is added before the 100s are dropped, so a repeat that is in full can't hide the first one's share.
         foreach (string group in audience.Groups.Where(id => !string.IsNullOrWhiteSpace(id)))
         {
-            if (audience.PercentageOf(group) is var percentage and not 100)
-            {
-                percentages.TryAdd(WriteGroup(group.Trim()), percentage);
-            }
+            percentages.TryAdd(WriteGroup(group.Trim()), audience.PercentageOf(group));
+        }
+
+        foreach (string full in percentages.Where(pair => pair.Value == 100).Select(pair => pair.Key).ToArray())
+        {
+            percentages.Remove(full);
         }
 
         return new FlagAudience(Clean(audience.Members, WriteMember), Clean(audience.Groups, WriteGroup))

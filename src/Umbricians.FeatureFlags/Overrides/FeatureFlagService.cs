@@ -187,26 +187,43 @@ internal sealed class FeatureFlagService : IFeatureFlagService
         foreach (FeatureFlagOverride saved in await _store.GetAllAsync(cancellationToken))
         {
             FlagSettings? settings = FlagDefinitions.ReadOverride(saved.Definition, out _);
-            if (settings?.Audience is null)
+            if (settings is null)
             {
                 continue;
             }
 
-            FlagAudience current = settings.Audience;
-            FlagAudience audience = current with
+            // Every audience on the flag, whatever else it has: other conditions and the match are kept as they are.
+            bool changed = false;
+            var conditions = new List<FlagCondition>();
+            foreach (FlagCondition condition in settings.Conditions)
             {
-                Members = current.Members.Where(member => !removed.Contains(member)).ToArray(),
-                Groups = current.Groups.Where(group => !removed.Contains(group)).ToArray(),
-                GroupPercentages = current.GroupPercentages.Where(pair => !removed.Contains(pair.Key)).ToDictionary(pair => pair.Key, pair => pair.Value),
-                ExcludedMembers = current.ExcludedMembers.Where(member => !removed.Contains(member)).ToArray(),
-                ExcludedGroups = current.ExcludedGroups.Where(group => !removed.Contains(group)).ToArray(),
-            };
-            if (audience.SameAs(settings.Audience))
+                if (FlagSettings.IsTargeting(condition.Name) && FlagAudience.TryRead(condition.Parameters, out _) is { } current)
+                {
+                    FlagAudience audience = current with
+                    {
+                        Members = current.Members.Where(member => !removed.Contains(member)).ToArray(),
+                        Groups = current.Groups.Where(group => !removed.Contains(group)).ToArray(),
+                        GroupPercentages = current.GroupPercentages.Where(pair => !removed.Contains(pair.Key)).ToDictionary(pair => pair.Key, pair => pair.Value),
+                        ExcludedMembers = current.ExcludedMembers.Where(member => !removed.Contains(member)).ToArray(),
+                        ExcludedGroups = current.ExcludedGroups.Where(group => !removed.Contains(group)).ToArray(),
+                    };
+                    if (!audience.SameAs(current))
+                    {
+                        changed = true;
+                        conditions.Add(condition with { Parameters = audience.ToParameters() });
+                        continue;
+                    }
+                }
+
+                conditions.Add(condition);
+            }
+
+            if (!changed)
             {
                 continue;
             }
 
-            FlagSettings after = FlagSettings.ForAudience(settings.Enabled, audience);
+            FlagSettings after = new(settings.Enabled, conditions, settings.Match);
             string json = FlagDefinitions.ToJson(saved.FlagName, after);
             await _store.SaveAsync(saved with { Definition = json }, cancellationToken);
             changes.Add((saved.FlagName, saved, settings, after, json));

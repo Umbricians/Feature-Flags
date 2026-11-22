@@ -80,8 +80,8 @@ test("a saved audience sends every group's id", () => {
 });
 
 test("counts named member groups as member groups and unknown ids as other groups", () => {
-  assert.deepEqual(countAudience(audience), { members: 1, memberGroups: 2, groups: 2, defaultPercentage: 0, excludedMembers: 0, excludedGroups: 0 });
-  assert.deepEqual(countAudience(emptyAudience()), { members: 0, memberGroups: 0, groups: 0, defaultPercentage: 0, excludedMembers: 0, excludedGroups: 0 });
+  assert.deepEqual(countAudience(audience), { members: 1, memberGroups: 2, groups: 2, partialGroups: 0, defaultPercentage: 0, excludedMembers: 0, excludedGroups: 0 });
+  assert.deepEqual(countAudience(emptyAudience()), { members: 0, memberGroups: 0, groups: 0, partialGroups: 0, defaultPercentage: 0, excludedMembers: 0, excludedGroups: 0 });
 });
 
 test("an audience round trips through targeting parameters, keeping what the site knows about each group", () => {
@@ -179,5 +179,5 @@ test("the excluded side is edited with the same functions and keeps every group'
 });
 
 test("counts include the percentage and what is left out", () => {
-  assert.deepEqual(countAudience(withEverything), { members: 1, memberGroups: 1, groups: 1, defaultPercentage: 25, excludedMembers: 1, excludedGroups: 1 });
+  assert.deepEqual(countAudience(withEverything), { members: 1, memberGroups: 1, groups: 1, partialGroups: 1, defaultPercentage: 25, excludedMembers: 1, excludedGroups: 1 });
 });

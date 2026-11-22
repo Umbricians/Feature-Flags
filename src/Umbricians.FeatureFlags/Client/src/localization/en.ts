@@ -72,6 +72,7 @@ export default {
     memberGroups: (count: number) => plural(count, "member group", "member groups"),
     otherGroups: (count: number) => plural(count, "other group", "other groups"),
     groups: (count: number) => plural(count, "group", "groups"),
+    inPart: (count: number) => `${count} in part`,
     percentOfEveryoneElse: (percentage: number) => `${percentage}% of everyone else`,
     except: (who: string) => `except ${who}`,
 
@@ -112,7 +113,7 @@ export default {
     audienceMembers: "Members",
     audienceMembersHelp: "Members who get the feature.",
     audienceMemberGroups: "Member groups",
-    audienceMemberGroupsHelp: "Everyone in these member groups gets the feature.",
+    audienceMemberGroupsHelp: "Members of these member groups get the feature. Below, you can choose how much of each group.",
     audienceGroups: "Other groups",
     audienceGroupsHelp: "Groups worked out by code on this site.",
     audienceDefaultPercentage: "...and this percentage of everyone else",

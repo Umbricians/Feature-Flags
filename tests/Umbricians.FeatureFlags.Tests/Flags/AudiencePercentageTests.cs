@@ -142,7 +142,7 @@ public class AudiencePercentageTests
     }
 
     [Test]
-    public async Task A_default_percentage_of_100_includes_any_member_and_0_includes_none_but_visitors_without_an_id_all_get_one_answer()
+    public async Task A_default_percentage_of_100_includes_any_member_and_0_includes_none_and_visitors_without_an_id_are_never_included()
     {
         var site = new TestSite(Declared);
         site.Store.With("F", FlagSettings.ForAudience(true, new FlagAudience([], []) { DefaultPercentage = 100 }));
@@ -156,7 +156,7 @@ public class AudiencePercentageTests
         site.Visitor.SignIn("any-member-id");
         bool none = await site.IsOnAsync("F");
 
-        Assert.That((everyone, anonymous, none), Is.EqualTo((true, true, false)));
+        Assert.That((everyone, anonymous, none), Is.EqualTo((true, false, false)));
     }
 
     [Test]
@@ -232,6 +232,39 @@ public class AudiencePercentageTests
         Assert.That(saved.ExcludedMembers, Is.EqualTo(new[] { "kept-out" }));
         Assert.That(saved.ExcludedGroups, Is.EqualTo(new[] { "stays-out" }));
         Assert.That(saved.DefaultPercentage, Is.EqualTo(10));
+    }
+
+    [Test]
+    public async Task Clean_up_rewrites_an_audience_on_a_flag_with_other_conditions_and_keeps_them_and_the_match()
+    {
+        var site = new TestSite(Declared);
+        var service = site.Provider.GetRequiredService<FeatureFlagService>();
+        var window = new FlagCondition("Microsoft.TimeWindow", Json("""{ "Start": "2026-12-01T09:00:00Z" }"""));
+        var audience = new FlagCondition("Microsoft.Targeting", new FlagAudience(["keep", "gone"], []).ToParameters());
+        await service.SaveAsync("F", new FlagSettings(true, [window, audience], ConditionMatch.All), Editor, default);
+
+        await service.RemoveFromAudiencesAsync(["gone"], default);
+
+        FlagSettings saved = FlagDefinitions.ReadOverride(site.Store.All.Single().Definition, out _)!;
+        Assert.That(saved.Match, Is.EqualTo(ConditionMatch.All));
+        Assert.That(saved.Conditions.Select(c => c.Name), Is.EqualTo(new[] { "Microsoft.TimeWindow", "Microsoft.Targeting" }));
+        Assert.That(saved.Conditions[0].Parameters.ToJsonString(), Is.EqualTo(window.Parameters.ToJsonString()));
+        Assert.That(FlagAudience.TryRead(saved.Conditions[1].Parameters, out _)!.Members, Is.EqualTo(new[] { "keep" }));
+    }
+
+    [TestCase("""{ "Audience": { "Users": "alice" } }""", "members")]
+    [TestCase("""{ "Audience": { "Groups": "g" } }""", "groups")]
+    [TestCase("""{ "Audience": { "Groups": [ "g" ] } }""", "group")]
+    [TestCase("""{ "Audience": { "Users": [ { "Id": 1 } ] } }""", "members")]
+    [TestCase("""{ "Audience": { "Exclusion": "x" } }""", "exclusions")]
+    [TestCase("""{ "Audience": { "Exclusion": { "Users": "alice" } } }""", "left out")]
+    [TestCase("""{ "Audience": { "Exclusion": { "Groups": { } } } }""", "left out")]
+    public void A_list_of_the_wrong_shape_is_refused_rather_than_quietly_dropped(string json, string mentions)
+    {
+        FlagAudience? read = FlagAudience.TryRead(Json(json), out string? reason);
+
+        Assert.That(read, Is.Null);
+        Assert.That(reason, Does.Contain(mentions));
     }
 
     [Test]

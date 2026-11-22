@@ -5,13 +5,18 @@ import { audienceParts, excludedParts, joinList } from "./display.js";
 /** Who a flag is (or will be) on for, in words: "everyone", or "3 members and 1 member group". */
 export function describeAudience(localize: UmbLocalizationController, counts: AudienceCounts | null, hasAudience = counts !== null): string {
   if (!hasAudience || counts === null) return localize.term("umbriciansFeatureFlags_everyone");
-  const parts = audienceParts(counts).map((part) =>
-    part.kind === "members"
-      ? localize.term("umbriciansFeatureFlags_members", part.count)
-      : part.kind === "memberGroups"
-        ? localize.term("umbriciansFeatureFlags_memberGroups", part.count)
-        : localize.term("umbriciansFeatureFlags_otherGroups", part.count),
-  );
+  const included = audienceParts(counts);
+  const lastGroup = included.map((part) => part.kind).lastIndexOf(included.some((part) => part.kind === "groups") ? "groups" : "memberGroups");
+  const parts = included.map((part, index) => {
+    const text =
+      part.kind === "members"
+        ? localize.term("umbriciansFeatureFlags_members", part.count)
+        : part.kind === "memberGroups"
+          ? localize.term("umbriciansFeatureFlags_memberGroups", part.count)
+          : localize.term("umbriciansFeatureFlags_otherGroups", part.count);
+    // "2 member groups (1 in part)": a group below 100% is only partly included, and a group at 0% includes nobody.
+    return index === lastGroup && counts.partialGroups ? `${text} (${localize.term("umbriciansFeatureFlags_inPart", counts.partialGroups)})` : text;
+  });
   if (counts.defaultPercentage > 0) parts.push(localize.term("umbriciansFeatureFlags_percentOfEveryoneElse", counts.defaultPercentage));
   if (parts.length === 0) return localize.term("umbriciansFeatureFlags_nobody");
   const who = joinList(parts, localize.term("umbriciansFeatureFlags_and"));

@@ -109,6 +109,7 @@ export function countAudience(audience: FlagAudience): AudienceCounts {
     members: audience.members.length,
     memberGroups,
     groups: audience.groups.length - memberGroups,
+    partialGroups: audience.groups.filter((group) => group.percentage < 100).length,
     defaultPercentage: audience.defaultPercentage,
     excludedMembers: audience.excludedMembers.length,
     excludedGroups: audience.excludedGroups.length,

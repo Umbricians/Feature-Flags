@@ -7,6 +7,8 @@ export interface AudienceCounts {
   members: number;
   memberGroups: number;
   groups: number;
+  /** How many of the groups are included in part only (below 100%, including 0%). Worked out by the editor; the server doesn't send it. */
+  partialGroups?: number;
   /** The percentage of everyone else it includes, 0 to 100. */
   defaultPercentage: number;
   excludedMembers: number;

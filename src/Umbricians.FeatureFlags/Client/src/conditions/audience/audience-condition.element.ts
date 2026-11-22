@@ -1,4 +1,4 @@
-import { css, customElement, html, nothing, property, state } from "@umbraco-cms/backoffice/external/lit";
+import { css, customElement, html, live, nothing, property, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbLitElement } from "@umbraco-cms/backoffice/lit-element";
 import { UmbChangeEvent } from "@umbraco-cms/backoffice/event";
 import type { AudienceGroup, FlagAudience, ProviderGroup } from "../../api/feature-flags.resource.js";
@@ -107,7 +107,7 @@ export class AudienceConditionElement extends UmbLitElement implements Umbrician
         max="100"
         step="1"
         label=${label}
-        .value=${String(value)}
+        .value=${live(String(value))}
         ?readonly=${this.readonly}
         @change=${(e: Event) => {
           e.stopPropagation();

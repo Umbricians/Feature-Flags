@@ -170,7 +170,7 @@ public sealed record FlagAudience(IReadOnlyList<string> Members, IReadOnlyList<s
 
     /// <summary>
     /// The audience targeting parameters amount to, or null with the reason when they can't be read as one: a percentage
-    /// that isn't a whole number from 0 to 100, or a list of the wrong shape. Numbers may be written as text, as
+    /// that isn't a whole number from 0 to 100, or a list that isn't a list (a lone string) or holds something that isn't an id. Numbers may be written as text, as
     /// configuration gives them, and keys may be in any case, as Microsoft reads them.
     /// </summary>
     internal static FlagAudience? TryRead(JsonObject parameters, out string? reason)
@@ -185,40 +185,79 @@ public sealed record FlagAudience(IReadOnlyList<string> Members, IReadOnlyList<s
 
         var groups = new List<string>();
         var percentages = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        if (Child(audience, "Groups") is JsonArray groupNodes)
+        JsonNode? groupsNode = Child(audience, "Groups");
+        if (groupsNode is not null && groupsNode is not JsonArray)
         {
-            foreach (JsonNode? node in groupNodes)
+            reason = "The audience's groups aren't a list.";
+            return null;
+        }
+
+        foreach (JsonNode? node in groupsNode as JsonArray ?? [])
+        {
+            if (node is not JsonObject)
             {
-                // Microsoft binds a missing percentage as 0, so a group without one includes nobody.
-                if (Text(Child(node as JsonObject, "Name")) is not { } name)
-                {
-                    continue;
-                }
-
-                if (!TryPercentage(Child(node as JsonObject, "RolloutPercentage"), 0, $"The percentage of the group '{name}'", out int percentage, out reason))
-                {
-                    return null;
-                }
-
-                groups.Add(name);
-                percentages.TryAdd(name, percentage);
+                reason = "A group in the audience isn't written as a name with a percentage.";
+                return null;
             }
+
+            // Microsoft binds a missing percentage as 0, so a group without one includes nobody.
+            if (Text(Child(node as JsonObject, "Name")) is not { } name)
+            {
+                continue;
+            }
+
+            if (!TryPercentage(Child(node as JsonObject, "RolloutPercentage"), 0, $"The percentage of the group '{name}'", out int percentage, out reason))
+            {
+                return null;
+            }
+
+            groups.Add(name);
+            percentages.TryAdd(name, percentage);
         }
 
-        var members = new List<string>();
-        if (Child(audience, "Users") is JsonArray users)
+        JsonNode? exclusionNode = Child(audience, "Exclusion");
+        if (exclusionNode is not null && exclusionNode is not JsonObject)
         {
-            members.AddRange(users.Select(Text).OfType<string>());
+            reason = "The audience's exclusions aren't written as members and groups.";
+            return null;
         }
 
-        JsonObject? exclusion = Child(audience, "Exclusion") as JsonObject;
+        JsonObject? exclusion = exclusionNode as JsonObject;
+        if (!TryList(Child(audience, "Users"), "The audience's members", out List<string> members, out reason)
+            || !TryList(Child(exclusion, "Users"), "The members left out", out List<string> excludedMembers, out reason)
+            || !TryList(Child(exclusion, "Groups"), "The groups left out", out List<string> excludedGroups, out reason))
+        {
+            return null;
+        }
+
         return new FlagAudience(members, groups)
         {
             DefaultPercentage = defaultPercentage,
             GroupPercentages = percentages.Where(pair => pair.Value != 100).ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase),
-            ExcludedMembers = Child(exclusion, "Users") is JsonArray excludedUsers ? excludedUsers.Select(Text).OfType<string>().ToArray() : [],
-            ExcludedGroups = Child(exclusion, "Groups") is JsonArray excludedGroups ? excludedGroups.Select(Text).OfType<string>().ToArray() : [],
+            ExcludedMembers = excludedMembers,
+            ExcludedGroups = excludedGroups,
         };
+    }
+
+    // A list of ids: missing is empty, and anything but a list of ids (a lone string, which Microsoft ignores, or entries
+    // that aren't ids) is why the audience can't be read, so saving never quietly drops it.
+    private static bool TryList(JsonNode? node, string what, out List<string> ids, out string? reason)
+    {
+        ids = [];
+        reason = null;
+        if (node is null)
+        {
+            return true;
+        }
+
+        if (node is not JsonArray array || array.Any(item => item is JsonObject or JsonArray))
+        {
+            reason = $"{what} aren't a list of ids.";
+            return false;
+        }
+
+        ids.AddRange(array.Select(Text).OfType<string>());
+        return true;
     }
 
     // Microsoft reads configuration keys without regard to case, so these do too.

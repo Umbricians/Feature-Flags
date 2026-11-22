@@ -106,6 +106,23 @@ public class AudienceGroupsTests
     }
 
     [Test]
+    public async Task Groups_that_normalize_to_one_id_keep_the_first_ones_percentage_even_when_a_later_one_is_in_full()
+    {
+        var site = new TestSite();
+        site.MemberGroups.Add(PremiumKey, "Premium members");
+        GroupDirectory directory = await ReadAsync(site);
+        string upper = PremiumKey.ToString().ToUpperInvariant();
+
+        FlagAudience normalized = directory.Normalize(new FlagAudience([], [PremiumKey.ToString(), upper])
+        {
+            GroupPercentages = new Dictionary<string, int> { [PremiumKey.ToString()] = 40 },
+        });
+
+        Assert.That(normalized.Groups, Is.EqualTo(new[] { PremiumKey.ToString() }));
+        Assert.That(normalized.PercentageOf(PremiumKey.ToString()), Is.EqualTo(40));
+    }
+
+    [Test]
     public async Task A_site_without_member_groups_knows_only_its_providers()
     {
         var site = new TestSite();

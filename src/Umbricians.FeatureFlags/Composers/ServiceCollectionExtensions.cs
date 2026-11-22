@@ -45,7 +45,7 @@ internal static class ServiceCollectionExtensions
 
         // TryAdd, so a site's own accessor wins if it registered one first; one it registers later replaces this.
         services.TryAddSingleton<ITargetingContextAccessor, MemberTargetingContextAccessor>();
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IFeatureFilterMetadata, TargetingFilter>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IFeatureFilterMetadata, SignedInTargetingFilter>());
 
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IFeatureFlagCondition, AudienceCondition>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IFeatureFlagCondition, TimeWindowCondition>());

@@ -18,7 +18,8 @@ For each request that checks a flag, Feature Flags works out once:
   put them in.
 
 A visitor who isn't signed in as a member has no user id and no groups, so they are only included when a flag is on
-for everyone. Backoffice users aren't members: being signed in to the backoffice doesn't put anyone in an audience.
+for everyone: Feature Flags registers its own wrapper around Microsoft's targeting filter, under the same
+`Microsoft.Targeting` name, that is off for anyone without a user id and otherwise is Microsoft's evaluation unchanged. Backoffice users aren't members: being signed in to the backoffice doesn't put anyone in an audience.
 
 If working out the member fails, the error is logged and the visitor is treated as not signed in, so a flag is never
 on by mistake.
@@ -37,10 +38,9 @@ Percentages are Microsoft's, and they are sticky: Microsoft hashes each member's
 a member who is in a 25% audience stays in it, and the same share of members is in on every server. Raising the
 percentage only adds members; nobody who had the feature loses it. Changing the flag's name reshuffles who is in.
 
-Percentages count **members only**: signed-in members have an id to hash. A visitor who isn't signed in has none, so
-Microsoft treats all of them alike: they are included at 100% of everyone else, and every one of them is in or out
-together at a percentage in between. Don't rely on a percentage for anonymous visitors. Feature Flags
-sets no cookie to give visitors ids.
+Percentages count **members only**: signed-in members have an id to hash. A visitor who isn't signed in has none.
+Microsoft would treat all of them alike, in or out together, so Feature Flags never includes them: a visitor with no user
+id is off whatever the percentages and groups. Feature Flags sets no cookie to give visitors ids.
 
 To roll a flag out to visitors who aren't Umbraco members, give them ids with your own `ITargetingContextAccessor`
 (see [Identifying people another way](#identifying-people-another-way)). For example, with a visitor id kept in a
