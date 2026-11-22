@@ -64,7 +64,19 @@ internal sealed class ManageFlagsController : FeatureFlagsControllerBase
     {
         FeatureFlagResultStatus.Saved => Ok(),
         FeatureFlagResultStatus.NotFound => NotFound(new ProblemDetails { Title = "Flag not found", Detail = $"No flag source declares '{name}'." }),
-        FeatureFlagResultStatus.Cancelled => Conflict(new ProblemDetails { Title = "Flag can't be changed here", Detail = string.Join(" ", result.Messages) }),
+        FeatureFlagResultStatus.Cancelled => Conflict(Cancelled(result.Messages)),
         _ => Conflict(new ProblemDetails { Title = "Flag can't be changed here", Detail = result.Reason }),
     };
+
+    /// <summary>A handler cancelled the change: its messages are the detail, and listed in <c>messages</c> as well.</summary>
+    private static ProblemDetails Cancelled(IReadOnlyList<string> messages)
+    {
+        var problem = new ProblemDetails
+        {
+            Title = "Flag can't be changed here",
+            Detail = messages.Count > 0 ? string.Join(" ", messages) : "A handler of the Feature Flags notifications cancelled the change.",
+        };
+        problem.Extensions["messages"] = messages;
+        return problem;
+    }
 }

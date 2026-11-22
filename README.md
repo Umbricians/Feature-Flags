@@ -27,6 +27,8 @@ the members it is on for.
 - **[Audiences](docs/audiences.md)**: how members and member groups are matched, group providers, and identifying
   people another way.
 - **[Using the backoffice](docs/backoffice.md)**: the guide for editors.
+- **[Notifications](docs/notifications.md)**: react to, or refuse, a change to a flag's override; audit and
+  permission examples.
 
 ## Installation
 

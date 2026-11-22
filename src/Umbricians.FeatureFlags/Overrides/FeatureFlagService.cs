@@ -1,11 +1,14 @@
 using Umbraco.Cms.Core.Cache;
+using Umbraco.Cms.Core.Events;
+using Umbraco.Cms.Core.Notifications;
 using Umbricians.FeatureFlags.Flags;
 using Umbricians.FeatureFlags.Groups;
 
 namespace Umbricians.FeatureFlags.Overrides;
 
 /// <summary>
-/// Reads flags and saves and removes their overrides, and tells every server to read them again. Calls through
+/// Reads flags and saves and removes their overrides, publishes the notifications about it, and tells every server to
+/// read them again. Calls through
 /// <see cref="IFeatureFlagService"/> have the cause <see cref="FeatureFlagChangeCause.Code"/>; the Management API calls
 /// the methods that take a cause.
 /// </summary>
@@ -17,6 +20,7 @@ internal sealed class FeatureFlagService : IFeatureFlagService
     private readonly DistributedCache? _distributedCache;
     private readonly TimeProvider _time;
     private readonly AudienceGroups _groups;
+    private readonly IEventAggregator _events;
 
     public FeatureFlagService(
         IFeatureFlagOverrideStore store,
@@ -24,6 +28,7 @@ internal sealed class FeatureFlagService : IFeatureFlagService
         OverrideCache cache,
         TimeProvider time,
         AudienceGroups groups,
+        IEventAggregator events,
         DistributedCache? distributedCache = null)
     {
         _store = store;
@@ -31,6 +36,7 @@ internal sealed class FeatureFlagService : IFeatureFlagService
         _cache = cache;
         _time = time;
         _groups = groups;
+        _events = events;
         _distributedCache = distributedCache;
     }
 
@@ -89,10 +95,25 @@ internal sealed class FeatureFlagService : IFeatureFlagService
         FlagSettings normalized = settings.Audience is null
             ? settings
             : FlagSettings.ForAudience(settings.Enabled, (await _groups.ReadAsync(cancellationToken)).Normalize(settings.Audience));
-        await _store.SaveAsync(
-            new FeatureFlagOverride(flag.Name, FlagDefinitions.ToJson(flag.Name, normalized), userKey, _time.GetUtcNow().UtcDateTime),
-            cancellationToken);
+        string json = FlagDefinitions.ToJson(flag.Name, normalized);
+        SavedOverride? before = await SavedAsync(flag.Name, cancellationToken);
+        DateTimeOffset when = _time.GetUtcNow();
+
+        var messages = new EventMessages();
+        var saving = new FeatureFlagOverrideSavingNotification(
+            flag.Name, before?.Settings, before?.Override.Definition, normalized, json, flag.IsDeclared, userKey, when, cause, messages);
+        if (await _events.PublishCancelableAsync(saving))
+        {
+            return FeatureFlagResult.Cancelled(MessagesIn(messages));
+        }
+
+        await _store.SaveAsync(new FeatureFlagOverride(flag.Name, json, userKey, when.UtcDateTime), cancellationToken);
         await RefreshAsync();
+        await _events.PublishAsync(
+            new FeatureFlagOverrideSavedNotification(
+                flag.Name, before?.Settings, before?.Override.Definition, normalized, json, flag.IsDeclared, userKey, when, cause, messages)
+                .WithStateFrom(saving),
+            cancellationToken);
         return FeatureFlagResult.Saved;
     }
 
@@ -111,8 +132,24 @@ internal sealed class FeatureFlagService : IFeatureFlagService
             return FeatureFlagResult.NotAllowed(action.Reason);
         }
 
+        SavedOverride? before = await SavedAsync(flag.Name, cancellationToken);
+        DateTimeOffset when = _time.GetUtcNow();
+
+        var messages = new EventMessages();
+        var resetting = new FeatureFlagOverrideResettingNotification(
+            flag.Name, before?.Settings, before?.Override.Definition, null, null, flag.IsDeclared, userKey, when, cause, messages);
+        if (await _events.PublishCancelableAsync(resetting))
+        {
+            return FeatureFlagResult.Cancelled(MessagesIn(messages));
+        }
+
         await _store.DeleteAsync(flag.Name, cancellationToken);
         await RefreshAsync();
+        await _events.PublishAsync(
+            new FeatureFlagOverrideResetNotification(
+                flag.Name, before?.Settings, before?.Override.Definition, null, null, flag.IsDeclared, userKey, when, cause, messages)
+                .WithStateFrom(resetting),
+            cancellationToken);
         return FeatureFlagResult.Saved;
     }
 
@@ -128,7 +165,7 @@ internal sealed class FeatureFlagService : IFeatureFlagService
         }
 
         var removed = new HashSet<string>(ids, StringComparer.OrdinalIgnoreCase);
-        bool changed = false;
+        var changes = new List<(string FlagName, FeatureFlagOverride Before, FlagSettings BeforeSettings, FlagSettings AfterSettings, string AfterJson)>();
         // This reads the store and the JSON itself, not the cache: it writes back, so it must start from what is stored,
         // never from a copy that may be a moment behind.
         foreach (FeatureFlagOverride saved in await _store.GetAllAsync(cancellationToken))
@@ -147,17 +184,36 @@ internal sealed class FeatureFlagService : IFeatureFlagService
                 continue;
             }
 
-            await _store.SaveAsync(
-                saved with { Definition = FlagDefinitions.ToJson(saved.FlagName, FlagSettings.ForAudience(settings.Enabled, audience)) },
-                cancellationToken);
-            changed = true;
+            FlagSettings after = FlagSettings.ForAudience(settings.Enabled, audience);
+            string json = FlagDefinitions.ToJson(saved.FlagName, after);
+            await _store.SaveAsync(saved with { Definition = json }, cancellationToken);
+            changes.Add((saved.FlagName, saved, settings, after, json));
         }
 
-        if (changed)
+        if (changes.Count == 0)
         {
-            await RefreshAsync();
+            return;
+        }
+
+        await RefreshAsync();
+        DateTimeOffset when = _time.GetUtcNow();
+        foreach ((string flagName, FeatureFlagOverride before, FlagSettings beforeSettings, FlagSettings afterSettings, string afterJson) in changes)
+        {
+            FeatureFlag? flag = await _catalog.FindAsync(flagName, cancellationToken);
+            await _events.PublishAsync(
+                new FeatureFlagOverrideSavedNotification(
+                    flagName, beforeSettings, before.Definition, afterSettings, afterJson, flag?.IsDeclared ?? false, null, when,
+                    FeatureFlagChangeCause.MemberCleanup, new EventMessages()),
+                cancellationToken);
         }
     }
+
+    /// <summary>The override as the cache last read it, for the notifications' "before"; null when the flag has none.</summary>
+    private async Task<SavedOverride?> SavedAsync(string flagName, CancellationToken cancellationToken) =>
+        (await _cache.GetAsync(cancellationToken)).Overrides.GetValueOrDefault(flagName);
+
+    private static IReadOnlyList<string> MessagesIn(EventMessages messages) =>
+        messages.GetAll().Select(message => message.Message).Where(text => !string.IsNullOrWhiteSpace(text)).ToArray();
 
     private Task RefreshAsync()
     {

@@ -91,6 +91,23 @@ public class FeatureFlagServiceTests : IntegrationTest
         Assert.That((await service.SaveAsync("Tests.Nobody", FlagSettings.Off)).Status, Is.EqualTo(FeatureFlagResultStatus.NotFound));
     }
 
+    [Test]
+    public async Task A_handler_in_the_test_site_cancels_a_save_and_a_reset_of_a_flag_and_the_messages_come_back()
+    {
+        IFeatureFlagService service = Site.Services.GetRequiredService<IFeatureFlagService>();
+
+        FeatureFlagResult save = await service.SaveAsync("Frozen.Checkout", FlagSettings.ForAudience(true, null));
+        FeatureFlagResult reset = await service.ResetAsync("Frozen.Checkout");
+
+        Assert.That(save.Status, Is.EqualTo(FeatureFlagResultStatus.Cancelled));
+        Assert.That(save.Messages, Is.EqualTo(new[] { "Frozen.Checkout is frozen." }));
+        Assert.That(reset.Status, Is.Not.EqualTo(FeatureFlagResultStatus.Saved));
+        Assert.That(await Site.Services.GetRequiredService<IFeatureFlagOverrideStore>().GetAllAsync(default), Is.Empty);
+        Assert.That(await IsEnabledAsync("Frozen.Checkout"), Is.False);
+        Assert.That((await service.SaveAsync("Tests.Off", FlagSettings.ForAudience(true, null))).IsSaved, Is.True);
+        await service.ResetAsync("Tests.Off");
+    }
+
     private async Task<bool> IsEnabledAsync(string flagName, bool variants = false)
     {
         await using AsyncServiceScope scope = Site.CreateScope();

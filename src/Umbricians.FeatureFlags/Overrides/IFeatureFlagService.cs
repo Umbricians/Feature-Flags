@@ -12,7 +12,9 @@ namespace Umbricians.FeatureFlags.Overrides;
 /// The backoffice's rules apply (settings from the backoffice may be switched off, a flag nobody declares can't be
 /// saved, a custom flag can't be switched), but there are no permission checks: code isn't a backoffice user. Problems
 /// come back as a <see cref="FeatureFlagResult"/>; exceptions are for real failures such as the database being down.
-/// To change several flags, call it once for each.
+/// To change several flags, call it once for each. Each change publishes the notifications in
+/// <c>docs/notifications.md</c>; a handler of the Saving or Resetting notification can cancel it, and the result is then
+/// <see cref="FeatureFlagResultStatus.Cancelled"/>.
 /// </remarks>
 public interface IFeatureFlagService
 {

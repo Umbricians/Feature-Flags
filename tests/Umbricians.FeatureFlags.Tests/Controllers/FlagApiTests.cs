@@ -1,3 +1,4 @@
+using Umbraco.Cms.Core.Events;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
@@ -267,5 +268,31 @@ public class FlagApiTests
         Assert.That(site.Store.All, Has.Count.EqualTo(1));
         Assert.That(await manager.Reset("Checkout", default), Is.InstanceOf<OkResult>());
         Assert.That(site.Store.All, Is.Empty);
+    }
+
+    [Test]
+    public async Task A_save_a_handler_cancelled_is_a_conflict_that_carries_its_messages()
+    {
+        TestSite site = Site();
+        site.Events.On<FeatureFlagOverrideSavingNotification>(saving =>
+            saving.CancelOperation(new EventMessage("Frozen", "Checkout is frozen.", EventMessageType.Error)));
+
+        var conflict = (ConflictObjectResult)await Manager(site).Save("Checkout", new SaveFlagRequestModel { Enabled = true }, default);
+
+        var problem = (ProblemDetails)conflict.Value!;
+        Assert.That(problem.Detail, Is.EqualTo("Checkout is frozen."));
+        Assert.That(problem.Extensions["messages"], Is.EqualTo(new[] { "Checkout is frozen." }));
+        Assert.That(site.Store.All, Is.Empty);
+    }
+
+    [Test]
+    public async Task A_cancelled_change_with_no_message_still_says_why_it_was_refused()
+    {
+        TestSite site = Site();
+        site.Events.On<FeatureFlagOverrideSavingNotification>(saving => saving.Cancel = true);
+
+        var conflict = (ConflictObjectResult)await Manager(site).SetEnabled("Checkout", new SetFlagEnabledRequestModel { Enabled = true }, default);
+
+        Assert.That(((ProblemDetails)conflict.Value!).Detail, Does.Contain("cancelled"));
     }
 }
