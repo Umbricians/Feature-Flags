@@ -13,7 +13,7 @@ public class FeatureFlagServiceTests
     private const string Flags = """
         { "feature_management": { "feature_flags": [
             { "id": "Checkout.NewFlow", "enabled": false },
-            { "id": "Sale", "enabled": true, "conditions": { "client_filters": [ { "name": "Microsoft.TimeWindow", "parameters": { "Start": "Mon, 01 Jan 2024 00:00:00 GMT" } } ] } } ] } }
+            { "id": "Sale", "enabled": true, "conditions": { "client_filters": [ { "name": "Microsoft.Percentage", "parameters": { "Start": "Mon, 01 Jan 2024 00:00:00 GMT" } } ] } } ] } }
         """;
 
     private static readonly Guid Editor = Guid.NewGuid();
@@ -113,13 +113,13 @@ public class FeatureFlagServiceTests
         FeatureFlagService service = Service(site);
 
         // An override makes the flag editable again, so start from one the backoffice can't read.
-        site.Store.WithJson("Sale", """{ "id": "Sale", "enabled": true, "conditions": { "client_filters": [ { "name": "Microsoft.TimeWindow", "parameters": { "Start": "Mon, 01 Jan 2024 00:00:00 GMT" } } ] } }""");
+        site.Store.WithJson("Sale", """{ "id": "Sale", "enabled": true, "conditions": { "client_filters": [ { "name": "Microsoft.Percentage", "parameters": { "Start": "Mon, 01 Jan 2024 00:00:00 GMT" } } ] } }""");
         site.Refresh();
         FeatureFlagResult save = await service.SaveAsync("Sale", FlagSettings.Off, Editor, default);
         FeatureFlagResult reset = await service.ResetAsync("Sale", default);
 
         Assert.That(save.Status, Is.EqualTo(FeatureFlagResultStatus.NotAllowed));
-        Assert.That(save.Reason, Does.Contain("Microsoft.TimeWindow"));
+        Assert.That(save.Reason, Does.Contain("Microsoft.Percentage"));
         Assert.That(reset.Status, Is.EqualTo(FeatureFlagResultStatus.Saved));
         Assert.That(site.Store.All, Is.Empty);
     }
@@ -179,7 +179,7 @@ public class FeatureFlagServiceTests
         FeatureFlagResult result = await Service(site).SwitchAsync("Sale", false, Editor, default);
 
         Assert.That(result.Status, Is.EqualTo(FeatureFlagResultStatus.NotAllowed));
-        Assert.That(result.Reason, Does.Contain("Microsoft.TimeWindow"));
+        Assert.That(result.Reason, Does.Contain("Microsoft.Percentage"));
     }
 
     [Test]

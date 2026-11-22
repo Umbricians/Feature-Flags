@@ -53,6 +53,13 @@ internal sealed class ConditionRegistry
                     return reason;
                 }
             }
+
+            // A window that repeats is shown but not edited.
+            if (string.Equals(Find(condition.Name)?.Name, TimeWindowCondition.FilterName, StringComparison.OrdinalIgnoreCase)
+                && TimeWindowCondition.NotEditableReason(condition.Parameters) is { } repeating)
+            {
+                return repeating;
+            }
         }
 
         return null;

@@ -12,7 +12,7 @@ public class FlagCatalogTests
             { "id": "Checkout.NewFlow", "enabled": false, "description": "The redesigned checkout.", "tags": [ "beta" ] },
             { "id": "Checkout.GiftCards", "enabled": true, "section": "Payments" },
             { "id": "Search.Suggestions", "enabled": true },
-            { "id": "Sale", "enabled": true, "conditions": { "client_filters": [ { "name": "Microsoft.TimeWindow", "parameters": { "Start": "Mon, 01 Jan 2024 00:00:00 GMT" } } ] } } ] } }
+            { "id": "Sale", "enabled": true, "conditions": { "client_filters": [ { "name": "Microsoft.Percentage", "parameters": { "Start": "Mon, 01 Jan 2024 00:00:00 GMT" } } ] } } ] } }
         """;
 
     [Test]
@@ -100,7 +100,7 @@ public class FlagCatalogTests
         var site = new TestSite("""
             { "feature_management": { "feature_flags": [
                 { "id": "Good", "enabled": true },
-                { "id": "Broken", "enabled": true, "conditions": { "client_filters": [ { "name": "Microsoft.TimeWindow", "parameters": { "Start": "Mon, 01 Dec 2026 00:00:00 GMT" } } ] } } ] } }
+                { "id": "Broken", "enabled": true, "conditions": { "client_filters": [ { "name": "Microsoft.Percentage", "parameters": { "Start": "Mon, 01 Dec 2026 00:00:00 GMT" } } ] } } ] } }
             """);
 
         Dictionary<string, FeatureFlag> flags = (await Catalog(site).GetAllAsync(default)).ToDictionary(flag => flag.Name);
@@ -184,11 +184,11 @@ public class FlagCatalogTests
         Assert.That(noOverride.Reset.Reason, Does.Contain("already uses its default"));
 
         // The saved setting is readable, so Sale (declared with a time window) is editable once an override replaces it.
-        site.Store.WithJson("Sale", """{ "id": "Sale", "enabled": true, "conditions": { "client_filters": [ { "name": "Microsoft.TimeWindow", "parameters": { "Start": "Mon, 01 Jan 2024 00:00:00 GMT" } } ] } }""");
+        site.Store.WithJson("Sale", """{ "id": "Sale", "enabled": true, "conditions": { "client_filters": [ { "name": "Microsoft.Percentage", "parameters": { "Start": "Mon, 01 Jan 2024 00:00:00 GMT" } } ] } }""");
         site.Refresh();
         FeatureFlagActions custom = (await Catalog(site).FindAsync("Sale", default))!.Actions;
         Assert.That((custom.Switch.Allowed, custom.Save.Allowed, custom.Reset.Allowed), Is.EqualTo((false, false, true)));
-        Assert.That(custom.Save.Reason, Does.Contain("Microsoft.TimeWindow"));
+        Assert.That(custom.Save.Reason, Does.Contain("Microsoft.Percentage"));
 
         FeatureFlagActions undeclared = Of("Promo.Removed");
         Assert.That((undeclared.Switch.Allowed, undeclared.Save.Allowed, undeclared.Reset.Allowed, undeclared.Remove.Allowed),

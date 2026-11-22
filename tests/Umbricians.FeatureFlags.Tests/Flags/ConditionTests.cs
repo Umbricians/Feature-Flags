@@ -55,7 +55,7 @@ public class ConditionTests
         site.Store
             .With("Aud", FlagSettings.ForAudience(true, new FlagAudience(["m"], [])))
             .With("Cultured", new FlagSettings(true, [Culture("fr")]))
-            .With("Windowed", new FlagSettings(true, [Culture("fr"), new FlagCondition("Microsoft.TimeWindow", new JsonObject())]));
+            .With("Windowed", new FlagSettings(true, [Culture("fr"), new FlagCondition("Microsoft.Percentage", new JsonObject())]));
 
         Assert.That((await FlagAsync(site, "Off")).State, Is.EqualTo(FeatureFlagState.Off));
         Assert.That((await FlagAsync(site, "Everyone")).State, Is.EqualTo(FeatureFlagState.Everyone));
@@ -66,7 +66,7 @@ public class ConditionTests
         FeatureFlag windowed = await FlagAsync(site, "Windowed");
         Assert.That(windowed.State, Is.EqualTo(FeatureFlagState.Custom));
         Assert.That(windowed.Actions.Switch, Has.Property(nameof(FeatureFlagAction.Allowed)).False
-            .And.Property(nameof(FeatureFlagAction.Reason)).Contain("Microsoft.TimeWindow"));
+            .And.Property(nameof(FeatureFlagAction.Reason)).Contain("Microsoft.Percentage"));
         Assert.That((await FlagAsync(site, "Variants")).State, Is.EqualTo(FeatureFlagState.Custom));
     }
 
@@ -238,7 +238,7 @@ public class ConditionTests
 
         Assert.That(services.Count(service => service.ServiceType == typeof(IFeatureFlagCondition)), Is.EqualTo(1));
         var site = Site();
-        Assert.That(site.Provider.GetRequiredService<ConditionRegistry>().All.Select(c => c.Name), Is.EquivalentTo(new[] { "Microsoft.Targeting", "Contoso.Culture" }));
+        Assert.That(site.Provider.GetRequiredService<ConditionRegistry>().All.Select(c => c.Name), Is.EquivalentTo(new[] { "Microsoft.Targeting", "Microsoft.TimeWindow", "Contoso.Culture" }));
     }
 
     [TestCase("Microsoft.Targeting", "Microsoft.Targeting")]

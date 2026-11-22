@@ -27,7 +27,7 @@ public class FlagApiTests
         { "feature_management": { "feature_flags": [
             { "id": "Checkout", "enabled": false },
             { "id": "Search", "enabled": true },
-            { "id": "Sale", "enabled": true, "conditions": { "client_filters": [ { "name": "Microsoft.TimeWindow", "parameters": { "Start": "Mon, 01 Jan 2024 00:00:00 GMT" } } ] } } ] } }
+            { "id": "Sale", "enabled": true, "conditions": { "client_filters": [ { "name": "Microsoft.Percentage", "parameters": { "Start": "Mon, 01 Jan 2024 00:00:00 GMT" } } ] } } ] } }
         """;
 
     private sealed class CrmProvider : IFeatureFlagGroupProvider

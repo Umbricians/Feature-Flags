@@ -48,6 +48,7 @@ internal static class ServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IFeatureFilterMetadata, TargetingFilter>());
 
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IFeatureFlagCondition, AudienceCondition>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IFeatureFlagCondition, TimeWindowCondition>());
         services.TryAddSingleton<ConditionRegistry>();
         services.TryAddSingleton<CodeFlags>();
         services.TryAddSingleton<PublicFlags>();
