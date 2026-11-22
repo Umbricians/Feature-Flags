@@ -5,7 +5,7 @@ switched from the backoffice. It takes about ten minutes.
 
 ## Requirements
 
-- Umbraco 17.8.0 or later.
+- Umbraco 17.8.2 or later.
 - A developer to declare flags and check them in the site's code. Editors switch flags, but they can't create them.
 
 ## 1. Install the package

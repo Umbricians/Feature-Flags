@@ -38,6 +38,9 @@ updates:
     directory: /src/Umbricians.FeatureFlags.Types
     schedule:
       interval: weekly
-    # The types check against the lowest Umbraco version the package supports.
+    # The types check against the lowest Umbraco version the package supports, and @types/node stays at the Node major
+    # CI runs.
     ignore:
       - dependency-name: "@umbraco-cms/backoffice"
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]

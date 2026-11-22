@@ -169,7 +169,7 @@ week to find a break early.
 
 ### The npm package
 
-`@umbricians/feature-flags` has the types only, with `@umbraco-cms/backoffice` `^17.0.0` as a peer dependency.
+`@umbricians/feature-flags` has the types only, with `@umbraco-cms/backoffice` `^17.8.2` as a peer dependency.
 It has no runtime code, so there are no constants to import: write the strings, or build a token from them. Where you
 want a misspelt string to fail to compile, type it with the package's string literal aliases, such as
 `FeatureFlagEntityType` (`"umbricians-feature-flags-flag"`).
