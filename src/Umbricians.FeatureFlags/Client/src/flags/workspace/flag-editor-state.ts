@@ -1,94 +1,136 @@
 // The flag editor's unsaved state, as immutable functions. No backoffice imports, so Node can test it.
-import type { FeatureFlag, FlagAudience, ProviderGroup, SaveSettings } from "../../api/types.js";
-import { emptyAudience, isTargeting, toTargetingCondition, withMemberGroupKeys, withoutGroup, withProviderGroup } from "../audience.js";
+import type { ConditionMatch, FeatureFlag, FlagCondition, SaveSettings } from "../../api/types.js";
+import { emptyAudience, isTargeting, toTargetingCondition } from "../audience.js";
+import { hasEditor, isRoot, namesMatch } from "../../conditions/condition-names.js";
 import { mayDo } from "../display.js";
 
-/** What the editor's state choice means: off (keeping any audience), on for everyone, or on for an audience. */
-export type FlagEditorMode = "off" | "everyone" | "audience";
+/** What the editor's state choice means: off (keeping its conditions), on for everyone, or on with conditions. */
+export type FlagEditorMode = "off" | "everyone" | "conditions";
 
 export interface FlagEditorState {
   readonly flag: FeatureFlag;
   readonly mode: FlagEditorMode;
-  /** The audience being edited; kept while the flag is off, so switching it back on restores it. */
-  readonly audience: FlagAudience;
-  /** Whether the mode or audience differs from what was loaded. */
+  /** The conditions being edited; kept while the flag is off or on for everyone, so switching back restores them. */
+  readonly conditions: ReadonlyArray<FlagCondition>;
+  /** Whether a flag with several conditions needs any one of them, or all. */
+  readonly match: ConditionMatch;
+  /** Whether adding the Root condition just switched the match to All, which the editor says. */
+  readonly matchSwitchedForRoot: boolean;
+  /** Whether what saving would send differs from what was loaded. */
   readonly dirty: boolean;
-  readonly loaded: { readonly mode: FlagEditorMode; readonly audience: FlagAudience };
+  readonly loaded: SaveSettings;
 }
+
+/** Why the editor can't save what it holds, though the catalog allows saving. */
+export type SaveBlocker =
+  /** A condition is registered in C# but no manifest edits it. */
+  | { kind: "noEditor"; names: Array<string> }
+  /** "On with conditions" holds none. */
+  | { kind: "noConditions" };
 
 /** The editor for a flag as the server has it, with nothing changed. */
 export function loadEditor(flag: FeatureFlag): FlagEditorState {
-  const mode: FlagEditorMode = !flag.enabled ? "off" : flag.audienceDetail ? "audience" : "everyone";
-  const audience = flag.audienceDetail ?? emptyAudience();
-  return { flag, mode, audience, dirty: false, loaded: { mode, audience } };
+  const conditions = flag.settings?.conditions ?? [];
+  const match = flag.settings?.match ?? "any";
+  const mode: FlagEditorMode = !flag.enabled ? "off" : conditions.length > 0 ? "conditions" : "everyone";
+  const state: FlagEditorState = { flag, mode, conditions, match, matchSwitchedForRoot: false, dirty: false, loaded: { enabled: false, conditions: [], match } };
+  return { ...state, loaded: savePayload(state) };
 }
 
 export function setMode(state: FlagEditorState, mode: FlagEditorMode): FlagEditorState {
   return changed({ ...state, mode });
 }
 
-export function setMembers(state: FlagEditorState, members: Array<string>): FlagEditorState {
-  return changed({ ...state, audience: { ...state.audience, members } });
+/**
+ * Adds a condition by the name it is registered under, with the parameters an editor starts from, and switches the
+ * editor to "on with conditions". A condition already on the flag is not added twice. Adding the Root condition to a
+ * flag that already has another switches the match to All, and says so until the editor changes it.
+ */
+export function addCondition(state: FlagEditorState, name: string, parameters?: Record<string, unknown>): FlagEditorState {
+  if (state.conditions.some((condition) => namesMatch(name, condition.name))) return changed({ ...state, mode: "conditions" });
+  const condition: FlagCondition = { name, parameters: parameters ?? startingParameters(name) };
+  const switchToAll = isRoot(name) && state.conditions.length > 0;
+  return changed({
+    ...state,
+    mode: "conditions",
+    conditions: [...state.conditions, condition],
+    match: switchToAll ? "all" : state.match,
+    matchSwitchedForRoot: switchToAll || state.matchSwitchedForRoot,
+  });
 }
 
-export function setMemberGroupKeys(state: FlagEditorState, keys: Array<string>): FlagEditorState {
-  return changed({ ...state, audience: withMemberGroupKeys(state.audience, keys) });
+export function removeCondition(state: FlagEditorState, index: number): FlagEditorState {
+  const conditions = state.conditions.filter((_, at) => at !== index);
+  return changed({ ...state, conditions, matchSwitchedForRoot: state.matchSwitchedForRoot && conditions.some((c) => isRoot(c.name)) });
 }
 
-export function setProviderGroup(state: FlagEditorState, group: ProviderGroup, checked: boolean): FlagEditorState {
-  return changed({ ...state, audience: withProviderGroup(state.audience, group, checked) });
+export function setConditionParameters(state: FlagEditorState, index: number, parameters: Record<string, unknown>): FlagEditorState {
+  return changed({
+    ...state,
+    conditions: state.conditions.map((condition, at) => (at === index ? { ...condition, parameters } : condition)),
+  });
 }
 
-export function removeGroup(state: FlagEditorState, id: string): FlagEditorState {
-  return changed({ ...state, audience: withoutGroup(state.audience, id) });
+export function setMatch(state: FlagEditorState, match: ConditionMatch): FlagEditorState {
+  return changed({ ...state, match, matchSwitchedForRoot: false });
+}
+
+/** What a condition's editor starts from: the audience's empty targeting parameters, and nothing for any other. */
+function startingParameters(name: string): Record<string, unknown> {
+  return isTargeting({ name, parameters: {} }) ? toTargetingCondition(emptyAudience()).parameters : {};
 }
 
 /**
- * What saving sends: whether the flag is on, and its conditions. The audience is written as a Microsoft.Targeting
- * condition; every other condition the flag has, and how they match, is kept as it is, so saving never drops what the
- * editor can't change here. Only choosing "everyone" clears the conditions.
+ * What saving sends: whether the flag is on, and its conditions and how they match. Only choosing "on for everyone"
+ * clears the conditions; switching off keeps them.
  */
 export function savePayload(state: FlagEditorState): SaveSettings {
-  const { mode, audience } = state;
-  const settings = state.flag.settings;
-  const match = settings?.match ?? "any";
+  const { mode, match } = state;
   if (mode === "everyone") return { enabled: true, conditions: [], match };
-  const others = (settings?.conditions ?? []).filter((condition) => !isTargeting(condition));
-  const kept = audience.members.length + audience.groups.length > 0;
-  const hasAudience = mode === "audience" || kept || state.flag.audienceDetail !== null;
-  return {
-    enabled: mode === "audience",
-    conditions: hasAudience ? [toTargetingCondition(audience), ...others] : others,
-    match,
-  };
+  return { enabled: mode === "conditions", conditions: state.conditions.map((c) => ({ ...c })), match };
+}
+
+/** Whether the flag is one the editor can't read at all: on with a filter nobody registered a condition for. */
+export function isCustom(flag: FeatureFlag): boolean {
+  return flag.state === "custom";
 }
 
 /**
- * Whether the flag has conditions this editor can't change: any besides its one audience, read from its settings and
- * not from its state, since a flag that is switched off keeps its conditions too.
+ * Why saving is refused beyond what the catalog says, or null. A condition with no editor can't be saved from here
+ * unless "on for everyone" replaces it; and "on with conditions" needs at least one.
  */
-export function hasOtherConditions(flag: FeatureFlag): boolean {
-  const conditions = flag.settings?.conditions ?? [];
-  return flag.state === "conditions" || conditions.some((condition) => !isTargeting(condition)) || conditions.length > 1;
+export function saveBlocker(state: FlagEditorState, editorNames: ReadonlyArray<string>): SaveBlocker | null {
+  if (state.mode === "everyone") return null;
+  const without = state.conditions.filter((condition) => !hasEditor(editorNames, condition.name)).map((condition) => condition.name);
+  if (without.length > 0) return { kind: "noEditor", names: without };
+  return state.mode === "conditions" && state.conditions.length === 0 ? { kind: "noConditions" } : null;
 }
 
-/** The catalog allows saving, the user may change flags, and something changed. */
-export function canSave(state: FlagEditorState, canManage: boolean): boolean {
-  return mayDo(state.flag, "save", canManage).allowed && state.dirty;
+/** The catalog allows saving, the user may change flags, nothing blocks it, and something changed. */
+export function canSave(state: FlagEditorState, canManage: boolean, editorNames: ReadonlyArray<string>): boolean {
+  return mayDo(state.flag, "save", canManage).allowed && state.dirty && saveBlocker(state, editorNames) === null;
 }
 
 function changed(state: FlagEditorState): FlagEditorState {
-  const { loaded } = state;
-  const dirty = state.mode !== loaded.mode || !sameAudience(state.audience, loaded.audience);
-  return { ...state, dirty };
+  return { ...state, dirty: !samePayload(savePayload(state), state.loaded) };
 }
 
-function sameAudience(a: FlagAudience, b: FlagAudience): boolean {
-  return sameSet(a.members, b.members) && sameSet(a.groups.map((g) => g.id), b.groups.map((g) => g.id));
+/** Saved settings are the same when they say the same: the order of values inside parameters isn't a change, and nor is the match of fewer than two conditions. */
+function samePayload(a: SaveSettings, b: SaveSettings): boolean {
+  const matchOf = (settings: SaveSettings) => (settings.conditions.length < 2 ? "any" : settings.match);
+  return (
+    a.enabled === b.enabled &&
+    matchOf(a) === matchOf(b) &&
+    a.conditions.length === b.conditions.length &&
+    a.conditions.every((condition, at) => condition.name === b.conditions[at].name && canonical(condition.parameters) === canonical(b.conditions[at].parameters))
+  );
 }
 
-function sameSet(a: Array<string>, b: Array<string>): boolean {
-  const left = new Set(a);
-  const right = new Set(b);
-  return left.size === right.size && [...left].every((value) => right.has(value));
+/** JSON with keys sorted, and arrays sorted by their own canonical form, so equal sets of values compare equal. */
+function canonical(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonical).sort().join(",")}]`;
+  if (typeof value === "object" && value !== null) {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonical((value as Record<string, unknown>)[key])}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
 }

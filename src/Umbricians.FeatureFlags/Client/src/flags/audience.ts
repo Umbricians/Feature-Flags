@@ -70,3 +70,35 @@ export function countAudience(audience: FlagAudience): AudienceCounts {
   const memberGroups = groupsOfKind(audience, "memberGroup", "namedMemberGroup").length;
   return { members: audience.members.length, memberGroups, groups: audience.groups.length - memberGroups };
 }
+
+/**
+ * The audience a Microsoft.Targeting condition's parameters hold: its members and the names of its groups, each group
+ * with what the site knows it to be. A group the site hasn't described is a member group when its id is a key, and
+ * otherwise unknown. Percentages and exclusions are not read.
+ */
+export function audienceFromParameters(parameters: Record<string, unknown>, known: ReadonlyArray<AudienceGroup> = []): FlagAudience {
+  const audience = child(parameters, "Audience");
+  const users = child(audience, "Users");
+  const groups = child(audience, "Groups");
+  const members = Array.isArray(users) ? users.map(textOf).filter((id): id is string => id !== null) : [];
+  const ids = Array.isArray(groups) ? groups.map((group) => textOf(child(group, "Name"))).filter((id): id is string => id !== null) : [];
+  return {
+    members,
+    groups: ids.map(
+      (id): AudienceGroup => known.find((group) => group.id === id) ?? { id, kind: GUID.test(id) ? "memberGroup" : "unknown", name: null },
+    ),
+  };
+}
+
+const GUID = /^[0-9a-f]{8}-?([0-9a-f]{4}-?){3}[0-9a-f]{12}$/i;
+
+// Microsoft reads configuration keys without regard to case, so this does too.
+function child(parent: unknown, name: string): unknown {
+  if (typeof parent !== "object" || parent === null || Array.isArray(parent)) return undefined;
+  const key = Object.keys(parent).find((candidate) => candidate.toLowerCase() === name.toLowerCase());
+  return key === undefined ? undefined : (parent as Record<string, unknown>)[key];
+}
+
+function textOf(value: unknown): string | null {
+  return typeof value === "string" || typeof value === "number" || typeof value === "boolean" ? String(value) : null;
+}

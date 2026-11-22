@@ -17,7 +17,8 @@ A flag's *state* says how the backoffice sees it:
 | On with conditions | on, with conditions that are all **registered** |
 | Custom | on, with a filter nobody registered a condition for, or with variants |
 
-Editors can switch a flag with conditions on and off, and the list shows each condition's summary. A *custom* flag
+Editors can switch a flag with conditions on and off, and the list shows each condition's summary. In the flag's
+editor they can add, change and remove conditions that have a backoffice editor, and choose Any or All. A *custom* flag
 is shown but never changed: its reason names the filter nobody registered. Registering a condition is what tells the
 package that you vouch for its parameters.
 
@@ -58,9 +59,25 @@ Flags may write it with or without its namespace, and without regard to case: `C
 flag matches nothing, here or there.)
 
 **The backoffice half.** To edit a condition's parameters in the backoffice, the condition also needs an editor: a
-manifest of the type `umbriciansFeatureFlagsCondition`. That arrives with the condition editor, and this page will
-describe it then. Until it does, a registered condition is validated, summarised in the list and kept when an editor
-switches the flag, but its parameters are changed in appsettings or with `IFeatureFlagService`.
+manifest of the type `umbriciansFeatureFlagsCondition`, whose `meta.name` is the C# condition's `Name`. The flag
+editor's **Add condition** menu lists every registered condition that has one, and shows its element for each condition
+the flag has. Names match the way the C# half's do (ignoring case, short names allowed). The element's contract is:
+
+- **in:** the property `value`, the condition's parameters as a JSON object (an empty object for a new condition), and
+  `readonly` when the editor may not change the flag;
+- **out:** when the editor changes the parameters, set `value` to the new JSON object and dispatch a `change` event
+  (Umbraco's `UmbChangeEvent`, which bubbles). The flag editor then reads `element.value`. Fire it for every change
+  the editor makes, and not for events from the inputs inside your element: stop those at your own root.
+
+That is everything the contract promises. The flag editor checks nothing about the parameters in the browser; the C#
+`Validate` does it on save, and its problems are shown to the editor.
+
+With only one half registered:
+
+- **C# only:** the flag shows the condition's summary and "This condition has no editor", and can't be saved from the
+  backoffice, except by choosing **On for everyone**. Its parameters are changed in appsettings or with
+  `IFeatureFlagService`.
+- **Backoffice only:** the manifest is ignored, since the server doesn't know the condition.
 
 ### Example: a culture condition
 
@@ -136,7 +153,60 @@ FeatureFlagResult result = await flags.SaveAsync("Home.French",
 // result.Status is NotAllowed; result.Problems is ["Culture: Choose at least one culture."]
 ```
 
+The editor for it is a Lit element and a manifest. The element is the whole of the backoffice half:
+
+```ts
+// culture-condition.element.ts
+import { css, customElement, html, property } from "@umbraco-cms/backoffice/external/lit";
+import { UmbLitElement } from "@umbraco-cms/backoffice/lit-element";
+import { UmbChangeEvent } from "@umbraco-cms/backoffice/event";
+
+@customElement("contoso-culture-condition")
+export class CultureConditionElement extends UmbLitElement {
+  /** The condition's parameters: { "Cultures": [ "fr", "de" ] }. */
+  @property({ attribute: false })
+  value: { Cultures?: Array<string> } = {};
+
+  @property({ type: Boolean })
+  readonly = false;
+
+  #change(event: Event) {
+    event.stopPropagation(); // the input's own change isn't the element's
+    const text = (event.target as HTMLInputElement).value;
+    this.value = { Cultures: text.split(",").map((culture) => culture.trim()).filter(Boolean) };
+    this.dispatchEvent(new UmbChangeEvent());
+  }
+
+  override render() {
+    return html`<uui-input
+      label="Cultures"
+      placeholder="fr, de"
+      .value=${(this.value.Cultures ?? []).join(", ")}
+      ?readonly=${this.readonly}
+      @change=${this.#change}></uui-input>`;
+  }
+}
+
+export { CultureConditionElement as element };
+```
+
+```ts
+// umbraco-package.json's bundle, or any bundle's manifests
+export const manifests: Array<UmbExtensionManifest> = [
+  {
+    type: "umbriciansFeatureFlagsCondition",
+    alias: "Contoso.Condition.Culture",
+    name: "Culture Condition Editor",
+    element: () => import("./culture-condition.element.js"),
+    meta: { name: "Contoso.Culture" },
+  },
+];
+```
+
+Register it like any Umbraco extension, with a `bundle` in your package's `umbraco-package.json`. The culture
+condition now shows in **Add condition**, and the flag editor saves `{ "Cultures": [ "fr", "de" ] }`.
+
 ## The audience
 
-The package's own audience is a condition registered the same way, as `Microsoft.Targeting` ("Audience"). Percentages
+The package's own audience is a condition registered the same way, as `Microsoft.Targeting` ("Audience"). Its editor is the package's own `umbriciansFeatureFlagsCondition`, built on the contract above. Percentages
 and exclusions are Microsoft's, but the backoffice can't edit them yet, so saving them is refused for now.

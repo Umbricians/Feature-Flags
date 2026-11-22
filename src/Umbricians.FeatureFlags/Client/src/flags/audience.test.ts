@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { FlagAudience, ProviderGroup } from "../api/types.ts";
 import {
+  audienceFromParameters,
   countAudience,
   emptyAudience,
   groupsOfKind,
@@ -75,4 +76,22 @@ test("a saved audience sends every group's id", () => {
 test("counts named member groups as member groups and unknown ids as other groups", () => {
   assert.deepEqual(countAudience(audience), { members: 1, memberGroups: 2, groups: 2 });
   assert.deepEqual(countAudience(emptyAudience()), { members: 0, memberGroups: 0, groups: 0 });
+});
+
+test("an audience round trips through targeting parameters, keeping what the site knows about each group", () => {
+  const known = audience.groups;
+  const read = audienceFromParameters(toTargetingCondition(audience).parameters, known);
+  assert.deepEqual(read, audience);
+});
+
+test("groups the site hasn't described are member groups when they are keys, and unknown otherwise", () => {
+  const read = audienceFromParameters(
+    { audience: { users: [1001, "m2"], groups: [{ name: "7f3a9c21-4e8b-4d6f-a1c5-0b2e9d4f8a67" }, { Name: "mystery" }, {}] } },
+  );
+  assert.deepEqual(read.members, ["1001", "m2"]);
+  assert.deepEqual(read.groups.map((g) => g.kind), ["memberGroup", "unknown"]);
+});
+
+test("empty parameters are an empty audience", () => {
+  assert.deepEqual(audienceFromParameters({}), emptyAudience());
 });

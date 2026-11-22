@@ -34,7 +34,8 @@ The list shows 25 flags a page.
 | **Off** | Nobody gets the feature. |
 | **On for everyone** | Every visitor gets it, signed in or not. |
 | **On for an audience** | Only the members and groups chosen, with how many under the state. |
-| **Custom** | The developers set the flag up in a way this screen can't change yet, such as on between two dates. It can only be changed where it is declared. |
+| **On with conditions** | Only when the flag's conditions hold: an audience, or conditions the developers added. |
+| **Custom** | The developers set the flag up in a way this screen can't change, such as a filter nobody registered a condition for. It can only be changed where it is declared. |
 | **Changed here** | Someone changed the flag in this backoffice; the last column says who and when. |
 | **Default** | Nobody has changed it here, so it is as the developers set it. |
 | **Differs from default** | Its setting here is different from the developers' setting. |
@@ -57,17 +58,38 @@ Choose a flag's name to open it.
 
 <img src="images/feature-flags-editor.png" alt="The editor for Checkout.ExpressPay: State set to On for an audience, three members in the audience, and an Info panel with its default and who last changed it">
 
-1. Under **State**, choose **Off**, **On for everyone** or **On for an audience**.
-2. For an audience, under **Audience** choose any of:
-   - **Members:** particular people.
-   - **Member groups:** everyone in a member group. A member group the developers named in configuration is listed
-     under the picker; remove it with its remove button.
-   - **Other groups:** groups the developers worked out in code, such as "Premium customers". Only shown when the site
-     has some. A group the site no longer knows, such as a deleted member group or a group a provider stopped
-     offering, is listed here too. It is kept as saved until you remove it.
+1. Under **State**, choose **Off**, **On for everyone** or **On with conditions**.
+2. For conditions, choose **Add condition** and pick one from the menu. Each condition is a box of its own, with a
+   remove button; add as many as you need. A condition already on the flag isn't offered again.
 3. Choose **Save**. **Unsaved changes** shows at the top until you save, or until you undo your changes.
 
+The condition every site has is **Audience**, which is on for chosen people:
+
+- **Members:** particular people.
+- **Member groups:** everyone in a member group. A member group the developers named in configuration is listed
+  under the picker; remove it with its remove button.
+- **Other groups:** groups the developers worked out in code, such as "Premium customers". Only shown when the site
+  has some. A group the site no longer knows, such as a deleted member group or a group a provider stopped
+  offering, is listed here too. It is kept as saved until you remove it.
+
 A member gets the feature if they are in any of the chosen members or groups, and only while they are signed in.
+Developers can add conditions of their own, such as "French visitors"; they appear in the same menu.
+
+### Any or all of the conditions
+
+With two or more conditions, **Match** appears. Choose **On when any one condition holds** (the default) or **On when
+every condition holds**. When you add the **Site** condition to a flag that already has another condition, Match
+switches to every condition and a note says so, because a flag meant for one site is almost always meant for that site
+*and* its other conditions. You can change it back.
+
+Turning a flag **Off** keeps its conditions. Choosing **On for everyone** and saving removes them.
+
+### When a condition has no editor
+
+A developer can register a condition in code without giving the backoffice a way to edit it. The flag shows it as
+"This condition has no editor", with the flag's summary of what it does, and the flag can't be saved here, except by
+choosing **On for everyone**, which replaces the conditions. Ask the developers to add an editor, or change the flag where
+it is declared. A flag that uses a filter nobody registered at all is **Custom**, and is shown but never changed.
 
 The **Info** panel shows the flag's description, its default, where it was declared and who last changed it. The
 **Definition** tab shows the flag exactly as it is stored, for developers.
@@ -89,4 +111,4 @@ undone.
   flags**. Ask an administrator.
 - **The list says flags can't be changed here:** the developers have set this site so flags are only changed in
   its configuration. Every flag uses its default, and Reset and Remove aren't offered either.
-- **One flag can't be changed:** it is **Custom**. A box at the top of its editor says why.
+- **One flag can't be changed:** it is **Custom**, or has a condition with no editor. A box at the top of its editor says why.

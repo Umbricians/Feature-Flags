@@ -7,6 +7,7 @@ import type {
   FlagQuery,
   PagedResult,
   ProviderGroup,
+  RegisteredCondition,
   SaveSettings,
 } from "./types.js";
 
@@ -48,6 +49,9 @@ export const fetchSummary = () => request<FeatureFlagSummary>("GET", "flags/summ
 export const fetchFlag = (name: string) => request<FeatureFlag>("GET", `flag?${nameQuery(name)}`);
 
 export const fetchProviderGroups = () => request<Array<ProviderGroup>>("GET", "provider-groups");
+
+/** The conditions registered on the site, which the editor offers in "Add condition". */
+export const fetchConditions = () => request<Array<RegisteredCondition>>("GET", "conditions");
 
 /** Saves an editor's settings: on or off, and the conditions that say who or when for. Returns the flag as it is now. */
 export const saveFlag = (name: string, settings: SaveSettings) =>

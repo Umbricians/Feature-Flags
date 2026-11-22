@@ -112,6 +112,12 @@ export interface FeatureFlagSummary {
   environment: string;
 }
 
+/** A condition registered on the site: its filter name, and what editors call it. */
+export interface RegisteredCondition {
+  name: string;
+  displayName: string;
+}
+
 export interface ProviderGroup {
   id: string;
   name: string;
