@@ -156,22 +156,22 @@ public class FlagResolutionTests
     }
 
     [Test]
-    public void A_flag_source_that_throws_for_a_flag_surfaces_it_on_a_check()
+    public async Task A_flag_source_that_throws_for_a_flag_surfaces_it_on_a_check()
     {
         var site = new TestSite(before: services => services.AddSingleton<IFeatureDefinitionProvider>(new FailingListSource()));
 
-        Assert.ThrowsAsync<InvalidOperationException>(() => Resolution(site).FindAsync("Broken"));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => Resolution(site).FindAsync("Broken"));
     }
 
     [Test]
-    public void Cancelling_stops_the_one_by_one_read()
+    public async Task Cancelling_stops_the_one_by_one_read()
     {
         var site = new TestSite(before: services => services.AddSingleton<IFeatureDefinitionProvider>(new FailingListSource()));
         site.Store.With("C", FlagSettings.Off);
         using var cancelled = new CancellationTokenSource();
         cancelled.Cancel();
 
-        Assert.CatchAsync<OperationCanceledException>(() => Resolution(site).GetAllAsync(cancelled.Token));
+        await Assert.CatchAsync<OperationCanceledException>(() => Resolution(site).GetAllAsync(cancelled.Token));
     }
 
     [Test]
@@ -191,12 +191,12 @@ public class FlagResolutionTests
     }
 
     [Test]
-    public void Microsoft_sees_the_flag_sources_exception_when_it_can_not_list()
+    public async Task Microsoft_sees_the_flag_sources_exception_when_it_can_not_list()
     {
         var site = new TestSite(before: services => services.AddSingleton<IFeatureDefinitionProvider>(new FailingListSource()));
         IFeatureDefinitionProvider provider = site.Provider.GetRequiredService<IFeatureDefinitionProvider>();
 
-        Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
         {
             await foreach (FeatureDefinition unused in provider.GetAllFeatureDefinitionsAsync())
             {
