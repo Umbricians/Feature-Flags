@@ -186,7 +186,13 @@ internal sealed class FixedTargetingContextAccessor : ITargetingContextAccessor
 {
     public TargetingContext Context { get; set; } = new() { Groups = [] };
 
-    public ValueTask<TargetingContext> GetContextAsync() => new(Context);
+    public int Reads { get; private set; }
+
+    public ValueTask<TargetingContext> GetContextAsync()
+    {
+        Reads++;
+        return new(Context);
+    }
 
     public void SignIn(string userId, params string[] groups) => Context = new TargetingContext { UserId = userId, Groups = groups };
 

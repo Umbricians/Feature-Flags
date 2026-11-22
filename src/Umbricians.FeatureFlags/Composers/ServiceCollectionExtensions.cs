@@ -45,7 +45,7 @@ internal static class ServiceCollectionExtensions
 
         // TryAdd, so a site's own accessor wins if it registered one first; one it registers later replaces this.
         services.TryAddSingleton<ITargetingContextAccessor, MemberTargetingContextAccessor>();
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IFeatureFilterMetadata, SignedInTargetingFilter>());
+        services.AddSignedInTargeting();
 
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IFeatureFlagCondition, AudienceCondition>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IFeatureFlagCondition, TimeWindowCondition>());
@@ -70,6 +70,29 @@ internal static class ServiceCollectionExtensions
         services.TryAddSingleton<IFeatureFlagService>(provider => provider.GetRequiredService<FeatureFlagService>());
         services.TryAddSingleton<FlagResponses>();
         return services;
+    }
+
+    /// <summary>
+    /// Puts the package's targeting filters in place of Microsoft's, which share their name and would otherwise make
+    /// checking an audience flag throw. They live as long as the feature manager does, so a site that scopes its feature
+    /// management and its targeting accessor gets a filter that sees the request's accessor. A site that adds Microsoft's
+    /// filters after this is caught at startup.
+    /// </summary>
+    private static void AddSignedInTargeting(this IServiceCollection services)
+    {
+        ServiceLifetime lifetime = services.LastOrDefault(service => service.ServiceType == typeof(IFeatureManager))?.Lifetime ?? ServiceLifetime.Singleton;
+        services.RemoveAll<IFeatureFilterMetadata>(service =>
+            service.ImplementationType == typeof(TargetingFilter) || service.ImplementationType == typeof(ContextualTargetingFilter));
+        services.TryAddEnumerable(ServiceDescriptor.Describe(typeof(IFeatureFilterMetadata), typeof(SignedInTargetingFilter), lifetime));
+        services.TryAddEnumerable(ServiceDescriptor.Describe(typeof(IFeatureFilterMetadata), typeof(SignedInContextualTargetingFilter), lifetime));
+    }
+
+    private static void RemoveAll<T>(this IServiceCollection services, Func<ServiceDescriptor, bool> matching)
+    {
+        foreach (ServiceDescriptor service in services.Where(service => service.ServiceType == typeof(T) && matching(service)).ToArray())
+        {
+            services.Remove(service);
+        }
     }
 
     /// <summary>

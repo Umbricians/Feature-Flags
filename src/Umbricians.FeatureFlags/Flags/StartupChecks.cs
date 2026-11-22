@@ -30,6 +30,22 @@ internal sealed class StartupChecks(IServiceProvider services, ILogger<StartupCh
                 string.Join(", ", duplicateFilters));
         }
 
+        // Two filters of the same kind under one name make checking that filter's flags throw. It happens when a site adds
+        // Microsoft's targeting (AddFeatureManagement().WithTargeting<T>()) after Feature Flags, which has its own.
+        string[] sharedNames = services.GetServices<IFeatureFilterMetadata>()
+            .GroupBy(filter => (Alias: FilterName(filter.GetType()).ToLowerInvariant(), Contextual: ContextOf(filter.GetType())))
+            .Where(group => group.Select(filter => filter.GetType()).Distinct().Count() > 1)
+            .Select(group => $"'{FilterName(group.First().GetType())}' ({string.Join(", ", group.Select(filter => filter.GetType().Name))})")
+            .ToArray();
+        if (sharedNames.Length > 0)
+        {
+            logger.LogError(
+                "More than one feature filter has the same name, so checking a flag that uses it throws: {Filters}. Feature Flags "
+                + "registers its own targeting filters in place of Microsoft's, so a site's AddFeatureManagement().WithTargeting<T>() "
+                + "must come before Umbraco is added (then Feature Flags replaces Microsoft's filter), not after.",
+                string.Join("; ", sharedNames));
+        }
+
         if (services.GetService<IFeatureDefinitionProvider>() is not FeatureFlagsDefinitionProvider)
         {
             logger.LogWarning(
@@ -51,4 +67,20 @@ internal sealed class StartupChecks(IServiceProvider services, ILogger<StartupCh
                 flag.Name);
         }
     }
+
+    // The name a flag uses for a filter, as Microsoft works it out: its alias, or its class name without "Filter".
+    private static string FilterName(Type filter)
+    {
+        string? alias = filter.GetCustomAttributes(typeof(FilterAliasAttribute), true).OfType<FilterAliasAttribute>().FirstOrDefault()?.Alias;
+        if (alias is not null)
+        {
+            return alias;
+        }
+
+        return filter.Name.EndsWith("Filter", StringComparison.Ordinal) ? filter.Name[..^"Filter".Length] : filter.Name;
+    }
+
+    // Filters that take the caller's own context and filters that don't are looked up separately, so only a pair of the same kind clashes.
+    private static Type? ContextOf(Type filter) =>
+        filter.GetInterfaces().FirstOrDefault(face => face.IsGenericType && face.GetGenericTypeDefinition() == typeof(IContextualFeatureFilter<>))?.GetGenericArguments()[0];
 }

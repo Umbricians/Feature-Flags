@@ -77,11 +77,12 @@ public class FeatureManagementRegistrationTests
     }
 
     [Test]
-    public void Adds_the_targeting_filter_once()
+    public void Replaces_Microsofts_targeting_filter_with_its_own_so_the_name_is_used_once()
     {
         var site = new TestSite(before: services => services.AddFeatureManagement().WithTargeting<FixedTargetingContextAccessor>());
 
-        Assert.That(site.Services.Count(s => s.ImplementationType == typeof(TargetingFilter)), Is.EqualTo(1));
+        Assert.That(site.Services.Count(s => s.ImplementationType == typeof(TargetingFilter)), Is.Zero);
+        Assert.That(site.Services.Count(s => s.ImplementationType == typeof(SignedInTargetingFilter)), Is.EqualTo(1));
     }
 
     private sealed class SiteFlagSource(string name) : IFeatureDefinitionProvider

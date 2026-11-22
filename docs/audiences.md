@@ -18,8 +18,13 @@ For each request that checks a flag, Feature Flags works out once:
   put them in.
 
 A visitor who isn't signed in as a member has no user id and no groups, so they are only included when a flag is on
-for everyone: Feature Flags registers its own wrapper around Microsoft's targeting filter, under the same
-`Microsoft.Targeting` name, that is off for anyone without a user id and otherwise is Microsoft's evaluation unchanged. Backoffice users aren't members: being signed in to the backoffice doesn't put anyone in an audience.
+for everyone: Feature Flags registers its own targeting filters in place of Microsoft's (the one flags use and the one
+code uses when it passes its own targeting context), under the same `Microsoft.Targeting` name. They are Microsoft's
+evaluation, except that a visitor with no user id is in no percentage: not "everyone else", and not a group below 100%.
+Listed members, groups at 100% (a site's own accessor may supply groups but no id) and exclusions work as in Microsoft's.
+A site that registers Microsoft's targeting (`WithTargeting<T>()`) before Umbraco is added keeps its accessor and has
+Microsoft's filter replaced; one that registers it after gets an error in the log at startup, since two filters with the
+same name make checking an audience flag throw. Backoffice users aren't members: being signed in to the backoffice doesn't put anyone in an audience.
 
 If working out the member fails, the error is logged and the visitor is treated as not signed in, so a flag is never
 on by mistake.
