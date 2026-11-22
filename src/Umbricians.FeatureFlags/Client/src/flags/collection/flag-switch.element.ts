@@ -4,7 +4,7 @@ import { UMB_COLLECTION_CONTEXT } from "@umbraco-cms/backoffice/collection";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import { umbConfirmModal } from "@umbraco-cms/backoffice/modal";
 import { resetFlag, setFlagEnabled } from "../../api/feature-flags.resource.js";
-import { FeatureFlagsRequestError } from "../../api/request-error.js";
+import { describeFailure } from "../../api/request-error.js";
 import { FEATURE_FLAGS_PERMISSION_MANAGE } from "../../permissions/constants.js";
 import { observePermission } from "../../permissions/permissions.js";
 import { FEATURE_FLAGS_SUMMARY_CONTEXT } from "../summary.context.js";
@@ -101,7 +101,7 @@ export class FeatureFlagSwitchElement extends UmbLitElement {
       this.#notifications?.peek("danger", {
         data: {
           headline: this.localize.term("umbriciansFeatureFlags_changeFailed"),
-          message: error instanceof FeatureFlagsRequestError && error.detail ? error.detail : String(error),
+          message: describeFailure(error),
         },
       });
     } finally {

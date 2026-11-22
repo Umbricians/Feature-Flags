@@ -24,7 +24,7 @@ import {
   type ProviderGroup,
   type RegisteredCondition,
 } from "../../api/feature-flags.resource.js";
-import { FeatureFlagsRequestError } from "../../api/request-error.js";
+import { FeatureFlagsRequestError, describeFailure } from "../../api/request-error.js";
 import { FEATURE_FLAG_ENTITY_TYPE, FEATURE_FLAG_WORKSPACE_ALIAS } from "../../constants.js";
 import { flagEntity } from "../entity.js";
 import { FeatureFlagPublicWorkspaceContext } from "./flag-workspace.public-context.js";
@@ -268,7 +268,7 @@ export class FeatureFlagWorkspaceContext extends UmbContextBase implements UmbRo
     this.#notifications?.peek("danger", {
       data: {
         headline: this.#localize.term("umbriciansFeatureFlags_changeFailed"),
-        message: error instanceof FeatureFlagsRequestError && error.detail ? error.detail : String(error),
+        message: describeFailure(error),
       },
     });
   }

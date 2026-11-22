@@ -1,6 +1,6 @@
 import { umbHttpClient } from "@umbraco-cms/backoffice/http-client";
 import { flagsQueryString } from "./query-string.js";
-import { FeatureFlagsRequestError } from "./request-error.js";
+import { FeatureFlagsRequestError, readProblem } from "./request-error.js";
 import type {
   FeatureFlag,
   FeatureFlagSummary,
@@ -33,8 +33,8 @@ async function request<T>(method: "GET" | "PUT" | "DELETE", path: string, body?:
   });
 
   if (error !== undefined || !response?.ok) {
-    const detail = (error as { detail?: unknown } | undefined)?.detail;
-    throw new FeatureFlagsRequestError(response?.status, typeof detail === "string" && detail ? detail : undefined);
+    const { detail, problems } = readProblem(error);
+    throw new FeatureFlagsRequestError(response?.status, detail, problems);
   }
   return data as T;
 }
