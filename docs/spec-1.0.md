@@ -196,10 +196,13 @@ From [The Management API as a public contract](https://github.com/Umbricians/Fea
 From [Telling a headless front end which flags are on](https://github.com/Umbricians/Feature-Flags/issues/17).
 
 - **Endpoint:** `GET /umbraco/umbriciansfeatureflags/delivery/v1/flags`, in its own Swagger document. It's **off
-  until a developer switches it on** (how, such as a setting under `Umbricians:FeatureFlags`, is still to agree), and it follows the Delivery API's access settings:
+  until a developer switches it on** with `Umbricians:FeatureFlags:Headless:Enabled: true` in appsettings, beside
+  `Overrides`, so it can differ by environment; and it follows the Delivery API's access settings:
   when the Delivery API isn't public, it needs the same `Api-Key`.
-- **Only public flags.** A developer marks a flag public with `public: true` in `Declare(...)`, or `"public": true`
-  beside `section` and `tags` in appsettings. Flags are private by default. The flag list shows which flags are
+- **Only public flags.** A developer marks a flag public with `public: true` in `Declare(...)`, `"public": true`
+  beside `section` and `tags` in appsettings, or, for a flag from any flag source (a site's own provider, Azure App
+  Configuration), by naming it with `flags.MakePublic("Checkout.ExpressPay", …)` in `AddFeatureFlags`. Flags are
+  private by default. The flag list shows which flags are
   public; editors can't change it.
 - **Returns** every public flag and whether it's on for this request, for example
   `{ "Checkout.ExpressPay": true, "Search.Beta": false }`. No audiences, conditions or variants.
@@ -233,8 +236,11 @@ different list adds a collection view to the promised collection.
 ### Publishing
 
 A types-only npm package, `@umbricians/feature-flags`, with the NuGet package's version and `@umbraco-cms/backoffice`
-^17 as a peer dependency, as Forms and Commerce publish theirs. It has no runtime code and no import-map entry. How a
-developer gets the alias strings and the context token at runtime is still open (see [To check first](#to-check-first)).
+^17 as a peer dependency, as Forms and Commerce publish theirs. It has no runtime code and no import-map entry.
+
+At runtime a developer uses the promised strings themselves. The docs list them, and the types package declares
+them as string literal types, so a typo fails to compile. The flag workspace context is reached with
+`new UmbContextToken("<documented alias>")`, which works because Umbraco resolves context tokens by their alias.
 
 ## Health check
 
@@ -287,7 +293,7 @@ need agreeing in review.
 | C# (*proposed*) | `IFeatureFlagGroupProvider`, `AddFeatureFlags` and its builder, the settings under `Umbricians:FeatureFlags` |
 | Behaviour | a save is seen by the next check on the same server; notifications fire as above |
 | Management API | every `v1` endpoint, field, query parameter and status code. Adding endpoints, fields or parameters doesn't break it. Not human-readable text, and not the order of items except where `orderBy` sets it. |
-| Headless (*proposed*) | the endpoint, its response shape and the `public` declaration |
+| Headless (*proposed*) | the endpoint, its response shape, the `public` declaration, `MakePublic` and the `Headless:Enabled` setting |
 | Backoffice | the list under [Backoffice extension surface](#backoffice-extension-surface) |
 
 ## Not in 1.0
@@ -302,7 +308,9 @@ After 1.0, if asked for:
 - an ASP.NET Core health check;
 - columns in the flag list;
 - `ETag` / `If-Match`, and saving several flags at once;
-- a note or reason on a change.
+- a note or reason on a change;
+- reading details (description, section, tags) from Azure App Configuration;
+- marking a single flag read-only in its declaration.
 
 Out of scope, with what covers the need instead:
 
@@ -333,19 +341,14 @@ A suggested order, to agree when the build is planned. Each step builds on the o
 
 ## To check first
 
-Facts the decisions assume but nobody has checked yet, and questions they left open:
+Facts the decisions assume but nobody has checked yet:
 
 - Whether Umbraco's `IMemberManager.GetCurrentMemberAsync()` sees a member signed in with a Delivery API member
   token. If not, the member lookup reads the token itself.
 - Whether the package's permission check passes for an Umbraco API user signed in with client credentials.
 - Whether Umbraco's promise of no breaking changes in minor releases covers the backoffice TypeScript the promised
   surface depends on.
-- How a developer gets the promised alias strings and the workspace context token at runtime, since the npm package
-  is types only.
-- **Open:** how a flag from a source the package can't read details from (a site's own provider, or Azure App
-  Configuration) is marked public. Today `public` can only be read from code or appsettings. This joins the two
-  **Open** points already in [design.md](design.md): details from Azure App Configuration, and marking a single flag
-  read-only.
+
 
 ## Docs to write
 

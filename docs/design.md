@@ -95,8 +95,8 @@ Feature Flags reads them itself, from the declaration in code or from the flag's
 
 Microsoft ignores fields it doesn't know, so these are harmless. A flag with no section takes the text before the
 first `.` in its name, so `Checkout.ExpressPay` is in "Checkout" with nothing to configure. Flags from a source
-Feature Flags can't read details from, such as a site's own provider, are put in sections by name alone. **Open:** how to
-read details for flags in Azure App Configuration, which keeps tags of its own.
+Feature Flags can't read details from, such as a site's own provider, are put in sections by name alone. Reading details
+for flags in Azure App Configuration, which keeps tags of its own, comes after 1.0.
 
 Code declarations take a full Microsoft `FeatureDefinition` as well as the short form, so code can declare anything
 configuration can.
@@ -114,8 +114,8 @@ so the backoffice shows every flag it can read.
   separately, and stays until an editor removes it.
 - **Precedence is a setting.** `Umbricians:FeatureFlags:Overrides` is `Enabled` (the default: overrides win) or
   `ReadOnly` (the backoffice shows flags and their state but can't change them), for teams that want their flag
-  source, such as Azure App Configuration, to stay in charge. **Open:** whether a declaration can also mark a single
-  flag read-only.
+  source, such as Azure App Configuration, to stay in charge. Marking a single flag read-only in its declaration
+  comes after 1.0.
 - **Each environment is separate.** Overrides live in each site's database, so a flag can be on in staging and off
   in production from the same deploy. They aren't moved between environments; scripts can copy them through the
   Management API, and a Deploy or uSync connector would be a package of its own.
@@ -287,7 +287,8 @@ server, across every flag, so paging stays correct on a site with hundreds.
 
 If asked for: variants; repeating time windows; ids for visitors who aren't signed in; conditions by culture; a
 test package; an ASP.NET Core health check; columns in the flag list; `ETag` / `If-Match` and saving several flags
-at once; a note on a change, and a history screen; a connector for Umbraco Deploy or uSync.
+at once; a note on a change, and a history screen; a connector for Umbraco Deploy or uSync; reading details from Azure App Configuration; marking a single
+flag read-only in its declaration.
 
 ## Not doing
 
