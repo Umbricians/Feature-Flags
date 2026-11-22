@@ -239,6 +239,22 @@ Register an ordinary Umbraco entity action for the flag entity type. It receives
 }
 ```
 
+Its api extends Umbraco's `UmbEntityActionBase`; `this.args.unique` is the flag's name:
+
+```ts
+// show-usage.action.ts
+import { UmbEntityActionBase } from "@umbraco-cms/backoffice/entity-action";
+import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
+
+export class ShowUsageAction extends UmbEntityActionBase<never> {
+  override async execute() {
+    const notifications = await this.getContext(UMB_NOTIFICATION_CONTEXT);
+    notifications?.peek("positive", { data: { headline: "Flag usage", message: this.args.unique! } });
+  }
+}
+export { ShowUsageAction as api };
+```
+
 It appears in the actions menu in the flag's workspace header and on that flag's row or card in the list. Feature Flags
 registers no entity actions of its own, so there is nothing to conflict with.
 

@@ -95,8 +95,11 @@ public sealed class CultureFilter : IFeatureFilter
     public Task<bool> EvaluateAsync(FeatureFilterEvaluationContext context)
     {
         var settings = context.Parameters.Get<CultureFilterSettings>() ?? new();
-        string current = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
-        return Task.FromResult(settings.Cultures.Contains(current, StringComparer.OrdinalIgnoreCase));
+        CultureInfo current = CultureInfo.CurrentUICulture;
+        // "fr" matches every French culture; "fr-CA" only that one.
+        return Task.FromResult(settings.Cultures.Any(culture =>
+            string.Equals(culture, current.Name, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(culture, current.TwoLetterISOLanguageName, StringComparison.OrdinalIgnoreCase)));
     }
 }
 
@@ -131,12 +134,29 @@ public sealed class CultureCondition : IFeatureFlagCondition
 }
 ```
 
-Register both:
+Register both, in a composer:
 
 ```csharp
-builder.Services.AddFeatureManagement().AddFeatureFilter<CultureFilter>();
-builder.AddFeatureFlags(flags => flags.AddCondition<CultureCondition>());
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.FeatureManagement;
+using Umbraco.Cms.Core.Composing;
+using Umbricians.FeatureFlags.Extensions;
+
+public class CultureComposer : IComposer
+{
+    public void Compose(IUmbracoBuilder builder)
+    {
+        // Feature Flags has already called AddFeatureManagement(); this adds the filter as AddFeatureFilter<T>() does.
+        builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IFeatureFilterMetadata, CultureFilter>());
+        builder.AddFeatureFlags(flags => flags.AddCondition<CultureCondition>());
+    }
+}
 ```
+
+Don't call `AddFeatureManagement().AddFeatureFilter<CultureFilter>()` here: after Umbraco is added, a second
+`AddFeatureManagement()` registers Microsoft's filters twice (see
+[Getting started](getting-started.md#feature-management-registered-twice)). It is fine in `Program.cs` before
+`CreateUmbracoBuilder()`, where Feature Flags then uses it.
 
 A flag can now use it from appsettings:
 
