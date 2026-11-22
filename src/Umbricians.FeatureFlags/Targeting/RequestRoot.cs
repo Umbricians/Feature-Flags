@@ -9,6 +9,7 @@ using Umbraco.Cms.Core.Routing;
 using Umbraco.Cms.Core.Services;
 using Umbraco.Cms.Core.Services.Navigation;
 using Umbraco.Cms.Core.Web;
+using Umbraco.Cms.Web.Common.Routing;
 using Umbraco.Extensions;
 
 namespace Umbricians.FeatureFlags.Targeting;
@@ -132,10 +133,20 @@ internal sealed class UmbracoRootLocator(IServiceProvider services) : IRootLocat
             : roots.Where(root => urls.GetUrlSegment(root, culture, false).InvariantEquals(header)).Select(root => (Guid?)root).FirstOrDefault();
     }
 
-    public bool IsRouted() =>
-        services.GetService<IUmbracoContextAccessor>() is not { } accessor
-        || !accessor.TryGetUmbracoContext(out IUmbracoContext? context)
-        || context.PublishedRequest is not null;
+    public bool IsRouted()
+    {
+        if (services.GetService<IUmbracoContextAccessor>() is not { } accessor
+            || !accessor.TryGetUmbracoContext(out IUmbracoContext? context)
+            || context.PublishedRequest is not null)
+        {
+            return true;
+        }
+
+        // A request that went to an endpoint that isn't Umbraco's content route, such as the Delivery API or an API
+        // controller, is never routed to content, so waiting for that would recompute the root for every flag checked.
+        HttpContext? http = services.GetService<IHttpContextAccessor>()?.HttpContext;
+        return http?.GetEndpoint() is not null && http.Features.Get<UmbracoRouteValues>() is null;
+    }
 
     public Guid? FromDomain(Uri address)
     {

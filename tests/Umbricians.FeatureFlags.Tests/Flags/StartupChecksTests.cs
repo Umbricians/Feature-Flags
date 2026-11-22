@@ -71,7 +71,49 @@ public class StartupChecksTests
     private static async Task<List<(LogLevel Level, string Message, Exception? Exception)>> Run(TestSite site)
     {
         var logger = new CollectingLogger<StartupChecks>();
-        await new StartupChecks(site.Provider, logger).HandleAsync(new UmbracoApplicationStartedNotification(false), default);
+        await new StartupChecks(site.Provider, logger).RunAsync(default);
         return logger.Entries;
+    }
+
+    [Test]
+    public async Task A_check_that_throws_is_logged_as_a_warning_and_never_thrown()
+    {
+        var logger = new CollectingLogger<StartupChecks>();
+
+        await new StartupChecks(new ServiceCollection().BuildServiceProvider(), logger).RunAsync(default);
+
+        Assert.That(logger.Entries.Single().Level, Is.EqualTo(LogLevel.Warning));
+    }
+
+    [Test]
+    public async Task Nothing_runs_while_umbraco_is_installing_or_upgrading()
+    {
+        var site = new TestSite(after: services => services.AddFeatureManagement());
+        var logger = new CollectingLogger<StartupChecks>();
+        var runtime = Stub.Of<Umbraco.Cms.Core.Services.IRuntimeState>((name, _) => name == "get_Level" ? Umbraco.Cms.Core.RuntimeLevel.Upgrade : null);
+        var services = new ServiceCollection().AddSingleton(runtime).AddSingleton(site.Provider.GetRequiredService<Umbricians.FeatureFlags.Diagnostics.FlagDiagnostics>());
+
+        await new StartupChecks(services.BuildServiceProvider(), logger).HandleAsync(new UmbracoApplicationStartedNotification(false), default);
+        await Task.Delay(200);
+
+        Assert.That(logger.Entries, Is.Empty);
+    }
+
+    [Test]
+    public async Task Startup_does_not_wait_for_the_checks()
+    {
+        var site = new TestSite(after: services => services.AddFeatureManagement());
+        var logger = new CollectingLogger<StartupChecks>();
+
+        await new StartupChecks(site.Provider, logger).HandleAsync(new UmbracoApplicationStartedNotification(false), default);
+
+        // The checks run in the background and log what they find when they finish.
+        DateTime giveUp = DateTime.UtcNow.AddSeconds(5);
+        while (logger.Entries.Count == 0 && DateTime.UtcNow < giveUp)
+        {
+            await Task.Delay(20);
+        }
+
+        Assert.That(logger.Entries, Has.Some.Matches<(LogLevel Level, string Message, Exception? Exception)>(entry => entry.Level == LogLevel.Error));
     }
 }

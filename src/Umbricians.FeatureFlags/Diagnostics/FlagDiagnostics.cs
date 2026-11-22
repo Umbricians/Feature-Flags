@@ -81,7 +81,13 @@ internal sealed class FlagDiagnostics(
     {
         var results = new List<DiagnosticResult>();
 
-        OverrideCache.Snapshot? snapshot = await Guard(results, "the saved settings", () => overrides.GetAsync(cancellationToken).AsTask());
+        OverrideCache.Snapshot? snapshot = await Guard(results, "the saved settings", cancellationToken, async () =>
+        {
+            OverrideCache.Snapshot read = await overrides.GetAsync(cancellationToken);
+
+            // While a retry runs in the background the cache keeps its old error; read afresh, so a problem that has been fixed isn't reported.
+            return read.ReadError is null ? read : await ReloadedAsync(read);
+        });
         if (snapshot?.ReadError is { } readError)
         {
             results.Add(Error(SettingsUnreadable,
@@ -89,7 +95,8 @@ internal sealed class FlagDiagnostics(
                 + "The store is failing, or the package's migration hasn't run yet.", readError));
         }
 
-        FilterProblems filters = CheckFilters();
+        FilterProblems filters = await Guard(results, "the feature filters", cancellationToken, () => Task.FromResult(CheckFilters()))
+            ?? new FilterProblems([], []);
         if (filters.Duplicated.Count > 0)
         {
             results.Add(Error(RegisteredTwice,
@@ -108,7 +115,9 @@ internal sealed class FlagDiagnostics(
                 + "Microsoft's filter), not after."));
         }
 
-        if (services.GetService<IFeatureDefinitionProvider>() is not FeatureFlagsDefinitionProvider)
+        bool? flagSourceWrapped = await Guard(results, "the flag source", cancellationToken,
+            () => Task.FromResult<bool?>(services.GetService<IFeatureDefinitionProvider>() is FeatureFlagsDefinitionProvider));
+        if (flagSourceWrapped == false)
         {
             results.Add(Error(FlagSourceLate,
                 "The site registered its own flag source after Feature Flags, so settings from the backoffice don't apply. "
@@ -123,7 +132,7 @@ internal sealed class FlagDiagnostics(
                 snapshot.Unreadable));
         }
 
-        ResolvedFlags? resolved = await Guard(results, "the declared flags", () => resolution.GetAllAsync(cancellationToken));
+        ResolvedFlags? resolved = await Guard(results, "the declared flags", cancellationToken, () => resolution.GetAllAsync(cancellationToken));
         DeclaredFlag[]? declared = resolved?.Flags.Select(flag => flag.Declared).OfType<DeclaredFlag>().ToArray();
         if (declared is not null)
         {
@@ -147,14 +156,13 @@ internal sealed class FlagDiagnostics(
             }
         }
 
-        IReadOnlyList<string> failingProviders = (await Guard(results, "the group providers",
-            () => groups.FindFailingProvidersAsync(ProviderTimeout, cancellationToken))) ?? [];
+        IReadOnlyList<FailingProvider> failingProviders = (await Guard(results, "the group providers", cancellationToken, () => groups.FindFailingProvidersAsync(ProviderTimeout, cancellationToken))) ?? [];
         if (failingProviders.Count > 0)
         {
             results.Add(Warning(GroupProviderFailed,
-                $"A group provider failed to list its groups, so the backoffice offers none of its groups: {string.Join(", ", failingProviders)}.",
+                $"A group provider failed to list its groups, so the backoffice offers none of its groups: {string.Join(", ", failingProviders.Select(provider => provider.Name))}.",
                 [],
-                null));
+                failingProviders.Count == 1 ? failingProviders[0].Exception : new AggregateException(failingProviders.Select(provider => provider.Exception))));
         }
 
         if (declared is not null)
@@ -168,7 +176,9 @@ internal sealed class FlagDiagnostics(
             }
         }
 
-        IReadOnlyList<string>? deleted = await Guard(results, "the Root conditions", () => deletedRoots.FindAsync(cancellationToken));
+        // The flags are listed once, from the listing above, for the Root check and for the counts below.
+        IReadOnlyList<FeatureFlag>? flags = resolved is null ? null : await Guard(results, "the flags", cancellationToken, () => Task.FromResult(catalog.Describe(resolved)));
+        IReadOnlyList<string>? deleted = flags is null ? null : await Guard(results, "the Root conditions", cancellationToken, () => Task.FromResult(deletedRoots.Find(flags)));
         if (deleted is { Count: > 0 })
         {
             results.Add(Warning(DeletedRoot,
@@ -177,7 +187,6 @@ internal sealed class FlagDiagnostics(
                 deleted));
         }
 
-        IReadOnlyList<FeatureFlag>? flags = await Guard(results, "the flags", () => catalog.GetAllAsync(cancellationToken));
         if (options.CurrentValue.Headless.Enabled && flags is not null && !flags.Any(flag => flag is { IsDeclared: true, IsPublic: true }))
         {
             results.Add(Warning(HeadlessNothingPublic,
@@ -211,6 +220,12 @@ internal sealed class FlagDiagnostics(
         return results;
     }
 
+    private async Task<OverrideCache.Snapshot> ReloadedAsync(OverrideCache.Snapshot stale)
+    {
+        await overrides.ReloadAsync();
+        return await overrides.GetAsync();
+    }
+
     private static string Count(int count) => count == 1 ? "1 flag is" : $"{count} flags are";
 
     private static DiagnosticResult Error(string anchor, string message, Exception? exception = null) =>
@@ -222,13 +237,14 @@ internal sealed class FlagDiagnostics(
     private static DiagnosticResult Info(string anchor, string message) => new(DiagnosticSeverity.Info, message, [], anchor);
 
     /// <summary>Runs one part of the check. When it throws, says so as a warning, so the rest still runs.</summary>
-    private static async Task<T?> Guard<T>(List<DiagnosticResult> results, string what, Func<Task<T>> check)
+    private static async Task<T?> Guard<T>(List<DiagnosticResult> results, string what, CancellationToken cancellationToken, Func<Task<T>> check)
     {
         try
         {
             return await check();
         }
-        catch (Exception exception) when (exception is not OperationCanceledException)
+        // A cancellation that isn't the caller's, such as an HTTP client's timeout inside a flag source, is a failed check.
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested || exception is not OperationCanceledException)
         {
             results.Add(Warning(CheckFailed, $"Feature Flags couldn't check {what}.", [], exception));
             return default;

@@ -34,9 +34,12 @@ internal sealed class FlagCatalog
         _options = options;
     }
 
-    public async Task<IReadOnlyList<FeatureFlag>> GetAllAsync(CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<FeatureFlag>> GetAllAsync(CancellationToken cancellationToken) =>
+        Describe(await _resolution.GetAllAsync(cancellationToken));
+
+    /// <summary>The flags as the backoffice shows them, from a listing a caller already has.</summary>
+    public IReadOnlyList<FeatureFlag> Describe(ResolvedFlags resolved)
     {
-        ResolvedFlags resolved = await _resolution.GetAllAsync(cancellationToken);
         bool readOnly = _options.CurrentValue.OverridesAreReadOnly();
 
         return resolved.Flags.Select(flag => flag switch

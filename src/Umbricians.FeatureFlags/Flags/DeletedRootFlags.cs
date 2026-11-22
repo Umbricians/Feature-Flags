@@ -7,10 +7,14 @@ namespace Umbricians.FeatureFlags.Flags;
 internal sealed class DeletedRootFlags(IFeatureFlagService flags, ISiteRoots roots)
 {
     /// <summary>The names of those flags, in the order the flags come.</summary>
-    public async Task<IReadOnlyList<string>> FindAsync(CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<string>> FindAsync(CancellationToken cancellationToken) =>
+        Find(await flags.GetAllAsync(cancellationToken));
+
+    /// <summary>The names of those flags among flags already listed, so a caller that has listed them doesn't list them again.</summary>
+    public IReadOnlyList<string> Find(IEnumerable<FeatureFlag> listed)
     {
         var names = new List<string>();
-        foreach (FeatureFlag flag in await flags.GetAllAsync(cancellationToken))
+        foreach (FeatureFlag flag in listed)
         {
             bool deleted = (flag.Settings?.Conditions ?? [])
                 .Where(condition => string.Equals(condition.Name, RootFilter.Name, StringComparison.OrdinalIgnoreCase)

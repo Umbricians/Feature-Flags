@@ -26,8 +26,9 @@ internal interface ISiteRoots
 /// <summary>Umbraco's content tree and domains; none when the services aren't registered.</summary>
 internal sealed class UmbracoSiteRoots(IServiceProvider services) : ISiteRoots
 {
-    // Roots come from the navigation tree, in memory, and the name from the content cache, so asking for many flags' roots
-    // never reads the database. Only a root that isn't published has no cached name, and the content service gives it.
+    // Roots come from the navigation tree, in memory, and the name from the published content cache, so asking for many
+    // flags' roots never reads the database. A root that isn't published has no name there, so the preview cache is tried
+    // next, then the content service.
     public SiteRoot? Find(Guid key)
     {
         var navigation = services.GetService<IDocumentNavigationQueryService>();
@@ -36,7 +37,9 @@ internal sealed class UmbracoSiteRoots(IServiceProvider services) : ISiteRoots
             return null;
         }
 
-        string? name = services.GetService<IPublishedContentCache>()?.GetById(true, key)?.Name
+        var cache = services.GetService<IPublishedContentCache>();
+        string? name = cache?.GetById(false, key)?.Name
+            ?? cache?.GetById(true, key)?.Name
             ?? services.GetService<IContentService>()?.GetById(key)?.Name;
         return new SiteRoot(key, name ?? string.Empty);
     }

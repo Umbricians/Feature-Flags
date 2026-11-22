@@ -94,4 +94,15 @@ public class RootConditionTests : IntegrationTest
         Assert.That(await CheckAsync("Tests.Off", roots.UkHost), Is.EqualTo("off"));
         Assert.That(await scope.ServiceProvider.GetRequiredService<DeletedRootFlags>().FindAsync(CancellationToken.None), Does.Contain("Tests.Off"));
     }
+
+    [Test]
+    public async Task A_published_roots_name_comes_from_the_published_cache()
+    {
+        TestRoots roots = await MakeRootsAsync();
+        await using AsyncServiceScope scope = Site.CreateScope();
+
+        Umbricians.FeatureFlags.Targeting.SiteRoot? found = scope.ServiceProvider.GetRequiredService<Umbricians.FeatureFlags.Targeting.ISiteRoots>().Find(roots.Uk);
+
+        Assert.That(found?.Name, Does.StartWith("UK shop "));
+    }
 }

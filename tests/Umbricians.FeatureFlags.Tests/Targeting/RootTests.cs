@@ -278,4 +278,41 @@ public class RootTests
         roots.Names.Remove(Uk);
         Assert.That(await SiteIn(locator, context, new FakeRoots(), Uk, Us).Provider.GetRequiredService<DeletedRootFlags>().FindAsync(CancellationToken.None), Is.Empty);
     }
+
+    private sealed class FakeUmbracoContextAccessor : Umbraco.Cms.Core.Web.IUmbracoContextAccessor
+    {
+        public bool TryGetUmbracoContext([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out Umbraco.Cms.Core.Web.IUmbracoContext? umbracoContext)
+        {
+            umbracoContext = Stub.Of<Umbraco.Cms.Core.Web.IUmbracoContext>((_, _) => null);
+            return true;
+        }
+
+        public void Clear()
+        {
+        }
+
+        public void Set(Umbraco.Cms.Core.Web.IUmbracoContext umbracoContext)
+        {
+        }
+    }
+
+    private static UmbracoRootLocator LocatorFor(HttpContext http) => new(new Microsoft.Extensions.DependencyInjection.ServiceCollection()
+        .AddSingleton<Umbraco.Cms.Core.Web.IUmbracoContextAccessor>(new FakeUmbracoContextAccessor())
+        .AddSingleton<IHttpContextAccessor>(new HttpContextAccessor { HttpContext = http })
+        .BuildServiceProvider());
+
+    [Test]
+    public void A_request_that_reached_an_endpoint_that_is_not_umbracos_content_counts_as_routed()
+    {
+        var http = new DefaultHttpContext();
+        http.SetEndpoint(new Microsoft.AspNetCore.Http.Endpoint(_ => Task.CompletedTask, new Microsoft.AspNetCore.Http.EndpointMetadataCollection(), "api"));
+
+        Assert.That(LocatorFor(http).IsRouted(), Is.True);
+    }
+
+    [Test]
+    public void A_request_not_yet_routed_to_any_endpoint_is_not_routed()
+    {
+        Assert.That(LocatorFor(new DefaultHttpContext()).IsRouted(), Is.False);
+    }
 }

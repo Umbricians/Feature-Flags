@@ -54,26 +54,30 @@ internal sealed class AudienceGroups(IMemberGroups memberGroups, IEnumerable<IFe
     /// A provider that takes longer than <paramref name="timeout"/> counts as failed, so a hanging provider can't hang
     /// the check. Providers are asked afresh rather than remembered, so the answer is true now.
     /// </summary>
-    public async Task<IReadOnlyList<string>> FindFailingProvidersAsync(TimeSpan timeout, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<FailingProvider>> FindFailingProvidersAsync(TimeSpan timeout, CancellationToken cancellationToken)
     {
-        var failing = new List<string>();
-        foreach (IFeatureFlagGroupProvider provider in providers)
+        // Together, and each provider's call on the thread pool, so one that blocks synchronously only costs its own timeout.
+        FailingProvider?[] results = await Task.WhenAll(providers.Select(async provider =>
         {
             try
             {
                 using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 limit.CancelAfter(timeout);
-                await provider.GetGroupsAsync(limit.Token).WaitAsync(timeout, cancellationToken);
+                await Task.Run(() => provider.GetGroupsAsync(limit.Token), CancellationToken.None).WaitAsync(timeout, cancellationToken);
+                return null;
             }
             catch (Exception exception) when (!cancellationToken.IsCancellationRequested || exception is not OperationCanceledException)
             {
-                failing.Add(provider.GetType().FullName ?? provider.GetType().Name);
+                return new FailingProvider(provider.GetType().FullName ?? provider.GetType().Name, exception);
             }
-        }
+        }));
 
-        return failing;
+        return results.OfType<FailingProvider>().ToArray();
     }
 }
+
+/// <summary>A group provider that couldn't list its groups in time, and why.</summary>
+internal sealed record FailingProvider(string Name, Exception Exception);
 
 /// <summary>What the site's groups were when <see cref="AudienceGroups.ReadAsync"/> read them.</summary>
 internal sealed class GroupDirectory(IReadOnlyList<FeatureFlagGroup> providerGroups, IReadOnlyList<KnownMemberGroup> memberGroups)

@@ -147,7 +147,7 @@ public class FlagDiagnosticsTests
     public async Task A_group_provider_that_never_answers_is_a_warning_and_does_not_hang_the_check()
     {
         var site = new TestSite(before: services => services.AddSingleton<IFeatureFlagGroupProvider>(new HangingGroups()));
-        IReadOnlyList<string> failing = await site.Provider.GetRequiredService<AudienceGroups>()
+        IReadOnlyList<FailingProvider> failing = await site.Provider.GetRequiredService<AudienceGroups>()
             .FindFailingProvidersAsync(TimeSpan.FromMilliseconds(50), default);
 
         Assert.That(failing, Has.Count.EqualTo(1));
@@ -314,7 +314,7 @@ public class FlagDiagnosticsTests
         site.Store.With("Gone", FlagSettings.Off);
         var logger = new CollectingLogger<StartupChecks>();
 
-        await new StartupChecks(site.Provider, logger).HandleAsync(new UmbracoApplicationStartedNotification(false), default);
+        await new StartupChecks(site.Provider, logger).RunAsync(default);
         var check = new FeatureFlagsHealthCheck(site.Provider.GetRequiredService<FlagDiagnostics>());
         HealthCheckStatus[] statuses = (await check.GetStatusAsync()).ToArray();
 
@@ -335,8 +335,101 @@ public class FlagDiagnosticsTests
         await using ServiceProvider validating = site.Services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
         var logger = new CollectingLogger<StartupChecks>();
 
-        await new StartupChecks(validating, logger).HandleAsync(new UmbracoApplicationStartedNotification(false), default);
+        await new StartupChecks(validating, logger).RunAsync(default);
 
         Assert.That(logger.Entries, Is.Empty);
+    }
+
+    private sealed class TimingOutSource : IFeatureDefinitionProvider
+    {
+        public Task<FeatureDefinition> GetFeatureDefinitionAsync(string featureName) => throw new TaskCanceledException("The request timed out.");
+
+        public IAsyncEnumerable<FeatureDefinition> GetAllFeatureDefinitionsAsync() => throw new TaskCanceledException("The request timed out.");
+    }
+
+    [Test]
+    public async Task A_flag_source_that_times_out_is_a_warning_not_a_thrown_cancellation()
+    {
+        var site = new TestSite(before: services => services.AddSingleton<IFeatureDefinitionProvider>(new TimingOutSource()));
+
+        IReadOnlyList<DiagnosticResult> results = await Run(site);
+
+        Assert.That(results.Select(result => result.Severity), Does.Contain(DiagnosticSeverity.Warning));
+    }
+
+    [Test]
+    public void A_cancellation_by_the_caller_still_stops_the_check()
+    {
+        var site = new TestSite();
+        using var cancelled = new CancellationTokenSource();
+        cancelled.Cancel();
+
+        Assert.CatchAsync<OperationCanceledException>(async () => await site.Provider.GetRequiredService<FlagDiagnostics>().RunAsync(cancelled.Token));
+    }
+
+    [Test]
+    public async Task A_settings_problem_that_has_been_fixed_is_not_reported_while_the_cache_waits_to_retry()
+    {
+        var site = new TestSite();
+        site.Store.Fail = true;
+        Assert.That((await Run(site)).Select(result => result.Anchor), Does.Contain(FlagDiagnostics.SettingsUnreadable));
+
+        site.Store.Fail = false;
+
+        Assert.That((await Run(site)).Select(result => result.Anchor), Does.Not.Contain(FlagDiagnostics.SettingsUnreadable));
+    }
+
+    private sealed class SlowGroups(int milliseconds) : IFeatureFlagGroupProvider
+    {
+        public async Task<IEnumerable<FeatureFlagGroup>> GetGroupsAsync(CancellationToken cancellationToken)
+        {
+            await Task.Delay(milliseconds, cancellationToken);
+            throw new InvalidOperationException("Too slow to matter.");
+        }
+
+        public Task<IEnumerable<string>> GetGroupIdsForMemberAsync(FeatureFlagMember member, CancellationToken cancellationToken) => Task.FromResult<IEnumerable<string>>([]);
+    }
+
+    private sealed class BlockingGroups : IFeatureFlagGroupProvider
+    {
+        public Task<IEnumerable<FeatureFlagGroup>> GetGroupsAsync(CancellationToken cancellationToken)
+        {
+            Thread.Sleep(1500);
+            return Task.FromResult<IEnumerable<FeatureFlagGroup>>([]);
+        }
+
+        public Task<IEnumerable<string>> GetGroupIdsForMemberAsync(FeatureFlagMember member, CancellationToken cancellationToken) => Task.FromResult<IEnumerable<string>>([]);
+    }
+
+    [Test]
+    public async Task Group_providers_are_asked_together_and_their_exceptions_are_kept()
+    {
+        var site = new TestSite(before: services =>
+        {
+            services.AddSingleton<IFeatureFlagGroupProvider>(new SlowGroups(400));
+            services.AddSingleton<IFeatureFlagGroupProvider>(new SlowGroups(400));
+            services.AddSingleton<IFeatureFlagGroupProvider>(new SlowGroups(400));
+        });
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+
+        IReadOnlyList<FailingProvider> failing = await site.Provider.GetRequiredService<AudienceGroups>().FindFailingProvidersAsync(TimeSpan.FromSeconds(5), default);
+
+        Assert.That(failing, Has.Count.EqualTo(3));
+        Assert.That(failing.Select(provider => provider.Exception), Has.All.InstanceOf<InvalidOperationException>());
+        Assert.That(watch.ElapsedMilliseconds, Is.LessThan(1100));
+        DiagnosticResult result = Only(await Run(site), FlagDiagnostics.GroupProviderFailed);
+        Assert.That(result.Exception, Is.InstanceOf<AggregateException>());
+    }
+
+    [Test]
+    public async Task A_group_provider_that_blocks_its_thread_still_times_out()
+    {
+        var site = new TestSite(before: services => services.AddSingleton<IFeatureFlagGroupProvider>(new BlockingGroups()));
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+
+        IReadOnlyList<FailingProvider> failing = await site.Provider.GetRequiredService<AudienceGroups>().FindFailingProvidersAsync(TimeSpan.FromMilliseconds(100), default);
+
+        Assert.That(failing, Has.Count.EqualTo(1));
+        Assert.That(watch.ElapsedMilliseconds, Is.LessThan(1000));
     }
 }
