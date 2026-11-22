@@ -129,10 +129,17 @@ export class AudienceConditionElement extends UmbLitElement implements Umbrician
       e.stopPropagation();
       this.#change(withSide(this.#audience, side, apply(sideOf(this.#audience, side))));
     };
+    // What each picker says is different on the left-out side: those members never get the feature.
+    const excluded = side === "excluded";
+    const help = {
+      Members: this.localize.term(excluded ? "umbriciansFeatureFlags_audienceExcludedMembersHelp" : "umbriciansFeatureFlags_audienceMembersHelp"),
+      MemberGroups: this.localize.term(excluded ? "umbriciansFeatureFlags_audienceExcludedMemberGroupsHelp" : "umbriciansFeatureFlags_audienceMemberGroupsHelp"),
+      Groups: this.localize.term(excluded ? "umbriciansFeatureFlags_audienceExcludedGroupsHelp" : "umbriciansFeatureFlags_audienceGroupsHelp"),
+    };
     const edit = (apply: (audience: FlagAudience) => FlagAudience) => this.#change(withSide(this.#audience, side, apply(sideOf(this.#audience, side))));
     return html`<umb-property-layout
         label=${this.localize.term("umbriciansFeatureFlags_audienceMembers")}
-        description=${this.localize.term("umbriciansFeatureFlags_audienceMembersHelp")}>
+        description=${help.Members}>
         <umb-input-member
           slot="editor"
           .selection=${audience.members}
@@ -141,7 +148,7 @@ export class AudienceConditionElement extends UmbLitElement implements Umbrician
       </umb-property-layout>
       <umb-property-layout
         label=${this.localize.term("umbriciansFeatureFlags_audienceMemberGroups")}
-        description=${this.localize.term("umbriciansFeatureFlags_audienceMemberGroupsHelp")}>
+        description=${help.MemberGroups}>
         <div slot="editor" class="groups">
           <umb-input-member-group
             .selection=${memberGroupKeys(audience)}
@@ -155,7 +162,7 @@ export class AudienceConditionElement extends UmbLitElement implements Umbrician
       ${this._providerGroups.length || unknown.length
         ? html`<umb-property-layout
             label=${this.localize.term("umbriciansFeatureFlags_audienceGroups")}
-            description=${this.localize.term("umbriciansFeatureFlags_audienceGroupsHelp")}>
+            description=${help.Groups}>
             <div slot="editor" class="groups">
               <div class="checkboxes">
                 ${this._providerGroups.map(
