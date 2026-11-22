@@ -1,6 +1,6 @@
 // Types for extending the Umbricians Feature Flags backoffice. Types only: this package has no runtime code and no
-// import-map entry, so a `declare const` below has no value at runtime. Write the string (or build a token from it);
-// the literal types make a typo fail to compile. The strings are promised for the life of an Umbraco major.
+// import-map entry, so there is nothing to import but types. Write the string (or build a token from it) and, where
+// you want a typo to fail to compile, type it with the alias below. The strings are promised for the life of an Umbraco major.
 import type { ManifestElement } from "@umbraco-cms/backoffice/extension-api";
 import type { UmbConditionConfigBase } from "@umbraco-cms/backoffice/extension-api";
 import type { Observable } from "@umbraco-cms/backoffice/external/rxjs";
@@ -8,32 +8,32 @@ import type { Observable } from "@umbraco-cms/backoffice/external/rxjs";
 // ---- Entity types, aliases and strings -------------------------------------------------------------------------
 
 /** The Feature Flags item in the Settings tree, which opens the flag list. */
-export declare const FEATURE_FLAGS_ROOT_ENTITY_TYPE: "umbricians-feature-flags-root";
+export type FeatureFlagsRootEntityType = "umbricians-feature-flags-root";
 /** One flag. Its `unique` is the flag's name. Register entity actions for this type. */
-export declare const FEATURE_FLAG_ENTITY_TYPE: "umbricians-feature-flags-flag";
+export type FeatureFlagEntityType = "umbricians-feature-flags-flag";
 
-export declare const FEATURE_FLAGS_ROOT_WORKSPACE_ALIAS: "Umbricians.FeatureFlags.Workspace.Root";
-export declare const FEATURE_FLAG_WORKSPACE_ALIAS: "Umbricians.FeatureFlags.Workspace.Flag";
-export declare const FEATURE_FLAGS_COLLECTION_ALIAS: "Umbricians.FeatureFlags.Collection";
-export declare const FEATURE_FLAGS_MENU_ITEM_ALIAS: "Umbricians.FeatureFlags.MenuItem.Root";
+export type FeatureFlagsRootWorkspaceAlias = "Umbricians.FeatureFlags.Workspace.Root";
+export type FeatureFlagWorkspaceAlias = "Umbricians.FeatureFlags.Workspace.Flag";
+export type FeatureFlagsCollectionAlias = "Umbricians.FeatureFlags.Collection";
+export type FeatureFlagsMenuItemAlias = "Umbricians.FeatureFlags.MenuItem.Root";
 
 /** The `type` of a manifest that registers a condition's editor. */
-export declare const FEATURE_FLAGS_CONDITION_MANIFEST_TYPE: "umbriciansFeatureFlagsCondition";
+export type FeatureFlagsConditionManifestType = "umbriciansFeatureFlagsCondition";
 
 /** The alias of the read-only flag workspace context: `new UmbContextToken<UmbriciansFeatureFlagWorkspaceContext>(alias)`. */
-export declare const FEATURE_FLAG_WORKSPACE_CONTEXT_ALIAS: "Umbricians.FeatureFlags.FlagWorkspaceContext.Public";
+export type FeatureFlagWorkspaceContextAlias = "Umbricians.FeatureFlags.FlagWorkspaceContext.Public";
 
 /** The alias of the condition that permits an extension to editors who may view or change flags. */
-export declare const FEATURE_FLAGS_PERMISSION_CONDITION_ALIAS: "Umbricians.FeatureFlags.Condition.Permission";
-export declare const FEATURE_FLAGS_PERMISSION_VIEW: "Umbricians.FeatureFlags.View";
-export declare const FEATURE_FLAGS_PERMISSION_MANAGE: "Umbricians.FeatureFlags.Manage";
+export type FeatureFlagsPermissionConditionAlias = "Umbricians.FeatureFlags.Condition.Permission";
+export type FeatureFlagsPermissionView = "Umbricians.FeatureFlags.View";
+export type FeatureFlagsPermissionManage = "Umbricians.FeatureFlags.Manage";
 
 // ---- The permission condition ----------------------------------------------------------------------------------
 
 /** `conditions: [{ alias: FEATURE_FLAGS_PERMISSION_CONDITION_ALIAS, permission: FEATURE_FLAGS_PERMISSION_VIEW }]` */
 export interface FeatureFlagsPermissionConditionConfig
-  extends UmbConditionConfigBase<typeof FEATURE_FLAGS_PERMISSION_CONDITION_ALIAS> {
-  permission: typeof FEATURE_FLAGS_PERMISSION_VIEW | typeof FEATURE_FLAGS_PERMISSION_MANAGE;
+  extends UmbConditionConfigBase<FeatureFlagsPermissionConditionAlias> {
+  permission: FeatureFlagsPermissionView | FeatureFlagsPermissionManage;
 }
 
 // ---- A condition's editor --------------------------------------------------------------------------------------
@@ -56,7 +56,7 @@ export interface MetaUmbriciansFeatureFlagsCondition {
 
 /** The editor for one of a flag's conditions, found by `meta.name`, the name of the C# `IFeatureFlagCondition`. */
 export interface ManifestUmbriciansFeatureFlagsCondition extends ManifestElement<UmbriciansFeatureFlagsConditionElement> {
-  type: typeof FEATURE_FLAGS_CONDITION_MANIFEST_TYPE;
+  type: FeatureFlagsConditionManifestType;
   meta: MetaUmbriciansFeatureFlagsCondition;
 }
 
@@ -73,7 +73,7 @@ declare global {
 
 /**
  * Reach it from an element inside a flag's workspace (a workspace view, for instance) with
- * `this.consumeContext(new UmbContextToken<UmbriciansFeatureFlagWorkspaceContext>(FEATURE_FLAG_WORKSPACE_CONTEXT_ALIAS), ...)`.
+ * `this.consumeContext(new UmbContextToken<UmbriciansFeatureFlagWorkspaceContext>("Umbricians.FeatureFlags.FlagWorkspaceContext.Public"), ...)`.
  * It is read-only: changes go through conditions or the Management API.
  */
 export interface UmbriciansFeatureFlagWorkspaceContext {

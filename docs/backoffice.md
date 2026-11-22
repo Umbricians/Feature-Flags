@@ -170,8 +170,9 @@ week to find a break early.
 ### The npm package
 
 `@umbricians/feature-flags` has the types only, with `@umbraco-cms/backoffice` `^17.0.0` as a peer dependency.
-It has no runtime code, so a `declare const` in it has no value when your code runs: write the string, or build a
-token from it. The types make a misspelt string fail to compile.
+It has no runtime code, so there are no constants to import: write the strings, or build a token from them. Where you
+want a misspelt string to fail to compile, type it with the package's string literal aliases, such as
+`FeatureFlagEntityType` (`"umbricians-feature-flags-flag"`).
 
 ```ts
 import type { FeatureFlag, UmbriciansFeatureFlagWorkspaceContext } from "@umbricians/feature-flags";

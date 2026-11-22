@@ -34,6 +34,7 @@ export default {
     columnState: "State",
     columnSwitch: "On / off",
     columnNotes: "Notes",
+    columnActions: "Actions",
     columnChanged: "Last changed",
     noSection: "No section",
     filterState: "State",

@@ -97,6 +97,7 @@ jobs:
           npm ci
           npm run typecheck
           npm test
+          mkdir -p ../../artifacts-npm
           npm pack --pack-destination ../../artifacts-npm
 
       # Builds the demo site too, so changes that break integration fail here.

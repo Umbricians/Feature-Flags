@@ -45,8 +45,17 @@ jobs:
         run: |
           version="$REQUESTED"
           if [[ -z "$version" ]]; then
-            version=$(curl -fsS https://api.nuget.org/v3-flatcontainer/umbraco.cms/index.json \
-              | node -e 'const v = JSON.parse(require("fs").readFileSync(0, "utf8")).versions.filter((x) => /^17\.\d+\.\d+$/.test(x)); console.log(v.sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).pop())')
+            # The registration pages say which versions are listed; an unlisted one is not the newest release.
+            version=$(node -e '
+              const get = async (url) => (await fetch(url)).json();
+              (async () => {
+                const index = await get("https://api.nuget.org/v3/registration5-gz-semver2/umbraco.cms/index.json");
+                const pages = await Promise.all(index.items.map((page) => (page.items ? page : get(page["@id"]))));
+                const listed = pages.flatMap((page) => page.items).map((leaf) => leaf.catalogEntry).filter((entry) => entry.listed !== false).map((entry) => entry.version);
+                const stable = listed.filter((x) => /^17\.\d+\.\d+$/.test(x));
+                console.log(stable.sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).pop());
+              })();
+            ')
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "Umbraco $version"
@@ -68,7 +77,16 @@ jobs:
           npm run typecheck
           npm test
 
+      # The tests pin Microsoft.Data.SqlClient to what Umbraco 17.8.0 brings; a newer Umbraco may bring a newer one, and a
+      # pin below it fails restore (NU1605). The newest stable is never below what Umbraco brings.
+      - name: Find the SqlClient version
+        id: sqlclient
+        run: |
+          version=$(curl -fsS https://api.nuget.org/v3-flatcontainer/microsoft.data.sqlclient/index.json \
+            | node -e 'const v = JSON.parse(require("fs").readFileSync(0, "utf8")).versions.filter((x) => /^\d+\.\d+\.\d+$/.test(x)); console.log(v.sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).pop())')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
       - name: Build and test the package against it
         run: |
-          dotnet build Umbricians.FeatureFlags.slnx -c Release -p:UmbracoVersion=${{ steps.umbraco.outputs.version }}
-          dotnet test Umbricians.FeatureFlags.slnx -c Release --no-build -p:UmbracoVersion=${{ steps.umbraco.outputs.version }}
+          dotnet build Umbricians.FeatureFlags.slnx -c Release -p:UmbracoVersion=${{ steps.umbraco.outputs.version }} -p:SqlClientVersion=${{ steps.sqlclient.outputs.version }}
+          dotnet test Umbricians.FeatureFlags.slnx -c Release --no-build -p:UmbracoVersion=${{ steps.umbraco.outputs.version }} -p:SqlClientVersion=${{ steps.sqlclient.outputs.version }}
