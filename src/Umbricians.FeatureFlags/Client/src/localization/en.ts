@@ -71,6 +71,9 @@ export default {
     members: (count: number) => plural(count, "member", "members"),
     memberGroups: (count: number) => plural(count, "member group", "member groups"),
     otherGroups: (count: number) => plural(count, "other group", "other groups"),
+    groups: (count: number) => plural(count, "group", "groups"),
+    percentOfEveryoneElse: (percentage: number) => `${percentage}% of everyone else`,
+    except: (who: string) => `except ${who}`,
 
     // Switching
     switchOn: (name: string) => `Turn on ${name}`,
@@ -112,6 +115,16 @@ export default {
     audienceMemberGroupsHelp: "Everyone in these member groups gets the feature.",
     audienceGroups: "Other groups",
     audienceGroupsHelp: "Groups worked out by code on this site.",
+    audienceDefaultPercentage: "...and this percentage of everyone else",
+    audienceDefaultPercentageHelp:
+      "Each signed-in member is always in or out, so the same people keep the feature. Percentages count signed-in members only: a visitor who isn't signed in has no id to count.",
+    audienceGroupPercentages: "How much of each group",
+    audienceGroupPercentagesHelp: "100% is everyone in the group. Less is a share of them, the same members each time.",
+    groupPercentage: (name: string) => `Percentage of ${name}`,
+    percentOfThisGroup: "% of this group",
+    percentOfEveryoneElseUnit: "% of everyone else",
+    audienceExcluded: "Except these members or groups",
+    audienceExcludedHelp: "They don't get the feature, even when they are in a chosen group or in the percentage above.",
     namedMemberGroup: (name: string) => `${name} (named in configuration)`,
     unknownGroup: (id: string) => `${id} (not a member group or a group this site offers)`,
     removeGroup: (name: string) => `Remove ${name}`,

@@ -7,6 +7,10 @@ export interface AudienceCounts {
   members: number;
   memberGroups: number;
   groups: number;
+  /** The percentage of everyone else it includes, 0 to 100. */
+  defaultPercentage: number;
+  excludedMembers: number;
+  excludedGroups: number;
 }
 
 /** What a group id in an audience is. `unknown` is a deleted member group's key or a provider group no longer offered. */
@@ -17,12 +21,21 @@ export interface AudienceGroup {
   id: string;
   kind: AudienceGroupKind;
   name: string | null;
+  /** The percentage of the group that is included, 0 to 100. Always 100 for a group that is left out. */
+  percentage: number;
 }
 
-/** Who a flag is on for: member keys and groups of every kind. */
+/**
+ * Who a flag is on for: member keys and groups of every kind, a percentage of everyone else, and the members and groups
+ * left out. Percentages are of signed-in members only.
+ */
 export interface FlagAudience {
   members: Array<string>;
   groups: Array<AudienceGroup>;
+  /** The percentage, 0 to 100, of every member not otherwise included. */
+  defaultPercentage: number;
+  excludedMembers: Array<string>;
+  excludedGroups: Array<AudienceGroup>;
 }
 
 /** Whether a flag with several conditions needs any one of them to hold, or all of them. */

@@ -23,6 +23,59 @@ for everyone. Backoffice users aren't members: being signed in to the backoffice
 If working out the member fails, the error is logged and the visitor is treated as not signed in, so a flag is never
 on by mistake.
 
+## Percentages and exclusions
+
+An audience can include more than named people:
+
+- **A percentage of everyone else.** "…and 25% of everyone else" includes that share of signed-in members who aren't
+  already in the audience.
+- **A percentage of a group.** "50% of this group" includes half of the group's members. A group is in full at 100%.
+- **Exclusions.** "Except these members or groups" are off for the flag even when they are in a chosen group or in a
+  percentage. Exclusions win.
+
+Percentages are Microsoft's, and they are sticky: Microsoft hashes each member's id together with the flag's name, so
+a member who is in a 25% audience stays in it, and the same share of members is in on every server. Raising the
+percentage only adds members; nobody who had the feature loses it. Changing the flag's name reshuffles who is in.
+
+Percentages count **members only**: signed-in members have an id to hash. A visitor who isn't signed in has none, so
+Microsoft treats all of them alike: they are included at 100% of everyone else, and every one of them is in or out
+together at a percentage in between. Don't rely on a percentage for anonymous visitors. Feature Flags
+sets no cookie to give visitors ids.
+
+To roll a flag out to visitors who aren't Umbraco members, give them ids with your own `ITargetingContextAccessor`
+(see [Identifying people another way](#identifying-people-another-way)). For example, with a visitor id kept in a
+cookie your site already sets:
+
+```csharp
+using Microsoft.FeatureManagement.FeatureFilters;
+
+public class VisitorIdTargetingContextAccessor(IHttpContextAccessor http) : ITargetingContextAccessor
+{
+    public ValueTask<TargetingContext> GetContextAsync()
+    {
+        string? id = http.HttpContext?.Request.Cookies["visitor-id"];
+        return new(new TargetingContext { UserId = id, Groups = [] });
+    }
+}
+```
+
+Percentages then apply to those ids. Register the accessor as shown below.
+
+In appsettings, the same settings are `DefaultRolloutPercentage`, each group's `RolloutPercentage` and
+`Exclusion`. Percentages are whole numbers from 0 to 100; the backoffice refuses a flag saved with anything else. A
+group listed without a `RolloutPercentage` includes nobody, as Microsoft reads it.
+
+```json
+"Audience": {
+  "Users": [],
+  "Groups": [{ "Name": "Beta testers", "RolloutPercentage": 50 }],
+  "DefaultRolloutPercentage": 10,
+  "Exclusion": { "Users": [], "Groups": ["Staff"] }
+}
+```
+
+When a member or member group is deleted, Feature Flags removes it from exclusions as well as from the audience.
+
 ## Audiences in appsettings
 
 A flag can be declared on for an audience. Name member groups rather than members: a member's key is different in

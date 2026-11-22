@@ -72,7 +72,17 @@ The condition every site has is **Audience**, which is on for chosen people:
   has some. A group the site no longer knows, such as a deleted member group or a group a provider stopped
   offering, is listed here too. It is kept as saved until you remove it.
 
-A member gets the feature if they are in any of the chosen members or groups, and only while they are signed in.
+Below the pickers:
+
+- **…and this percentage of everyone else:** a share of the signed-in members who aren't already chosen.
+- **How much of each group:** each chosen group has "N% of this group", 100% by default.
+- **Except these members or groups:** picked the same way. They don't get the feature even when they are in a chosen
+  group or the percentage.
+
+Percentages count signed-in members only, and are sticky: the same members are in each time. See
+[Audiences](audiences.md#percentages-and-exclusions).
+
+A member gets the feature if they are in any of the chosen members or groups or in the percentage, and only while they are signed in.
 Developers can add conditions of their own, such as "French visitors"; they appear in the same menu.
 
 ### Any or all of the conditions

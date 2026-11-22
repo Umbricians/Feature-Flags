@@ -1,6 +1,6 @@
 import type { UmbLocalizationController } from "@umbraco-cms/backoffice/localization-api";
 import type { AudienceCounts, FeatureFlag } from "../api/types.js";
-import { audienceParts, joinList } from "./display.js";
+import { audienceParts, excludedParts, joinList } from "./display.js";
 
 /** Who a flag is (or will be) on for, in words: "everyone", or "3 members and 1 member group". */
 export function describeAudience(localize: UmbLocalizationController, counts: AudienceCounts | null, hasAudience = counts !== null): string {
@@ -12,7 +12,15 @@ export function describeAudience(localize: UmbLocalizationController, counts: Au
         ? localize.term("umbriciansFeatureFlags_memberGroups", part.count)
         : localize.term("umbriciansFeatureFlags_otherGroups", part.count),
   );
-  return parts.length ? joinList(parts, localize.term("umbriciansFeatureFlags_and")) : localize.term("umbriciansFeatureFlags_nobody");
+  if (counts.defaultPercentage > 0) parts.push(localize.term("umbriciansFeatureFlags_percentOfEveryoneElse", counts.defaultPercentage));
+  if (parts.length === 0) return localize.term("umbriciansFeatureFlags_nobody");
+  const who = joinList(parts, localize.term("umbriciansFeatureFlags_and"));
+  const left = excludedParts(counts).map((part) =>
+    part.kind === "members"
+      ? localize.term("umbriciansFeatureFlags_members", part.count)
+      : localize.term("umbriciansFeatureFlags_groups", part.count),
+  );
+  return left.length ? `${who}, ${localize.term("umbriciansFeatureFlags_except", joinList(left, localize.term("umbriciansFeatureFlags_and")))}` : who;
 }
 
 /** The state's label, as the list and editor show it. */

@@ -90,6 +90,15 @@ export function audienceParts(counts: AudienceCounts | null): Array<{ kind: "mem
     .filter((part) => part.count > 0);
 }
 
+/** The parts of what an audience leaves out that have anyone in them, for "except 1 member and 2 groups". */
+export function excludedParts(counts: AudienceCounts | null): Array<{ kind: "members" | "groups"; count: number }> {
+  if (!counts) return [];
+  return [
+    { kind: "members" as const, count: counts.excludedMembers },
+    { kind: "groups" as const, count: counts.excludedGroups },
+  ].filter((part) => part.count > 0);
+}
+
 /** Joins words as a list in English prose: "a", "a and b", "a, b and c". */
 export function joinList(words: Array<string>, and: string): string {
   if (words.length <= 1) return words.join("");

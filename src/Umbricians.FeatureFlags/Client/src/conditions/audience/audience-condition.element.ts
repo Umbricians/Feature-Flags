@@ -8,17 +8,23 @@ import {
   groupsOfKind,
   hasGroup,
   memberGroupKeys,
+  sideOf,
   toTargetingCondition,
+  withDefaultPercentage,
+  withGroupPercentage,
   withMemberGroupKeys,
   withoutGroup,
   withProviderGroup,
+  withSide,
+  type AudienceSide,
 } from "../../flags/audience.js";
 import { describeAudience } from "../../flags/describe.js";
 import { FEATURE_FLAG_WORKSPACE_CONTEXT } from "../../flags/workspace/flag-workspace.context-token.js";
 import type { UmbriciansFeatureFlagsConditionElement } from "../condition.extension.js";
 
 /**
- * The editor of the audience condition (`Microsoft.Targeting`): members, member groups and groups from group providers.
+ * The editor of the audience condition (`Microsoft.Targeting`): members, member groups and groups from group providers, with a percentage of everyone else and of each group, and
+ * the members and groups left out.
  * It takes the condition's parameters in `value` and, when an editor changes them, sets `value` and fires `change`. What
  * each group is, and the groups the site's providers offer, come from the flag editor's workspace.
  */
@@ -38,13 +44,17 @@ export class AudienceConditionElement extends UmbLitElement implements Umbrician
     super();
     this.consumeContext(FEATURE_FLAG_WORKSPACE_CONTEXT, (context) => {
       if (!context) return;
-      this.observe(context.flag, (flag) => (this._known = flag?.audienceDetail?.groups ?? []), "umbriciansAudienceKnown");
+      this.observe(
+        context.flag,
+        (flag) => (this._known = [...(flag?.audienceDetail?.groups ?? []), ...(flag?.audienceDetail?.excludedGroups ?? [])]),
+        "umbriciansAudienceKnown",
+      );
       this.observe(context.providerGroups, (groups) => (this._providerGroups = groups), "umbriciansAudienceProviderGroups");
     });
   }
 
   get #audience(): FlagAudience {
-    const providerGroups = this._providerGroups.map((group): AudienceGroup => ({ id: group.id, kind: "providerGroup", name: group.name }));
+    const providerGroups = this._providerGroups.map((group): AudienceGroup => ({ id: group.id, kind: "providerGroup", name: group.name, percentage: 100 }));
     return audienceFromParameters(this.value, [...this._known, ...providerGroups]);
   }
 
@@ -55,18 +65,71 @@ export class AudienceConditionElement extends UmbLitElement implements Umbrician
 
   override render() {
     const audience = this.#audience;
+    return html`<p class="summary">
+        ${this.localize.term("umbriciansFeatureFlags_onFor", describeAudience(this.localize, countAudience(audience)))}
+      </p>
+      ${this.#renderPickers(audience, "included")}
+      <umb-property-layout
+        label=${this.localize.term("umbriciansFeatureFlags_audienceDefaultPercentage")}
+        description=${this.localize.term("umbriciansFeatureFlags_audienceDefaultPercentageHelp")}>
+        <div slot="editor">${this.#renderPercentage(audience.defaultPercentage, "umbriciansFeatureFlags_percentOfEveryoneElseUnit", this.localize.term("umbriciansFeatureFlags_audienceDefaultPercentage"), (value) => withDefaultPercentage(this.#audience, value))}</div>
+      </umb-property-layout>
+      ${audience.groups.length
+        ? html`<umb-property-layout
+            label=${this.localize.term("umbriciansFeatureFlags_audienceGroupPercentages")}
+            description=${this.localize.term("umbriciansFeatureFlags_audienceGroupPercentagesHelp")}>
+            <div slot="editor" class="groups">
+              ${audience.groups.map((group) =>
+                this.#renderPercentage(
+                  group.percentage,
+                  "umbriciansFeatureFlags_percentOfThisGroup",
+                  this.localize.term("umbriciansFeatureFlags_groupPercentage", group.name ?? group.id),
+                  (value) => withGroupPercentage(this.#audience, group.id, value),
+                  group.name ?? group.id,
+                ),
+              )}
+            </div>
+          </umb-property-layout>`
+        : nothing}
+      <uui-box headline=${this.localize.term("umbriciansFeatureFlags_audienceExcluded")}>
+        <p class="help">${this.localize.term("umbriciansFeatureFlags_audienceExcludedHelp")}</p>
+        ${this.#renderPickers(audience, "excluded")}
+      </uui-box>`;
+  }
+
+  /** A whole number from 0 to 100 and what it is a percentage of. Typing something that isn't a number changes nothing. */
+  #renderPercentage(value: number, unitTerm: string, label: string, apply: (value: string) => FlagAudience, name?: string) {
+    return html`<div class="percentage">
+      ${name ? html`<span>${name}</span>` : nothing}
+      <uui-input
+        type="number"
+        min="0"
+        max="100"
+        step="1"
+        label=${label}
+        .value=${String(value)}
+        ?readonly=${this.readonly}
+        @change=${(e: Event) => {
+          e.stopPropagation();
+          this.#change(apply((e.target as HTMLInputElement).value));
+        }}></uui-input>
+      <span>${this.localize.term(unitTerm as "umbriciansFeatureFlags_percentOfThisGroup")}</span>
+    </div>`;
+  }
+
+  /** The members, member groups and other groups pickers of one side of the audience: who is in it, or who is left out. */
+  #renderPickers(whole: FlagAudience, side: AudienceSide) {
+    const audience = sideOf(whole, side);
     const selection = (e: Event) => [...(e.target as unknown as { selection: Array<string> }).selection];
     const named = groupsOfKind(audience, "namedMemberGroup");
     const unknown = groupsOfKind(audience, "unknown");
     // The pickers fire their own change events, which stop here: the flag editor hears only this element's.
     const picked = (e: Event, apply: (audience: FlagAudience) => FlagAudience) => {
       e.stopPropagation();
-      this.#change(apply(this.#audience));
+      this.#change(withSide(this.#audience, side, apply(sideOf(this.#audience, side))));
     };
-    return html`<p class="summary">
-        ${this.localize.term("umbriciansFeatureFlags_onFor", describeAudience(this.localize, countAudience(audience)))}
-      </p>
-      <umb-property-layout
+    const edit = (apply: (audience: FlagAudience) => FlagAudience) => this.#change(withSide(this.#audience, side, apply(sideOf(this.#audience, side))));
+    return html`<umb-property-layout
         label=${this.localize.term("umbriciansFeatureFlags_audienceMembers")}
         description=${this.localize.term("umbriciansFeatureFlags_audienceMembersHelp")}>
         <umb-input-member
@@ -84,7 +147,7 @@ export class AudienceConditionElement extends UmbLitElement implements Umbrician
             ?readonly=${this.readonly}
             @change=${(e: Event) => picked(e, (current) => withMemberGroupKeys(current, selection(e)))}></umb-input-member-group>
           ${named.map((group) =>
-            this.#renderKeptGroup(group, this.localize.term("umbriciansFeatureFlags_namedMemberGroup", group.name ?? group.id)),
+            this.#renderKeptGroup(group, this.localize.term("umbriciansFeatureFlags_namedMemberGroup", group.name ?? group.id), edit),
           )}
         </div>
       </umb-property-layout>
@@ -101,13 +164,13 @@ export class AudienceConditionElement extends UmbLitElement implements Umbrician
                     ?disabled=${this.readonly}
                     @change=${(e: Event) => {
                       e.stopPropagation();
-                      this.#change(withProviderGroup(this.#audience, group, (e.target as HTMLInputElement).checked));
+                      edit((current) => withProviderGroup(current, group, (e.target as HTMLInputElement).checked));
                     }}>
                     ${group.name}${group.description ? html` <small>${group.description}</small>` : nothing}
                   </uui-checkbox>`,
                 )}
               </div>
-              ${unknown.map((group) => this.#renderKeptGroup(group, this.localize.term("umbriciansFeatureFlags_unknownGroup", group.id)))}
+              ${unknown.map((group) => this.#renderKeptGroup(group, this.localize.term("umbriciansFeatureFlags_unknownGroup", group.id), edit))}
               ${unknown.length ? html`<small>${this.localize.term("umbriciansFeatureFlags_unknownGroupsHelp")}</small>` : nothing}
             </div>
           </umb-property-layout>`
@@ -115,7 +178,7 @@ export class AudienceConditionElement extends UmbLitElement implements Umbrician
   }
 
   /** A group the pickers can't show, as a tag that stays in the audience until it is removed. */
-  #renderKeptGroup(group: AudienceGroup, label: string) {
+  #renderKeptGroup(group: AudienceGroup, label: string, edit: (apply: (audience: FlagAudience) => FlagAudience) => void) {
     return html`<div class="kept">
       <uui-tag look="secondary">${label}</uui-tag>
       ${this.readonly
@@ -124,7 +187,7 @@ export class AudienceConditionElement extends UmbLitElement implements Umbrician
             compact
             look="secondary"
             label=${this.localize.term("umbriciansFeatureFlags_removeGroup", group.name ?? group.id)}
-            @click=${() => this.#change(withoutGroup(this.#audience, group.id))}>
+            @click=${() => edit((current) => withoutGroup(current, group.id))}>
             <uui-icon name="icon-wrong"></uui-icon>
           </uui-button>`}
     </div>`;
@@ -146,6 +209,17 @@ export class AudienceConditionElement extends UmbLitElement implements Umbrician
       display: flex;
       flex-direction: column;
       gap: var(--uui-size-space-2);
+    }
+    .help {
+      margin-top: 0;
+    }
+    .percentage {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-2);
+    }
+    uui-input[type="number"] {
+      width: 6em;
     }
     .kept {
       display: flex;
