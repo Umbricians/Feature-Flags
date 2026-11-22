@@ -187,6 +187,8 @@ public class ConditionTests
         var problem = (Microsoft.AspNetCore.Mvc.ProblemDetails)conflict.Value!;
         Assert.That(problem.Extensions["problems"], Is.EqualTo(new[] { "Culture: Choose at least one culture." }));
         Assert.That(problem.Detail, Does.Contain("Choose at least one culture"));
+        // The backoffice's HTTP client only passes a problem's detail on when it has a type.
+        Assert.That(problem.Type, Is.EqualTo("Error"));
     }
 
     private static ManageFlagsController Manager(TestSite site) => new(
