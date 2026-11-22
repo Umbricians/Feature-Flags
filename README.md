@@ -31,6 +31,7 @@ the members it is on for.
   knows it.
 - **[Extending the backoffice](docs/backoffice.md#extending-the-backoffice)**: the entity types, aliases, flag
   workspace context and entity actions the backoffice promises developers, and the `@umbricians/feature-flags` types.
+- **[Calling the API from scripts](docs/api.md)**: the Management API, signed in as an API user.
 - **[Notifications](docs/notifications.md)**: react to, or refuse, a change to a flag's override; audit and
   permission examples.
 - **[Headless front ends](docs/headless.md)**: tell a front end that Umbraco doesn't render which public flags are on
@@ -146,6 +147,9 @@ builder.AddFeatureFlags(flags => flags
 | `IFeatureFlagCondition` | Tell the backoffice about a feature filter of your own: validate its parameters and summarise it for the list. Register with `AddCondition<T>()`. See [Conditions](docs/conditions.md). |
 | `IFeatureFlagService` | Read flags and change their overrides from code, with the backoffice's rules and no permission checks. Change overrides through this; see [Changing flags from code](docs/declaring-flags.md#changing-flags-from-code). |
 | `IFeatureFlagOverrideStore` | Keep editors' settings somewhere other than the Umbraco database. Register your own and it replaces the package's. Only for where they are kept: change them through `IFeatureFlagService`, because writing to the store skips the rules and the refresh on other servers. |
+| `FeatureFlagOverrideSavingNotification` and its three siblings | Refuse or react to a change to a flag's override, such as for an audit trail. See [Notifications](docs/notifications.md). |
+| `MakePublic(...)` on the builder | Mark flags public, whichever flag source declares them, so the [headless endpoint](docs/headless.md) serves them. |
+| Backoffice extensions (`umbriciansFeatureFlagsCondition`, entity actions for the flag entity type, the flag workspace context) | Edit your own condition in the backoffice, add actions to a flag, or read the flag being edited. See [Extending the backoffice](docs/backoffice.md#extending-the-backoffice). |
 | `IFeatureDefinitionProvider` (Microsoft's) | Use your own flag source. Register it before Umbraco is added and Feature Flags puts editors' settings in front of it. |
 
 ## API

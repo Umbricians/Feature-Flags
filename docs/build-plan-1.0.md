@@ -3,6 +3,8 @@
 How [spec-1.0.md](spec-1.0.md) is built: twelve slices, one stacked PR each, every branch cut from the one before.
 Delete this file when 1.0 ships.
 
+**Status:** all twelve slices are built, and a polish pass followed.
+
 **Every slice leaves the solution green:**
 
 - 0 build warnings (CS1591 is an error);

@@ -91,7 +91,7 @@ Each flag can have:
 
 `MakePublic("Checkout.ExpressPay", "DarkMode")` on the builder marks flags public whichever flag source declares them,
 such as a site's own `IFeatureDefinitionProvider`. Names are compared without regard to case. A flag is public when any
-of these says so, so `MakePublic` wins over a flag that says `"public": false` in configuration. Nothing is exposed to visitors yet; this only records the choice.
+of these says so, so `MakePublic` wins over a flag that says `"public": false` in configuration. Only public flags are served by the [headless endpoint](headless.md).
 
 Microsoft ignores these fields, so they are harmless. Naming flags `Area.Feature`, such as `Checkout.ExpressPay`,
 puts them in sections with nothing more to write. On a site with many flags, the list's search, filters and paging keep them
