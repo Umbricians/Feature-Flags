@@ -167,8 +167,19 @@ test("a condition with no editor blocks saving unless the flag goes on for every
 });
 
 test("editors are found the way Microsoft finds filters: ignoring case and by short name", () => {
-  const loaded = loadEditor(flag({ conditions: [{ name: "targeting", parameters: {} }, { name: "CULTURE", parameters: {} }] }));
+  const loaded = loadEditor(flag({ conditions: [{ name: "targeting", parameters: { Audience: { Users: ["m1"] } } }, { name: "CULTURE", parameters: {} }] }));
   assert.equal(saveBlocker(setMatch(loaded, "all"), editors), null);
+});
+
+test("an audience that names nobody is blocked, unless it gives a percentage of everyone", () => {
+  const nobody = setMode(loadEditor(flag({ enabled: false })), "conditions");
+  const added = addCondition(nobody, "Microsoft.Targeting");
+  assert.deepEqual(saveBlocker(added, ["Microsoft.Targeting"]), { kind: "nobody" });
+  const ten = setConditionParameters(added, 0, { Audience: { DefaultRolloutPercentage: 10 } });
+  assert.equal(saveBlocker(ten, ["Microsoft.Targeting"]), null);
+  const member = setConditionParameters(added, 0, { Audience: { Users: ["m1"] } });
+  assert.equal(saveBlocker(member, ["Microsoft.Targeting"]), null);
+  assert.equal(saveBlocker(setMode(added, "off"), ["Microsoft.Targeting"]), null);
 });
 
 test("on with conditions and none added is blocked", () => {

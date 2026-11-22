@@ -6,6 +6,7 @@ import { UmbArrayState, UmbBooleanState, UmbObjectState } from "@umbraco-cms/bac
 import { umbExtensionsRegistry } from "@umbraco-cms/backoffice/extension-registry";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import { umbConfirmModal } from "@umbraco-cms/backoffice/modal";
+import { UmbViewContext } from "@umbraco-cms/backoffice/view";
 import {
   UMB_WORKSPACE_CONTEXT,
   UmbWorkspaceRouteManager,
@@ -105,6 +106,8 @@ export class FeatureFlagWorkspaceContext extends UmbContextBase implements UmbRo
   readonly canManage = this.#canManage.asObservable();
 
   #name?: string;
+  /** Gives the browser tab the flag's name, rather than the name of the Settings tab twice. */
+  #view = new UmbViewContext(this, null);
   #localize = new UmbLocalizationController(this);
   #notifications?: typeof UMB_NOTIFICATION_CONTEXT.TYPE;
 
@@ -144,6 +147,7 @@ export class FeatureFlagWorkspaceContext extends UmbContextBase implements UmbRo
     if (!name) return;
     this.#name = name;
     this.#entity.setUnique(flagEntity(name).unique);
+    this.#view.setTitle(name);
     this.#loading.setValue(true);
     try {
       const [flag, providerGroups, registered] = await Promise.all([

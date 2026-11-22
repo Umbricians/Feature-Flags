@@ -84,6 +84,25 @@ export class FeatureFlagsTableViewElement extends UmbCollectionViewElementBase<F
       :host {
         display: block;
       }
+      /* Fixed columns, so a row that gains notes doesn't move the others. The first takes what is left. */
+      uui-table {
+        table-layout: fixed;
+      }
+      uui-table-head-cell:nth-child(2) {
+        width: 20%;
+      }
+      uui-table-head-cell:nth-child(3) {
+        width: 7em;
+      }
+      uui-table-head-cell:nth-child(4) {
+        width: 18%;
+      }
+      uui-table-head-cell:nth-child(5) {
+        width: 14%;
+      }
+      uui-table-head-cell:nth-child(6) {
+        width: 5em;
+      }
       uui-table-row.section uui-table-cell {
         font-weight: bold;
         background: var(--uui-color-surface-alt);
