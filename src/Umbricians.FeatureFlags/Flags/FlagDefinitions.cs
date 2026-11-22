@@ -17,15 +17,15 @@ namespace Umbricians.FeatureFlags.Flags;
 /// </remarks>
 internal static class FlagDefinitions
 {
-    public const string TargetingFilter = "Microsoft.Targeting";
-    private const string TargetingFilterShortName = "Targeting";
+    public const string TargetingFilter = FlagSettings.TargetingName;
     private const string AlwaysOnFilter = "AlwaysOn";
     private const string OnFilter = "On";
     private const string VariantsReason = "It has variants, which the backoffice can't edit yet.";
 
     /// <summary>
-    /// The settings a definition amounts to, or null with the reason when it uses more than the backoffice can edit:
-    /// any filter but one targeting filter, a targeting filter with percentages or exclusions, or variants.
+    /// The settings a definition amounts to, with every filter read as a condition. The reason is set when the backoffice
+    /// can't edit them: anything but no conditions or one targeting filter with members and groups. Null settings, with
+    /// the reason, for variants.
     /// </summary>
     public static FlagSettings? ToSettings(FeatureDefinition definition, out string? notEditableReason)
     {
@@ -46,50 +46,65 @@ internal static class FlagDefinitions
 
         if (filters.Length == 1 && IsAlwaysOn(filters[0].Name))
         {
-            return new FlagSettings(enabled, null);
+            return new FlagSettings(enabled, []);
         }
 
-        return FromFilters(enabled, filters.Select(filter => filter.Name).ToArray(), () => filters[0].Parameters, out notEditableReason);
+        var settings = new FlagSettings(
+            enabled,
+            filters.Select(filter => new FlagCondition(filter.Name ?? "", ToJson(filter.Parameters) as JsonObject ?? new JsonObject())).ToArray(),
+            definition.RequirementType == RequirementType.All ? ConditionMatch.All : ConditionMatch.Any);
+        notEditableReason = NotEditableReason(settings);
+        return settings;
     }
 
     /// <summary>
     /// The settings stored override JSON amounts to, read from the JSON itself: Microsoft drops the conditions of a
-    /// flag that isn't enabled, which would lose the audience an editor switched off. Null, with the reason, for JSON
-    /// that uses more than the backoffice can edit or can't be read.
+    /// flag that isn't enabled, which would lose the audience an editor switched off. Every filter is kept as stored.
+    /// Null, with the reason, for JSON that has variants or can't be read.
     /// </summary>
     public static FlagSettings? ReadOverride(string json, out string? notEditableReason)
     {
         notEditableReason = null;
-        IConfiguration flag;
+        JsonObject flag;
         try
         {
-            if (JsonNode.Parse(json) is not JsonObject)
-            {
-                throw new JsonException("The definition is not a JSON object.");
-            }
-
-            flag = new ConfigurationBuilder().AddJsonStream(new MemoryStream(Encoding.UTF8.GetBytes(json))).Build();
+            flag = JsonNode.Parse(json) as JsonObject ?? throw new JsonException("The definition is not a JSON object.");
         }
-        catch (Exception exception) when (exception is JsonException or FormatException or InvalidDataException)
+        catch (JsonException)
         {
             notEditableReason = "Its saved setting can't be read.";
             return null;
         }
 
-        if (flag.GetSection("variants").GetChildren().Any() || flag.GetSection("allocation").Exists())
+        if (Property(flag, "variants") is JsonArray { Count: > 0 } || Property(flag, "allocation") is not null)
         {
             notEditableReason = VariantsReason;
             return null;
         }
 
-        bool enabled = bool.TryParse(flag["enabled"], out bool value) && value;
-        IConfigurationSection[] filters = flag.GetSection("conditions:client_filters").GetChildren().ToArray();
-        if (filters.Length == 0)
+        bool enabled = Property(flag, "enabled") is JsonValue flagged
+            && (flagged.TryGetValue(out bool on) ? on : flagged.TryGetValue(out string? text) && bool.TryParse(text, out on) && on);
+
+        var conditions = new List<FlagCondition>();
+        JsonObject? block = Property(flag, "conditions") as JsonObject;
+        if (Property(block, "client_filters") is JsonArray filters)
         {
-            return new FlagSettings(enabled, null);
+            foreach (JsonObject filter in filters.OfType<JsonObject>())
+            {
+                string name = Property(filter, "name") is JsonValue nameValue && nameValue.TryGetValue(out string? n) ? n : "";
+                conditions.Add(new FlagCondition(name, (Property(filter, "parameters") as JsonObject)?.DeepClone() as JsonObject ?? new JsonObject()));
+            }
         }
 
-        return FromFilters(enabled, filters.Select(filter => filter["name"]).ToArray(), () => filters[0].GetSection("parameters"), out notEditableReason);
+        ConditionMatch match = Property(block, "requirement_type") is JsonValue requirement
+            && requirement.TryGetValue(out string? type)
+            && string.Equals(type, "All", StringComparison.OrdinalIgnoreCase)
+                ? ConditionMatch.All
+                : ConditionMatch.Any;
+
+        var settings = new FlagSettings(enabled, conditions, match);
+        notEditableReason = NotEditableReason(settings);
+        return settings;
     }
 
     /// <summary>A flag's settings as Microsoft's <c>feature_management</c> JSON, for storing as an override.</summary>
@@ -101,33 +116,25 @@ internal static class FlagDefinitions
             ["enabled"] = settings.Enabled,
         };
 
-        // With no audience the flag has no conditions, which Microsoft's schema reads as on for everyone when enabled.
-        if (settings.Audience is not null)
+        // With no conditions the flag has none to write, which Microsoft's schema reads as on for everyone when enabled.
+        if (settings.Conditions.Count > 0)
         {
-            var groups = new JsonArray();
-            foreach (string group in settings.Audience.Groups)
+            var filters = new JsonArray();
+            foreach (FlagCondition condition in settings.Conditions)
             {
-                groups.Add(new JsonObject { ["Name"] = group, ["RolloutPercentage"] = 100 });
+                var filter = new JsonObject { ["name"] = condition.Name };
+                if (condition.Parameters.Count > 0)
+                {
+                    filter["parameters"] = condition.Parameters.DeepClone();
+                }
+
+                filters.Add(filter);
             }
 
             flag["conditions"] = new JsonObject
             {
-                ["client_filters"] = new JsonArray
-                {
-                    new JsonObject
-                    {
-                        ["name"] = TargetingFilter,
-                        ["parameters"] = new JsonObject
-                        {
-                            ["Audience"] = new JsonObject
-                            {
-                                ["Users"] = new JsonArray(settings.Audience.Members.Select(m => (JsonNode?)m).ToArray()),
-                                ["Groups"] = groups,
-                                ["DefaultRolloutPercentage"] = 0,
-                            },
-                        },
-                    },
-                },
+                ["requirement_type"] = settings.Match == ConditionMatch.All ? "All" : "Any",
+                ["client_filters"] = filters,
             };
         }
 
@@ -199,74 +206,69 @@ internal static class FlagDefinitions
         string.Equals(name, AlwaysOnFilter, StringComparison.OrdinalIgnoreCase)
         || string.Equals(name, OnFilter, StringComparison.OrdinalIgnoreCase);
 
-    private static bool IsTargeting(string? name) =>
-        string.Equals(name, TargetingFilter, StringComparison.OrdinalIgnoreCase)
-        || string.Equals(name, TargetingFilterShortName, StringComparison.OrdinalIgnoreCase);
+    /// <summary>
+    /// Why the backoffice can't edit these settings, or null when it can: no conditions, or one targeting condition with
+    /// only members and groups.
+    /// </summary>
+    private static string? NotEditableReason(FlagSettings settings)
+    {
+        if (settings.Conditions.Count == 0)
+        {
+            return null;
+        }
+
+        if (settings.Conditions.Count > 1)
+        {
+            return "It combines several filters, which the backoffice can't edit yet.";
+        }
+
+        FlagCondition condition = settings.Conditions[0];
+        if (!FlagSettings.IsTargeting(condition.Name))
+        {
+            return $"It uses the '{condition.Name}' filter, which the backoffice can't edit yet.";
+        }
+
+        FlagAudience.TryRead(condition.Parameters, out string? reason);
+        return reason;
+    }
+
+    private static JsonNode? Property(JsonObject? parent, string name) =>
+        parent?.FirstOrDefault(property => string.Equals(property.Key, name, StringComparison.OrdinalIgnoreCase)).Value;
 
     /// <summary>
-    /// The settings for a flag whose only filter is targeting, read from its parameters; otherwise null, with the reason.
-    /// Off and on-for-everyone are worked out before this, since a definition and stored JSON spell them differently.
+    /// Configuration as JSON: a section with numbered children is an array, one with named children an object, and a
+    /// value is a number or true or false when it reads as one, since configuration holds everything as text.
     /// </summary>
-    private static FlagSettings? FromFilters(bool enabled, string?[] filterNames, Func<IConfiguration?> targetingParameters, out string? notEditableReason)
+    private static JsonNode? ToJson(IConfiguration? configuration)
     {
-        if (filterNames.Length == 1 && IsTargeting(filterNames[0]))
+        if (configuration is null)
         {
-            FlagAudience? audience = ReadAudience(targetingParameters(), out notEditableReason);
-            return audience is null ? null : new FlagSettings(enabled, audience);
-        }
-
-        notEditableReason = filterNames.Length == 1
-            ? $"It uses the '{filterNames[0]}' filter, which the backoffice can't edit yet."
-            : "It combines several filters, which the backoffice can't edit yet.";
-        return null;
-    }
-
-    private static FlagAudience? ReadAudience(IConfiguration? parameters, out string? notEditableReason)
-    {
-        notEditableReason = null;
-        IConfigurationSection audience = parameters?.GetSection("Audience") ?? EmptySection();
-
-        if (Percentage(audience["DefaultRolloutPercentage"]) is not (null or 0))
-        {
-            notEditableReason = "It is on for a percentage of everyone, which the backoffice can't edit yet.";
             return null;
         }
 
-        IConfigurationSection exclusion = audience.GetSection("Exclusion");
-        if (exclusion.GetSection("Users").GetChildren().Any() || exclusion.GetSection("Groups").GetChildren().Any())
+        IConfigurationSection[] children = configuration.GetChildren().ToArray();
+        if (children.Length == 0)
         {
-            notEditableReason = "It excludes members or groups, which the backoffice can't edit yet.";
-            return null;
+            return configuration is IConfigurationSection { Value: { } value } ? Scalar(value) : null;
         }
 
-        var groups = new List<string>();
-        foreach (IConfigurationSection group in audience.GetSection("Groups").GetChildren())
+        if (children.Select((child, index) => child.Key == index.ToString(System.Globalization.CultureInfo.InvariantCulture)).All(isIndex => isIndex))
         {
-            if (Percentage(group["RolloutPercentage"]) is not (null or 100))
-            {
-                notEditableReason = "It is on for a percentage of a group, which the backoffice can't edit yet.";
-                return null;
-            }
-
-            if (!string.IsNullOrWhiteSpace(group["Name"]))
-            {
-                groups.Add(group["Name"]!);
-            }
+            return new JsonArray(children.Select(child => ToJson(child)).ToArray());
         }
 
-        string[] members = audience.GetSection("Users").GetChildren()
-            .Select(user => user.Value)
-            .Where(value => !string.IsNullOrWhiteSpace(value))
-            .Select(value => value!)
-            .ToArray();
+        var result = new JsonObject();
+        foreach (IConfigurationSection child in children)
+        {
+            result[child.Key] = ToJson(child);
+        }
 
-        return new FlagAudience(members, groups);
+        return result;
     }
 
-    private static double? Percentage(string? value) =>
-        double.TryParse(value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double number)
-            ? number
-            : null;
-
-    private static IConfigurationSection EmptySection() => new ConfigurationBuilder().Build().GetSection("Audience");
+    private static JsonNode Scalar(string value) =>
+        bool.TryParse(value, out bool boolean) ? JsonValue.Create(boolean)
+        : long.TryParse(value, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out long integer) ? JsonValue.Create(integer)
+        : double.TryParse(value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double number) ? JsonValue.Create(number)
+        : JsonValue.Create(value)!;
 }

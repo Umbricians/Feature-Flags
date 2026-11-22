@@ -87,7 +87,7 @@ public class FlagApiTests
     public async Task A_flag_says_what_each_of_its_groups_is()
     {
         TestSite site = Site();
-        site.Store.With("Checkout", new FlagSettings(true, AnAudience()));
+        site.Store.With("Checkout", FlagSettings.ForAudience(true, AnAudience()));
         site.Refresh();
 
         FlagResponseModel flag = await GetFlagAsync(Controller(site), "Checkout");
@@ -141,7 +141,7 @@ public class FlagApiTests
     public async Task The_list_counts_audiences_and_names_who_changed_each_flag()
     {
         TestSite site = Site();
-        await site.Store.SaveAsync(new FeatureFlagOverride("Checkout", FlagDefinitions.ToJson("Checkout", new FlagSettings(true, AnAudience())), Editor, new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)), default);
+        await site.Store.SaveAsync(new FeatureFlagOverride("Checkout", FlagDefinitions.ToJson("Checkout", FlagSettings.ForAudience(true, AnAudience())), Editor, new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)), default);
         site.Refresh();
 
         var page = (PagedViewModel<FlagListItemResponseModel>)((OkObjectResult)await Controller(site).Flags(cancellationToken: default)).Value!;

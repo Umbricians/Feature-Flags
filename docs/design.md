@@ -146,6 +146,10 @@ variant values and filters the backoffice doesn't know. So the backoffice only e
 understands (off, on for everyone, on for an audience of users and groups at 100%), and writes their JSON itself.
 Any other flag is **Custom** and read-only, so nothing is ever rebuilt from a lossy copy.
 
+A flag's settings are whether it is on, and its conditions: Microsoft's filters (`conditions.client_filters`), with
+`requirement_type` saying whether any or all of them must hold. An audience is one targeting condition; the backoffice
+reads and writes every filter, keeping the parameters of those it doesn't edit exactly as stored.
+
 Microsoft's parser drops a disabled flag's conditions, so a flag switched off would lose its audience. The backoffice
 reads its own overrides' JSON directly, so turning a flag off keeps who it was for.
 

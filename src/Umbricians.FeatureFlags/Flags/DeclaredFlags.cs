@@ -7,13 +7,13 @@ namespace Umbricians.FeatureFlags.Flags;
 internal sealed record CodeFlagDeclaration(FeatureDefinition Definition, FlagDetails Details);
 
 /// <summary>What helps editors find and understand a flag. Microsoft has no place for these.</summary>
-internal sealed record FlagDetails(string? Description, string? Section, IReadOnlyList<string> Tags)
+internal sealed record FlagDetails(string? Description, string? Section, IReadOnlyList<string> Tags, bool IsPublic = false)
 {
     public static FlagDetails None { get; } = new(null, null, []);
 
     /// <summary>Each detail from this, or from <paramref name="fallback"/> where this has none.</summary>
     public FlagDetails Or(FlagDetails fallback) =>
-        new(Description ?? fallback.Description, Section ?? fallback.Section, Tags.Count > 0 ? Tags : fallback.Tags);
+        new(Description ?? fallback.Description, Section ?? fallback.Section, Tags.Count > 0 ? Tags : fallback.Tags, IsPublic || fallback.IsPublic);
 
     /// <summary>These details, with the section taken from the flag's name when none was given.</summary>
     public FlagDetails ForFlag(string name) => Section is null ? this with { Section = SectionFromName(name) } : this;
@@ -48,6 +48,17 @@ internal sealed class FlagSource(IFeatureDefinitionProvider inner)
         inner is ConfigurationFeatureDefinitionProvider ? FlagDeclaredIn.Configuration : FlagDeclaredIn.FlagSource;
 }
 
+/// <summary>Flags marked public with <c>MakePublic</c>, whichever flag source declares them.</summary>
+internal sealed record PublicFlagNames(IReadOnlyList<string> Names);
+
+/// <summary>The names of flags marked public with <c>MakePublic</c>, compared the way Microsoft compares flag names.</summary>
+internal sealed class PublicFlags(IEnumerable<PublicFlagNames> marked)
+{
+    private readonly HashSet<string> _names = new(marked.SelectMany(m => m.Names), StringComparer.OrdinalIgnoreCase);
+
+    public bool Contains(string name) => _names.Contains(name);
+}
+
 /// <summary>The flags declared in code, by name.</summary>
 internal sealed class CodeFlags
 {
@@ -68,7 +79,7 @@ internal sealed class CodeFlags
 }
 
 /// <summary>
-/// Reads a flag's description, section and tags from configuration, from fields Microsoft ignores: in the
+/// Reads a flag's description, section, tags and whether it is public from configuration, from fields Microsoft ignores: in the
 /// <c>feature_management:feature_flags</c> list, or in a flag's section under <c>FeatureManagement</c>.
 /// </summary>
 internal sealed class ConfigurationFlagDetails(IConfiguration configuration)
@@ -100,19 +111,20 @@ internal sealed class ConfigurationFlagDetails(IConfiguration configuration)
         {
             if (string.Equals(flag["id"], name, StringComparison.OrdinalIgnoreCase))
             {
-                return Read(flag, "description", "section", "tags");
+                return Read(flag, "description", "section", "tags", "public");
             }
         }
 
         IConfigurationSection section = configuration.GetSection("FeatureManagement").GetSection(name);
-        return section.Exists() ? Read(section, "Description", "Section", "Tags") : FlagDetails.None;
+        return section.Exists() ? Read(section, "Description", "Section", "Tags", "Public") : FlagDetails.None;
     }
 
-    private static FlagDetails Read(IConfigurationSection flag, string description, string section, string tags) =>
+    private static FlagDetails Read(IConfigurationSection flag, string description, string section, string tags, string isPublic) =>
         new(
             NullIfBlank(flag[description]),
             NullIfBlank(flag[section]),
-            flag.GetSection(tags).GetChildren().Select(tag => tag.Value).OfType<string>().Where(tag => tag.Length > 0).ToArray());
+            flag.GetSection(tags).GetChildren().Select(tag => tag.Value).OfType<string>().Where(tag => tag.Length > 0).ToArray(),
+            bool.TryParse(flag[isPublic], out bool value) && value);
 
     private static string? NullIfBlank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

@@ -71,7 +71,7 @@ internal sealed class OverrideService
 
         FlagSettings normalized = settings.Audience is null
             ? settings
-            : settings with { Audience = (await _groups.ReadAsync(cancellationToken)).Normalize(settings.Audience) };
+            : FlagSettings.ForAudience(settings.Enabled, (await _groups.ReadAsync(cancellationToken)).Normalize(settings.Audience));
         await _store.SaveAsync(
             new FeatureFlagOverride(flag.Name, FlagDefinitions.ToJson(flag.Name, normalized), userKey, _time.GetUtcNow().UtcDateTime),
             cancellationToken);
@@ -131,7 +131,7 @@ internal sealed class OverrideService
             }
 
             await _store.SaveAsync(
-                saved with { Definition = FlagDefinitions.ToJson(saved.FlagName, settings with { Audience = audience }) },
+                saved with { Definition = FlagDefinitions.ToJson(saved.FlagName, FlagSettings.ForAudience(settings.Enabled, audience)) },
                 cancellationToken);
             changed = true;
         }

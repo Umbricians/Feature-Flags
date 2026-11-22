@@ -24,7 +24,7 @@ public class OverrideServiceTests
         var site = new TestSite(Flags);
         await site.IsOnAsync("Checkout.NewFlow");
 
-        OverrideResult result = await Service(site).SaveAsync("checkout.newflow", new FlagSettings(true, null), Editor, default);
+        OverrideResult result = await Service(site).SaveAsync("checkout.newflow", FlagSettings.ForAudience(true, null), Editor, default);
 
         Assert.That(result.Outcome, Is.EqualTo(OverrideOutcome.Saved));
         Assert.That(await site.IsOnAsync("Checkout.NewFlow"), Is.True);
@@ -37,7 +37,7 @@ public class OverrideServiceTests
     {
         var site = new TestSite(Flags);
 
-        await Service(site).SaveAsync("Checkout.NewFlow", new FlagSettings(true, new FlagAudience([Member, Member, " "], [Group])), Editor, default);
+        await Service(site).SaveAsync("Checkout.NewFlow", FlagSettings.ForAudience(true, new FlagAudience([Member, Member, " "], [Group])), Editor, default);
         site.Visitor.SignIn(Member.ToLowerInvariant());
 
         Assert.That(await site.IsOnAsync("Checkout.NewFlow"), Is.True);
@@ -52,7 +52,7 @@ public class OverrideServiceTests
         var site = new TestSite(Flags, before: services => services.AddSingleton<IFeatureFlagGroupProvider>(new TestProvider(providerId)));
         site.MemberGroups.Add(Guid.Parse(Group), "Premium members");
 
-        await Service(site).SaveAsync("Checkout.NewFlow", new FlagSettings(true, new FlagAudience([], [Group.ToUpperInvariant(), providerId])), Editor, default);
+        await Service(site).SaveAsync("Checkout.NewFlow", FlagSettings.ForAudience(true, new FlagAudience([], [Group.ToUpperInvariant(), providerId])), Editor, default);
 
         Assert.That(FlagDefinitions.ReadOverride(site.Store.All.Single().Definition, out _)!.Audience!.Groups, Is.EqualTo(new[] { Group, providerId }));
     }
@@ -63,7 +63,7 @@ public class OverrideServiceTests
         var site = new TestSite(Flags);
         site.MemberGroups.Add(Guid.NewGuid(), "VIPs");
 
-        await Service(site).SaveAsync("Checkout.NewFlow", new FlagSettings(true, new FlagAudience([], ["VIPs", "crm:gone", Group.ToUpperInvariant()])), Editor, default);
+        await Service(site).SaveAsync("Checkout.NewFlow", FlagSettings.ForAudience(true, new FlagAudience([], ["VIPs", "crm:gone", Group.ToUpperInvariant()])), Editor, default);
 
         Assert.That(FlagDefinitions.ReadOverride(site.Store.All.Single().Definition, out _)!.Audience!.Groups,
             Is.EqualTo(new[] { "VIPs", "crm:gone", Group.ToUpperInvariant() }));
@@ -81,7 +81,7 @@ public class OverrideServiceTests
     {
         var site = new TestSite(Flags);
         OverrideService service = Service(site);
-        await service.SaveAsync("Checkout.NewFlow", new FlagSettings(true, new FlagAudience([Member], [])), Editor, default);
+        await service.SaveAsync("Checkout.NewFlow", FlagSettings.ForAudience(true, new FlagAudience([Member], [])), Editor, default);
 
         await service.SetEnabledAsync("Checkout.NewFlow", false, Editor, default);
         site.Visitor.SignIn(Member.ToLowerInvariant());
@@ -96,7 +96,7 @@ public class OverrideServiceTests
     {
         var site = new TestSite(Flags);
         OverrideService service = Service(site);
-        await service.SaveAsync("Checkout.NewFlow", new FlagSettings(true, null), Editor, default);
+        await service.SaveAsync("Checkout.NewFlow", FlagSettings.ForAudience(true, null), Editor, default);
 
         await service.ResetAsync("Checkout.NewFlow", default);
 
@@ -131,10 +131,10 @@ public class OverrideServiceTests
             { "Umbricians": { "FeatureFlags": { "Overrides": "ReadOnly" } },
               "feature_management": { "feature_flags": [ { "id": "Checkout.NewFlow", "enabled": false } ] } }
             """);
-        site.Store.With("Checkout.NewFlow", new FlagSettings(true, null));
+        site.Store.With("Checkout.NewFlow", FlagSettings.ForAudience(true, null));
         OverrideService service = Service(site);
 
-        OverrideResult save = await service.SaveAsync("Checkout.NewFlow", new FlagSettings(true, null), Editor, default);
+        OverrideResult save = await service.SaveAsync("Checkout.NewFlow", FlagSettings.ForAudience(true, null), Editor, default);
         OverrideResult reset = await service.ResetAsync("Checkout.NewFlow", default);
 
         Assert.That((save.Outcome, reset.Outcome), Is.EqualTo((OverrideOutcome.ReadOnly, OverrideOutcome.ReadOnly)));
@@ -149,7 +149,7 @@ public class OverrideServiceTests
             { "Umbricians": { "FeatureFlags": { "Overrides": "ReadOnly" } },
               "feature_management": { "feature_flags": [ { "id": "Checkout.NewFlow", "enabled": false } ] } }
             """);
-        site.Store.With("Promo.Removed", new FlagSettings(true, null));
+        site.Store.With("Promo.Removed", FlagSettings.ForAudience(true, null));
 
         OverrideResult remove = await Service(site).ResetAsync("Promo.Removed", default);
 
@@ -186,7 +186,7 @@ public class OverrideServiceTests
     public async Task A_flag_nobody_declares_can_not_be_saved_but_its_setting_can_be_removed()
     {
         var site = new TestSite(Flags);
-        site.Store.With("Promo.Removed", new FlagSettings(true, null));
+        site.Store.With("Promo.Removed", FlagSettings.ForAudience(true, null));
         OverrideService service = Service(site);
 
         OverrideResult save = await service.SaveAsync("Promo.Removed", FlagSettings.Off, Editor, default);
@@ -202,7 +202,7 @@ public class OverrideServiceTests
         var site = new TestSite(Flags);
         OverrideService service = Service(site);
         string member = Member.ToLowerInvariant();
-        await service.SaveAsync("Checkout.NewFlow", new FlagSettings(true, new FlagAudience([member], [])), Editor, default);
+        await service.SaveAsync("Checkout.NewFlow", FlagSettings.ForAudience(true, new FlagAudience([member], [])), Editor, default);
 
         await service.RemoveFromAudiencesAsync([member], default);
         site.Visitor.SignIn(member);
@@ -220,7 +220,7 @@ public class OverrideServiceTests
     {
         var site = new TestSite(Flags);
         OverrideService service = Service(site);
-        await service.SaveAsync("Checkout.NewFlow", new FlagSettings(true, new FlagAudience([], [Group, "crm:premium"])), Editor, default);
+        await service.SaveAsync("Checkout.NewFlow", FlagSettings.ForAudience(true, new FlagAudience([], [Group, "crm:premium"])), Editor, default);
 
         await service.RemoveFromAudiencesAsync([Group], default);
 

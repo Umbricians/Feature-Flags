@@ -15,7 +15,7 @@ public class OverrideServiceTests : IntegrationTest
     {
         Assert.That(await IsEnabledAsync("Tests.Off"), Is.False);
 
-        Assert.That((await Service.SaveAsync("Tests.Off", new FlagSettings(true, null), null, default)).Outcome, Is.EqualTo(OverrideOutcome.Saved));
+        Assert.That((await Service.SaveAsync("Tests.Off", FlagSettings.ForAudience(true, null), null, default)).Outcome, Is.EqualTo(OverrideOutcome.Saved));
         Assert.That(await IsEnabledAsync("Tests.Off"), Is.True);
         Assert.That(await IsEnabledAsync("Tests.Off", variants: true), Is.True);
 
@@ -64,7 +64,7 @@ public class OverrideServiceTests : IntegrationTest
     [Test]
     public async Task A_flag_nobody_declared_cannot_be_saved()
     {
-        Assert.That((await Service.SaveAsync("Tests.Nobody", new FlagSettings(true, null), null, default)).Outcome, Is.EqualTo(OverrideOutcome.NotFound));
+        Assert.That((await Service.SaveAsync("Tests.Nobody", FlagSettings.ForAudience(true, null), null, default)).Outcome, Is.EqualTo(OverrideOutcome.NotFound));
     }
 
     private async Task<bool> IsEnabledAsync(string flagName, bool variants = false)

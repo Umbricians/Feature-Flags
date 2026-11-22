@@ -13,7 +13,7 @@ public class FlagResolutionTests
     public async Task An_override_applies_to_a_declared_flag()
     {
         var site = new TestSite(DeclaredOff);
-        site.Store.With("F", new FlagSettings(true, null));
+        site.Store.With("F", FlagSettings.ForAudience(true, null));
 
         ResolvedFlag? flag = await Resolution(site).FindAsync("F");
 
@@ -30,7 +30,7 @@ public class FlagResolutionTests
             { "Umbricians": { "FeatureFlags": { "Overrides": "ReadOnly" } },
               "feature_management": { "feature_flags": [ { "id": "F", "enabled": false } ] } }
             """);
-        site.Store.With("F", new FlagSettings(true, null));
+        site.Store.With("F", FlagSettings.ForAudience(true, null));
 
         ResolvedFlag flag = (await Resolution(site).FindAsync("F"))!;
         ResolvedFlag listed = (await Resolution(site).GetAllAsync(default)).Flags.Single();
@@ -87,7 +87,7 @@ public class FlagResolutionTests
     public async Task An_override_saved_under_another_spelling_applies_without_changing_the_cached_definition()
     {
         var site = new TestSite("""{ "feature_management": { "feature_flags": [ { "id": "Checkout.NewFlow", "enabled": false } ] } }""");
-        site.Store.WithJson("checkout.newflow", FlagDefinitions.ToJson("checkout.newflow", new FlagSettings(true, null)));
+        site.Store.WithJson("checkout.newflow", FlagDefinitions.ToJson("checkout.newflow", FlagSettings.ForAudience(true, null)));
 
         ResolvedFlag flag = (await Resolution(site).FindAsync("Checkout.NewFlow"))!;
         ResolvedFlag listed = (await Resolution(site).GetAllAsync(default)).Flags.Single();
@@ -178,7 +178,7 @@ public class FlagResolutionTests
     public async Task Microsoft_lists_each_declared_flag_with_what_applies_now()
     {
         var site = new TestSite(DeclaredOff);
-        site.Store.With("F", new FlagSettings(true, null)).With("Promo.Removed", FlagSettings.Off);
+        site.Store.With("F", FlagSettings.ForAudience(true, null)).With("Promo.Removed", FlagSettings.Off);
 
         var listed = new List<FeatureDefinition>();
         await foreach (FeatureDefinition definition in site.Provider.GetRequiredService<IFeatureDefinitionProvider>().GetAllFeatureDefinitionsAsync())

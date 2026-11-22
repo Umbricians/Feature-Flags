@@ -35,6 +35,26 @@ public class FeatureFlagsBuilderTests
     }
 
     [Test]
+    public void Flags_are_declared_public_in_code_or_by_name_for_any_flag_source()
+    {
+        (IUmbracoBuilder builder, IServiceCollection services) = NewBuilder();
+
+        builder.AddFeatureFlags(flags => flags
+            .Declare("A", isPublic: true)
+            .Declare(FlagDefinitions.Simple("B", true), isPublic: true)
+            .Declare("C")
+            .MakePublic("fromconfig", "FromSource"));
+
+        IServiceProvider provider = services.BuildServiceProvider();
+        CodeFlagDeclaration[] declared = provider.GetServices<CodeFlagDeclaration>().ToArray();
+        var publicFlags = new PublicFlags(provider.GetServices<PublicFlagNames>());
+        Assert.That(declared.Select(flag => flag.Details.IsPublic), Is.EqualTo(new[] { true, true, false }));
+        Assert.That(publicFlags.Contains("FromConfig"), Is.True);
+        Assert.That(publicFlags.Contains("fromsource"), Is.True);
+        Assert.That(publicFlags.Contains("C"), Is.False);
+    }
+
+    [Test]
     public void Declaring_a_flag_needs_a_name_and_a_definition()
     {
         (IUmbracoBuilder builder, _) = NewBuilder();

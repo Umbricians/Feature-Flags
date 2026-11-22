@@ -10,6 +10,7 @@ internal static class ApiNames
         [FlagDisplayState.Off] = "off",
         [FlagDisplayState.Everyone] = "everyone",
         [FlagDisplayState.Audience] = "audience",
+        [FlagDisplayState.Conditions] = "conditions",
         [FlagDisplayState.Custom] = "custom",
     };
 

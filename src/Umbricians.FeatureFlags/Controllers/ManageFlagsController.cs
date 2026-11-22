@@ -39,7 +39,7 @@ internal sealed class ManageFlagsController : FeatureFlagsControllerBase
         FlagAudience? audience = request.Audience is null
             ? null
             : new FlagAudience(request.Audience.Members, request.Audience.Groups);
-        return Respond(name, await _overrides.SaveAsync(name, new FlagSettings(request.Enabled, audience), CurrentUser(), cancellationToken));
+        return Respond(name, await _overrides.SaveAsync(name, FlagSettings.ForAudience(request.Enabled, audience), CurrentUser(), cancellationToken));
     }
 
     /// <summary>Switches a flag on or off, keeping who it is for.</summary>

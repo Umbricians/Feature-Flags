@@ -10,8 +10,8 @@ namespace Umbricians.FeatureFlags.Overrides;
 /// </summary>
 /// <param name="Override">The override as stored.</param>
 /// <param name="Definition">What Microsoft evaluates; null when its JSON can't be read, so the flag uses its default.</param>
-/// <param name="Settings">What the backoffice shows and edits; null when it can't edit this override.</param>
-/// <param name="NotEditableReason">Why <see cref="Settings"/> is null, when it is.</param>
+/// <param name="Settings">The override as conditions, whatever they are; null when its JSON can't be read or it has variants.</param>
+/// <param name="NotEditableReason">Why the backoffice can't edit it, when it can't.</param>
 internal sealed record SavedOverride(
     FeatureFlagOverride Override,
     FeatureDefinition? Definition,

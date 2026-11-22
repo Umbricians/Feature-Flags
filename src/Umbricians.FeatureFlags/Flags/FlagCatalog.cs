@@ -14,17 +14,20 @@ internal sealed class FlagCatalog
     private readonly FlagResolution _resolution;
     private readonly CodeFlags _code;
     private readonly ConfigurationFlagDetails _configurationDetails;
+    private readonly PublicFlags _public;
     private readonly IOptionsMonitor<FeatureFlagsOptions> _options;
 
     public FlagCatalog(
         FlagResolution resolution,
         CodeFlags code,
         ConfigurationFlagDetails configurationDetails,
+        PublicFlags publicFlags,
         IOptionsMonitor<FeatureFlagsOptions> options)
     {
         _resolution = resolution;
         _code = code;
         _configurationDetails = configurationDetails;
+        _public = publicFlags;
         _options = options;
     }
 
@@ -50,9 +53,10 @@ internal sealed class FlagCatalog
     private FlagDetails FlagDetailsFor(DeclaredFlag declared)
     {
         FlagDetails fromCode = _code.Find(declared.Name)?.Details ?? FlagDetails.None;
-        return declared.DeclaredIn == FlagDeclaredIn.Code
+        FlagDetails details = declared.DeclaredIn == FlagDeclaredIn.Code
             ? fromCode
             : _configurationDetails.Find(declared.Name).Or(fromCode);
+        return _public.Contains(declared.Name) ? details with { IsPublic = true } : details;
     }
 
     private const string ReadOnlySiteReason = "Settings from the backoffice are switched off on this site (Umbricians:FeatureFlags:Overrides is ReadOnly).";
@@ -142,7 +146,7 @@ internal sealed class FlagCatalog
     private static CatalogFlag Undeclared(SavedOverride entry, bool readOnly)
     {
         FlagSettings? settings = entry.Settings;
-        FlagDisplayState state = settings is null ? FlagDisplayState.Custom : (FlagDisplayState)settings.State;
+        FlagDisplayState state = settings is null ? FlagDisplayState.Custom : Display(settings);
         return new CatalogFlag(
             entry.Override.FlagName,
             IsDeclared: false,
@@ -158,11 +162,15 @@ internal sealed class FlagCatalog
             DiffersFromDefault: false);
     }
 
+    // Conditions the backoffice can't edit show as custom until it knows which conditions are registered.
+    private static FlagDisplayState Display(FlagSettings settings) =>
+        settings.State == FlagState.Conditions ? FlagDisplayState.Custom : (FlagDisplayState)settings.State;
+
     private static FlagDisplayState Display(FlagSettings? settings, FeatureDefinition definition)
     {
-        if (settings is not null)
+        if (settings is not null && settings.State != FlagState.Conditions)
         {
-            return (FlagDisplayState)settings.State;
+            return Display(settings);
         }
 
         return definition.Status == FeatureStatus.Disabled || definition.EnabledFor?.Any() != true
@@ -176,7 +184,7 @@ internal sealed class FlagCatalog
 /// <param name="IsDeclared">False for an override whose flag nobody declares any more.</param>
 /// <param name="DeclaredIn">Where the flag is declared; the site's flag source wins when code declares it too.</param>
 /// <param name="DeclaredTwice">Whether code and the flag source both declare it.</param>
-/// <param name="Details">Its description, section (from its name when none is given) and tags.</param>
+/// <param name="Details">Its description, section (from its name when none is given), tags, and whether it is public.</param>
 /// <param name="DefaultSettings">Its default as the backoffice reads it, or null when it uses more than the backoffice edits.</param>
 /// <param name="DefaultState">How its default is evaluated.</param>
 /// <param name="Override">An editor's override, when there is one.</param>
@@ -204,6 +212,9 @@ internal enum FlagDisplayState
     Off = FlagState.Off,
     Everyone = FlagState.Everyone,
     Audience = FlagState.Audience,
+
+    /// <summary>Conditions of the kinds the backoffice edits other than an audience. Not shown yet.</summary>
+    Conditions = FlagState.Conditions,
 
     /// <summary>Something the backoffice can't edit, such as a time window.</summary>
     Custom,

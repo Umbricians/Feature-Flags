@@ -41,6 +41,43 @@ public class FlagCatalogTests
     }
 
     [Test]
+    public async Task A_flag_is_public_when_code_configuration_or_make_public_says_so()
+    {
+        var site = new TestSite(
+            """
+            { "feature_management": { "feature_flags": [
+                { "id": "FromConfig", "enabled": false, "public": true },
+                { "id": "Named", "enabled": false },
+                { "id": "Private", "enabled": false } ] } }
+            """,
+            before: services =>
+            {
+                services.AddSingleton(new CodeFlagDeclaration(FlagDefinitions.Simple("FromCode", false), new FlagDetails(null, null, [], IsPublic: true)));
+                services.AddSingleton(new PublicFlagNames(["NAMED"]));
+            });
+
+        Dictionary<string, CatalogFlag> flags = (await Catalog(site).GetAllAsync(default)).ToDictionary(flag => flag.Name);
+
+        Assert.That(flags.ToDictionary(flag => flag.Key, flag => flag.Value.Details.IsPublic),
+            Is.EqualTo(new Dictionary<string, bool> { ["FromConfig"] = true, ["Named"] = true, ["Private"] = false, ["FromCode"] = true }));
+    }
+
+    [Test]
+    public async Task Conditions_the_backoffice_does_not_know_stay_custom_while_a_single_audience_is_an_audience()
+    {
+        var site = new TestSite(Flags);
+        site.Store.With("Sale", FlagSettings.ForAudience(true, new FlagAudience(["m"], [])))
+            .With("Search.Suggestions", new FlagSettings(true, [new FlagCondition("Acme.X", new System.Text.Json.Nodes.JsonObject())]));
+
+        Dictionary<string, CatalogFlag> flags = (await Catalog(site).GetAllAsync(default)).ToDictionary(flag => flag.Name);
+
+        Assert.That(flags["Sale"].State, Is.EqualTo(FlagDisplayState.Audience));
+        Assert.That(flags["Search.Suggestions"].State, Is.EqualTo(FlagDisplayState.Custom));
+        Assert.That(flags["Search.Suggestions"].Settings!.Conditions.Single().Name, Is.EqualTo("Acme.X"));
+        Assert.That(ApiNames.State(FlagDisplayState.Conditions), Is.EqualTo("conditions"));
+    }
+
+    [Test]
     public async Task Marks_overrides_and_whether_they_differ_from_the_default()
     {
         var site = new TestSite(Flags);
@@ -111,7 +148,7 @@ public class FlagCatalogTests
             { "Umbricians": { "FeatureFlags": { "Overrides": "ReadOnly" } },
               "feature_management": { "feature_flags": [ { "id": "F", "enabled": false } ] } }
             """);
-        site.Store.With("F", new FlagSettings(true, null));
+        site.Store.With("F", FlagSettings.ForAudience(true, null));
 
         CatalogFlag flag = (await Catalog(site).FindAsync("F", default))!;
 

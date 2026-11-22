@@ -24,7 +24,8 @@ Use Microsoft's `feature_management` schema:
         "enabled": false,
         "description": "One-click payment for returning members.",
         "section": "Checkout",
-        "tags": ["payments", "beta"]
+        "tags": ["payments", "beta"],
+        "public": true
       }
     ]
   }
@@ -66,10 +67,10 @@ public class SiteFlagsComposer : IComposer
 }
 ```
 
-`Declare(name, enabled, description, section, tags)` declares a flag that is off, or on for everyone when `enabled` is
+`Declare(name, enabled, description, section, tags, isPublic)` declares a flag that is off, or on for everyone when `enabled` is
 `true`, until an editor changes it. Leave new flags off.
 
-`Declare(FeatureDefinition, description, section, tags)` takes any Microsoft definition, for flags that need a filter
+`Declare(FeatureDefinition, description, section, tags, isPublic)` takes any Microsoft definition, for flags that need a filter
 or variants. Most of those are easier to write in appsettings.
 
 ## Declared in both places
@@ -86,6 +87,11 @@ Each flag can have:
 | Description | `description` (`Description` in the older schema) | `description` | Under the flag's name, in the list and the editor. |
 | Section | `section` (`Section`) | `section` | The section of the list the flag is in. When there is none, the text before the first `.` in the flag's name; a name without a `.` is in No section. |
 | Tags | `tags` (`Tags`) | `tags` | Under the description; the list can be filtered by tag. |
+| Public | `public` (`Public`) | `isPublic` | Whether the flag may be shown to visitors' browsers. Flags are private unless declared public. |
+
+`MakePublic("Checkout.ExpressPay", "DarkMode")` on the builder marks flags public whichever flag source declares them,
+such as a site's own `IFeatureDefinitionProvider`. Names are compared without regard to case. A flag is public when any
+of these says so. Nothing is exposed to visitors yet; this only records the choice.
 
 Microsoft ignores these fields, so they are harmless. Naming flags `Area.Feature`, such as `Checkout.ExpressPay`,
 puts them in sections with nothing more to write. On a site with many flags, the list's search, filters and paging keep them
