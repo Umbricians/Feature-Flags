@@ -7,6 +7,7 @@ import { audienceNote, flagName, markerTags, stateTag } from "./flag-item.templa
 import type { FeatureFlagsCollectionFilter } from "./flags-collection.repository.js";
 import "./flags-filters.element.js";
 import "./flag-switch.element.js";
+import "./flag-row-actions.element.js";
 
 /** The flag list as a table, in its sections. */
 @customElement("umbricians-feature-flags-table-view")
@@ -32,6 +33,7 @@ export class FeatureFlagsTableViewElement extends UmbCollectionViewElementBase<F
             <uui-table-head-cell>${this.localize.term("umbriciansFeatureFlags_columnSwitch")}</uui-table-head-cell>
             <uui-table-head-cell>${this.localize.term("umbriciansFeatureFlags_columnNotes")}</uui-table-head-cell>
             <uui-table-head-cell>${this.localize.term("umbriciansFeatureFlags_columnChanged")}</uui-table-head-cell>
+            <uui-table-head-cell></uui-table-head-cell>
           </uui-table-head>
           ${sections(this._items, this._orderBy).map(
             (section) => html`
@@ -39,6 +41,7 @@ export class FeatureFlagsTableViewElement extends UmbCollectionViewElementBase<F
                 ? nothing
                 : html`<uui-table-row class="section">
                     <uui-table-cell>${section.name ?? this.localize.term("umbriciansFeatureFlags_noSection")}</uui-table-cell>
+                    <uui-table-cell></uui-table-cell>
                     <uui-table-cell></uui-table-cell>
                     <uui-table-cell></uui-table-cell>
                     <uui-table-cell></uui-table-cell>
@@ -71,6 +74,7 @@ export class FeatureFlagsTableViewElement extends UmbCollectionViewElementBase<F
         </div>
       </uui-table-cell>
       <uui-table-cell><small>${changedText(this.localize, item)}</small></uui-table-cell>
+      <uui-table-cell><umbricians-feature-flags-row-actions .name=${item.unique}></umbricians-feature-flags-row-actions></uui-table-cell>
     </uui-table-row>`;
   }
 

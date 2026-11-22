@@ -21,7 +21,7 @@ export class FeatureFlagDefinitionViewElement extends UmbLitElement {
 
   override render() {
     if (!this._flag) return nothing;
-    const definition = this._flag.overrideDefinition;
+    const definition = this._flag.override?.definition;
     return html`<uui-box headline=${this.localize.term("umbriciansFeatureFlags_definition")}>
       ${definition
         ? html`<p class="hint">${this.localize.term("umbriciansFeatureFlags_definitionHelp")}</p>

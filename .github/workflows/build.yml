@@ -24,6 +24,7 @@ concurrency:
 env:
   PROJECT: src/Umbricians.FeatureFlags/Umbricians.FeatureFlags.csproj
   CLIENT_DIR: src/Umbricians.FeatureFlags/Client
+  TYPES_DIR: src/Umbricians.FeatureFlags.Types
   DEMO_DIR: demo/Umbricians.FeatureFlags.Demo
   BUNDLE_PATH: /App_Plugins/UmbriciansFeatureFlags/umbricians-feature-flags.js
   API_NAME: umbricians-feature-flags
@@ -45,7 +46,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: ${{ env.CLIENT_DIR }}/package-lock.json
+          cache-dependency-path: |
+            ${{ env.CLIENT_DIR }}/package-lock.json
+            ${{ env.TYPES_DIR }}/package-lock.json
 
       - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
@@ -83,6 +86,20 @@ jobs:
           npm test
           npm run build
 
+      # The types-only npm package: checked against the client's constants and shapes, then packed. Publishing is
+      # manual for now (see docs/RELEASING.md).
+      - name: Stamp version into the npm package
+        run: node build/stamp-version.mjs "$TYPES_DIR/package.json" "${{ steps.version.outputs.version }}"
+
+      - name: Check and pack the npm types
+        working-directory: ${{ env.TYPES_DIR }}
+        run: |
+          npm ci
+          npm run typecheck
+          npm test
+          mkdir -p ../../artifacts-npm
+          npm pack --pack-destination ../../artifacts-npm
+
       # Builds the demo site too, so changes that break integration fail here.
       - name: Build solution
         run: dotnet build Umbricians.FeatureFlags.slnx -c Release -p:Version=${{ steps.version.outputs.version }}
@@ -103,6 +120,12 @@ jobs:
           path: |
             artifacts/*.nupkg
             artifacts/*.snupkg
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: npm-types-package
+          path: artifacts-npm/*.tgz
           if-no-files-found: error
 
   publish:

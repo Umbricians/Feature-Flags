@@ -1,54 +1,64 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.FeatureManagement;
+using Umbraco.Cms.Core;
 using Umbraco.Cms.Core.Events;
 using Umbraco.Cms.Core.Notifications;
+using Umbraco.Cms.Core.Services;
+using Umbricians.FeatureFlags.Diagnostics;
 
 namespace Umbricians.FeatureFlags.Flags;
 
 /// <summary>
-/// Warns at startup about set-ups that quietly stop flags working as expected: a site that adds Microsoft's services
-/// again after Umbraco has started composing, a flag source registered after Feature Flags, and a flag declared both
-/// in code and by the site's flag source.
+/// Logs at startup what the health check would show as an error or a warning, from the same <see cref="FlagDiagnostics"/>:
+/// set-ups that quietly stop flags working as expected, such as a site that adds Microsoft's services again after Umbraco
+/// has started composing, a flag source registered after Feature Flags, and a flag declared both in code and by the
+/// site's flag source. Info and success results aren't problems, so they aren't logged.
 /// </summary>
 internal sealed class StartupChecks(IServiceProvider services, ILogger<StartupChecks> logger)
     : INotificationAsyncHandler<UmbracoApplicationStartedNotification>
 {
-    public async Task HandleAsync(UmbracoApplicationStartedNotification notification, CancellationToken cancellationToken)
+    /// <summary>
+    /// Starts the checks in the background and returns, so they never slow the site's start or fail it. Nothing runs while
+    /// Umbraco is installing or upgrading, since the package's tables may not exist yet.
+    /// </summary>
+    public Task HandleAsync(UmbracoApplicationStartedNotification notification, CancellationToken cancellationToken)
     {
-        string[] duplicateFilters = services.GetServices<IFeatureFilterMetadata>()
-            .GroupBy(filter => filter.GetType())
-            .Where(group => group.Count() > 1)
-            .Select(group => group.Key.Name)
-            .ToArray();
-        if (duplicateFilters.Length > 0)
+        if (services.GetService<IRuntimeState>() is { } runtime && runtime.Level != RuntimeLevel.Run)
         {
-            logger.LogError(
-                "Microsoft.FeatureManagement is registered more than once, so these filters are too: {Filters}. Checking a flag "
-                + "that uses one throws. Feature Flags adds Microsoft.FeatureManagement itself: remove the site's "
-                + "AddFeatureManagement() call, or move it before Umbraco is added so Feature Flags uses it.",
-                string.Join(", ", duplicateFilters));
+            return Task.CompletedTask;
         }
 
-        if (services.GetService<IFeatureDefinitionProvider>() is not FeatureFlagsDefinitionProvider)
+        CancellationToken stopping = services.GetService<IHostApplicationLifetime>()?.ApplicationStopping ?? CancellationToken.None;
+        using (ExecutionContext.SuppressFlow())
         {
-            logger.LogWarning(
-                "The site registered its own flag source after Feature Flags, so settings from the backoffice don't apply. "
-                + "Register it before Umbraco is added, and Feature Flags wraps it.");
+            _ = Task.Run(() => RunAsync(stopping), CancellationToken.None);
         }
 
-        FlagResolution resolution = services.GetRequiredService<FlagResolution>();
-        DeclaredFlags declared = await resolution.GetDeclaredAsync(cancellationToken);
-        if (declared.ListingError is not null)
-        {
-            logger.LogWarning(declared.ListingError, "Feature Flags couldn't list the flags the site's flag source declares.");
-        }
+        return Task.CompletedTask;
+    }
 
-        foreach (DeclaredFlag flag in declared.Flags.Where(flag => flag.DeclaredTwice))
+    /// <summary>Runs the checks and logs what they found. Never throws: a check that fails is logged as a warning.</summary>
+    public async Task RunAsync(CancellationToken cancellationToken)
+    {
+        try
         {
-            logger.LogWarning(
-                "The flag '{FlagName}' is declared both in code and by the site's flag source. The flag source's declaration is used.",
-                flag.Name);
+            foreach (DiagnosticResult result in await services.GetRequiredService<FlagDiagnostics>().RunAsync(cancellationToken))
+            {
+                switch (result.Severity)
+                {
+                    case DiagnosticSeverity.Error:
+                        logger.LogError(result.Exception, "{Message}", result.Message);
+                        break;
+                    case DiagnosticSeverity.Warning:
+                        logger.LogWarning(result.Exception, "{Message}", result.Message);
+                        break;
+                }
+            }
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(exception, "Feature Flags couldn't run its startup checks. The health check in Settings can run them again.");
         }
     }
 }

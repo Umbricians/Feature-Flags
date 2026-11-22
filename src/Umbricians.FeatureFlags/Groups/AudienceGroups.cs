@@ -48,7 +48,36 @@ internal sealed class AudienceGroups(IMemberGroups memberGroups, IEnumerable<IFe
 
         return new GroupDirectory(offered, await memberGroups.GetAllAsync(cancellationToken));
     }
+
+    /// <summary>
+    /// Asks every group provider for its groups, for the health check and startup log, and says which ones failed.
+    /// A provider that takes longer than <paramref name="timeout"/> counts as failed, so a hanging provider can't hang
+    /// the check. Providers are asked afresh rather than remembered, so the answer is true now.
+    /// </summary>
+    public async Task<IReadOnlyList<FailingProvider>> FindFailingProvidersAsync(TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        // Together, and each provider's call on the thread pool, so one that blocks synchronously only costs its own timeout.
+        FailingProvider?[] results = await Task.WhenAll(providers.Select(async provider =>
+        {
+            try
+            {
+                using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                limit.CancelAfter(timeout);
+                await Task.Run(() => provider.GetGroupsAsync(limit.Token), CancellationToken.None).WaitAsync(timeout, cancellationToken);
+                return null;
+            }
+            catch (Exception exception) when (!cancellationToken.IsCancellationRequested || exception is not OperationCanceledException)
+            {
+                return new FailingProvider(provider.GetType().FullName ?? provider.GetType().Name, exception);
+            }
+        }));
+
+        return results.OfType<FailingProvider>().ToArray();
+    }
 }
+
+/// <summary>A group provider that couldn't list its groups in time, and why.</summary>
+internal sealed record FailingProvider(string Name, Exception Exception);
 
 /// <summary>What the site's groups were when <see cref="AudienceGroups.ReadAsync"/> read them.</summary>
 internal sealed class GroupDirectory(IReadOnlyList<FeatureFlagGroup> providerGroups, IReadOnlyList<KnownMemberGroup> memberGroups)
@@ -82,9 +111,32 @@ internal sealed class GroupDirectory(IReadOnlyList<FeatureFlagGroup> providerGro
     /// Members and member group keys written the way targeting compares them; every other id trimmed and kept as it is;
     /// blanks and repeats dropped.
     /// </summary>
-    public FlagAudience Normalize(FlagAudience audience) => new(
-        Clean(audience.Members, id => Guid.TryParse(id, out Guid key) ? TargetingIds.For(key) : id),
-        Clean(audience.Groups, id => Classify(id).Kind == AudienceGroupKind.MemberGroup ? TargetingIds.For(Guid.Parse(id)) : id));
+    public FlagAudience Normalize(FlagAudience audience)
+    {
+        string WriteMember(string id) => Guid.TryParse(id, out Guid key) ? TargetingIds.For(key) : id;
+        string WriteGroup(string id) => Classify(id).Kind == AudienceGroupKind.MemberGroup ? TargetingIds.For(Guid.Parse(id)) : id;
+
+        // A group's percentage follows it to the way its id is written, the first of any repeats winning.
+        var percentages = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        // Every percentage is added before the 100s are dropped, so a repeat that is in full can't hide the first one's share.
+        foreach (string group in audience.Groups.Where(id => !string.IsNullOrWhiteSpace(id)))
+        {
+            percentages.TryAdd(WriteGroup(group.Trim()), audience.PercentageOf(group));
+        }
+
+        foreach (string full in percentages.Where(pair => pair.Value == 100).Select(pair => pair.Key).ToArray())
+        {
+            percentages.Remove(full);
+        }
+
+        return new FlagAudience(Clean(audience.Members, WriteMember), Clean(audience.Groups, WriteGroup))
+        {
+            DefaultPercentage = audience.DefaultPercentage,
+            GroupPercentages = percentages,
+            ExcludedMembers = Clean(audience.ExcludedMembers, WriteMember),
+            ExcludedGroups = Clean(audience.ExcludedGroups, WriteGroup),
+        };
+    }
 
     private static string[] Clean(IEnumerable<string> ids, Func<string, string> write) => ids
         .Where(id => !string.IsNullOrWhiteSpace(id))

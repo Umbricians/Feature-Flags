@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using Microsoft.Extensions.Configuration;
 using Microsoft.FeatureManagement;
 
@@ -6,14 +7,14 @@ namespace Umbricians.FeatureFlags.Flags;
 /// <summary>A flag declared in code with <c>AddFeatureFlags(flags => flags.Declare(…))</c>.</summary>
 internal sealed record CodeFlagDeclaration(FeatureDefinition Definition, FlagDetails Details);
 
-/// <summary>What helps editors find and understand a flag. Microsoft has no place for these.</summary>
-internal sealed record FlagDetails(string? Description, string? Section, IReadOnlyList<string> Tags)
+/// <summary>What helps editors find and understand a flag. Microsoft has no place for these. A detail that is null was not given, so another source may give it; an explicit <c>false</c> for <c>IsPublic</c> beats a later source's <c>true</c>.</summary>
+internal sealed record FlagDetails(string? Description, string? Section, IReadOnlyList<string> Tags, bool? IsPublic = null)
 {
     public static FlagDetails None { get; } = new(null, null, []);
 
     /// <summary>Each detail from this, or from <paramref name="fallback"/> where this has none.</summary>
     public FlagDetails Or(FlagDetails fallback) =>
-        new(Description ?? fallback.Description, Section ?? fallback.Section, Tags.Count > 0 ? Tags : fallback.Tags);
+        new(Description ?? fallback.Description, Section ?? fallback.Section, Tags.Count > 0 ? Tags : fallback.Tags, IsPublic ?? fallback.IsPublic);
 
     /// <summary>These details, with the section taken from the flag's name when none was given.</summary>
     public FlagDetails ForFlag(string name) => Section is null ? this with { Section = SectionFromName(name) } : this;
@@ -27,7 +28,7 @@ internal sealed record FlagDetails(string? Description, string? Section, IReadOn
 }
 
 /// <summary>Where a declared flag comes from.</summary>
-internal enum FlagDeclaredIn
+public enum FeatureFlagDeclaredIn
 {
     /// <summary>appsettings, environment variables or any other .NET configuration source.</summary>
     Configuration,
@@ -44,8 +45,19 @@ internal sealed class FlagSource(IFeatureDefinitionProvider inner)
 {
     public IFeatureDefinitionProvider Inner { get; } = inner;
 
-    public FlagDeclaredIn DeclaredIn { get; } =
-        inner is ConfigurationFeatureDefinitionProvider ? FlagDeclaredIn.Configuration : FlagDeclaredIn.FlagSource;
+    public FeatureFlagDeclaredIn DeclaredIn { get; } =
+        inner is ConfigurationFeatureDefinitionProvider ? FeatureFlagDeclaredIn.Configuration : FeatureFlagDeclaredIn.FlagSource;
+}
+
+/// <summary>Flags marked public with <c>MakePublic</c>, whichever flag source declares them.</summary>
+internal sealed record PublicFlagNames(IReadOnlyList<string> Names);
+
+/// <summary>The names of flags marked public with <c>MakePublic</c>, compared the way Microsoft compares flag names.</summary>
+internal sealed class PublicFlags(IEnumerable<PublicFlagNames> marked)
+{
+    private readonly HashSet<string> _names = new(marked.SelectMany(m => m.Names), StringComparer.OrdinalIgnoreCase);
+
+    public bool Contains(string name) => _names.Contains(name);
 }
 
 /// <summary>The flags declared in code, by name.</summary>
@@ -68,7 +80,7 @@ internal sealed class CodeFlags
 }
 
 /// <summary>
-/// Reads a flag's description, section and tags from configuration, from fields Microsoft ignores: in the
+/// Reads a flag's description, section, tags and whether it is public from configuration, from fields Microsoft ignores: in the
 /// <c>feature_management:feature_flags</c> list, or in a flag's section under <c>FeatureManagement</c>.
 /// </summary>
 internal sealed class ConfigurationFlagDetails(IConfiguration configuration)
@@ -94,25 +106,36 @@ internal sealed class ConfigurationFlagDetails(IConfiguration configuration)
         }
     }
 
+    /// <summary>
+    /// A flag's JSON as configuration holds it in the <c>feature_management:feature_flags</c> list, with every value as
+    /// text; null when it isn't declared there. For reading what Microsoft's provider drops from a flag that is switched off.
+    /// </summary>
+    public JsonObject? Raw(string name) =>
+        LastEntry(name) is { } flag ? FlagDefinitions.ConfigurationToJson(flag) as JsonObject : null;
+
+    /// <summary>The last entry with the id: when ids repeat, Microsoft's provider reads the last one, so this does too.</summary>
+    private IConfigurationSection? LastEntry(string name) => configuration
+        .GetSection("feature_management:feature_flags")
+        .GetChildren()
+        .LastOrDefault(flag => string.Equals(flag["id"], name, StringComparison.OrdinalIgnoreCase));
+
     public FlagDetails Find(string name)
     {
-        foreach (IConfigurationSection flag in configuration.GetSection("feature_management:feature_flags").GetChildren())
+        if (LastEntry(name) is { } entry)
         {
-            if (string.Equals(flag["id"], name, StringComparison.OrdinalIgnoreCase))
-            {
-                return Read(flag, "description", "section", "tags");
-            }
+            return Read(entry, "description", "section", "tags", "public");
         }
 
         IConfigurationSection section = configuration.GetSection("FeatureManagement").GetSection(name);
-        return section.Exists() ? Read(section, "Description", "Section", "Tags") : FlagDetails.None;
+        return section.Exists() ? Read(section, "Description", "Section", "Tags", "Public") : FlagDetails.None;
     }
 
-    private static FlagDetails Read(IConfigurationSection flag, string description, string section, string tags) =>
+    private static FlagDetails Read(IConfigurationSection flag, string description, string section, string tags, string isPublic) =>
         new(
             NullIfBlank(flag[description]),
             NullIfBlank(flag[section]),
-            flag.GetSection(tags).GetChildren().Select(tag => tag.Value).OfType<string>().Where(tag => tag.Length > 0).ToArray());
+            flag.GetSection(tags).GetChildren().Select(tag => tag.Value).OfType<string>().Where(tag => tag.Length > 0).ToArray(),
+            bool.TryParse(flag[isPublic], out bool value) ? value : null);
 
     private static string? NullIfBlank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

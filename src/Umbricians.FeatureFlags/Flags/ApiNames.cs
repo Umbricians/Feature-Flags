@@ -5,12 +5,13 @@ namespace Umbricians.FeatureFlags.Flags;
 /// <summary>The words the API uses for a flag's state and for the list's filters, each written once, both ways.</summary>
 internal static class ApiNames
 {
-    private static readonly Dictionary<FlagDisplayState, string> States = new()
+    private static readonly Dictionary<FeatureFlagState, string> States = new()
     {
-        [FlagDisplayState.Off] = "off",
-        [FlagDisplayState.Everyone] = "everyone",
-        [FlagDisplayState.Audience] = "audience",
-        [FlagDisplayState.Custom] = "custom",
+        [FeatureFlagState.Off] = "off",
+        [FeatureFlagState.Everyone] = "everyone",
+        [FeatureFlagState.Audience] = "audience",
+        [FeatureFlagState.Conditions] = "conditions",
+        [FeatureFlagState.Custom] = "custom",
     };
 
     private static readonly Dictionary<string, FlagMarks> Marks = new(StringComparer.OrdinalIgnoreCase)
@@ -27,7 +28,31 @@ internal static class ApiNames
         ["updated"] = FlagQueryOrder.Updated,
     };
 
-    public static string State(FlagDisplayState state) => States[state];
+    public static string State(FeatureFlagState state) => States[state];
+
+    /// <summary>How a flag with several conditions matches them, as the API says it.</summary>
+    public static string Match(ConditionMatch match) => match == ConditionMatch.All ? "all" : "any";
+
+    /// <summary>A match from its name; false for a name the API doesn't know.</summary>
+    public static bool TryParseMatch(string? name, out ConditionMatch match)
+    {
+        match = ConditionMatch.Any;
+        if (string.Equals(name, "all", StringComparison.OrdinalIgnoreCase))
+        {
+            match = ConditionMatch.All;
+            return true;
+        }
+
+        return string.Equals(name, "any", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Where a flag is declared, as the API says it.</summary>
+    public static string DeclaredIn(FeatureFlagDeclaredIn declaredIn) => declaredIn switch
+    {
+        FeatureFlagDeclaredIn.Configuration => "configuration",
+        FeatureFlagDeclaredIn.FlagSource => "flagSource",
+        _ => "code",
+    };
 
     /// <summary>What an audience group is, as the API says it.</summary>
     public static string GroupKind(AudienceGroupKind kind) => kind switch
@@ -39,7 +64,7 @@ internal static class ApiNames
     };
 
     /// <summary>A state from its name; true with null for none given.</summary>
-    public static bool TryParseState(string? name, out FlagDisplayState? state)
+    public static bool TryParseState(string? name, out FeatureFlagState? state)
     {
         state = null;
         if (string.IsNullOrEmpty(name))
@@ -47,7 +72,7 @@ internal static class ApiNames
             return true;
         }
 
-        foreach ((FlagDisplayState value, string stateName) in States)
+        foreach ((FeatureFlagState value, string stateName) in States)
         {
             if (string.Equals(stateName, name, StringComparison.OrdinalIgnoreCase))
             {

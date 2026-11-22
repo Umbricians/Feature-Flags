@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { FlagActions } from "../api/types.ts";
-import { ALL_SECTIONS, audienceParts, joinList, mayDo, quickAction, sectionFromOption, sectionOption, sections, shortName } from "./display.ts";
+import { ALL_SECTIONS, audienceParts, excludedParts, joinList, mayDo, quickAction, sectionFromOption, sectionOption, sections, shortName } from "./display.ts";
 
 test("the section is taken off the front of the name", () => {
   assert.equal(shortName({ name: "Checkout.NewFlow", section: "Checkout" }), "NewFlow");
@@ -59,11 +59,16 @@ test("an undeclared flag's quick action is Remove, refused on a read-only site",
 });
 
 test("an audience lists only the parts with anyone in them", () => {
-  assert.deepEqual(audienceParts({ members: 3, memberGroups: 0, groups: 1 }), [
+  assert.deepEqual(audienceParts({ members: 3, memberGroups: 0, groups: 1, defaultPercentage: 0, excludedMembers: 0, excludedGroups: 0 }), [
     { kind: "members", count: 3 },
     { kind: "groups", count: 1 },
   ]);
   assert.deepEqual(audienceParts(null), []);
+});
+
+test("what an audience leaves out lists only the parts with anyone in them", () => {
+  assert.deepEqual(excludedParts({ members: 0, memberGroups: 0, groups: 0, defaultPercentage: 0, excludedMembers: 2, excludedGroups: 0 }), [{ kind: "members", count: 2 }]);
+  assert.deepEqual(excludedParts(null), []);
 });
 
 test("lists read as prose", () => {

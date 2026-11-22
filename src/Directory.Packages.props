@@ -1,14 +1,16 @@
 <Project>
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <!-- The Umbraco version to build against. The scheduled "Umbraco minors" workflow passes a newer one with -p:UmbracoVersion=. -->
+    <UmbracoVersion Condition="'$(UmbracoVersion)' == ''">17.8.0</UmbracoVersion>
   </PropertyGroup>
 
   <ItemGroup>
     <!-- The lowest Umbraco 17 version the package supports; sites on newer versions resolve their own.
          .github/dependabot.yml ignores each of these, so a new one goes in its list too. -->
-    <PackageVersion Include="Umbraco.Cms.Api.Common" Version="17.8.0" />
-    <PackageVersion Include="Umbraco.Cms.Api.Management" Version="17.8.0" />
-    <PackageVersion Include="Umbraco.Cms.Web.Common" Version="17.8.0" />
+    <PackageVersion Include="Umbraco.Cms.Api.Common" Version="$(UmbracoVersion)" />
+    <PackageVersion Include="Umbraco.Cms.Api.Management" Version="$(UmbracoVersion)" />
+    <PackageVersion Include="Umbraco.Cms.Web.Common" Version="$(UmbracoVersion)" />
     <!-- The lowest Microsoft.FeatureManagement the package supports. -->
     <PackageVersion Include="Microsoft.FeatureManagement.AspNetCore" Version="4.8.0" />
   </ItemGroup>

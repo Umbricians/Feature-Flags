@@ -98,6 +98,12 @@ first `.` in its name, so `Checkout.ExpressPay` is in "Checkout" with nothing to
 Feature Flags can't read details from, such as a site's own provider, are put in sections by name alone. Reading details
 for flags in Azure App Configuration, which keeps tags of its own, comes after 1.0.
 
+Microsoft's configuration provider also drops the filters of a flag configured with `"enabled": false`, so Feature
+Flags reads the filters of a disabled flag from the `feature_management:feature_flags` list itself; switching it on
+then keeps them. For any other flag source (its own provider, Azure App Configuration) the filters of a disabled flag
+can't be known, so such a flag shows as off with no conditions, and switching it on saves "on for everyone". Declare
+it enabled, with its conditions, if it matters.
+
 Code declarations take a full Microsoft `FeatureDefinition` as well as the short form, so code can declare anything
 configuration can.
 
@@ -145,6 +151,10 @@ A default from a wrapped source arrives as a `FeatureDefinition`, not JSON, and 
 variant values and filters the backoffice doesn't know. So the backoffice only edits flags whose definition it fully
 understands (off, on for everyone, on for an audience of users and groups at 100%), and writes their JSON itself.
 Any other flag is **Custom** and read-only, so nothing is ever rebuilt from a lossy copy.
+
+A flag's settings are whether it is on, and its conditions: Microsoft's filters (`conditions.client_filters`), with
+`requirement_type` saying whether any or all of them must hold. An audience is one targeting condition; the backoffice
+reads and writes every filter, keeping the parameters of those it doesn't edit exactly as stored.
 
 Microsoft's parser drops a disabled flag's conditions, so a flag switched off would lose its audience. The backoffice
 reads its own overrides' JSON directly, so turning a flag off keeps who it was for.
@@ -277,7 +287,8 @@ server, across every flag, so paging stays correct on a site with hundreds.
 2. **1.0:** what developers can extend and rely on: conditions of their own, editable in the backoffice;
    percentages and exclusions in the audience; time windows; the Root condition for a site with several roots; a
    public service and notifications for changing overrides; the Management API as a contract; a health check;
-   flags for headless front ends; and a promised backoffice extension surface. Specified in
+   flags for headless front ends; and a promised backoffice extension surface, with its npm types (in progress on
+   the 1.0 branches; not released). Specified in
    [spec-1.0.md](spec-1.0.md).
 
 ### Later

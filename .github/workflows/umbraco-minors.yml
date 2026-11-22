@@ -1,0 +1,74 @@
+# Builds and tests the package against the newest Umbraco 17 release, because Umbraco's no-breaking-minors promise
+# does not cover its backoffice TypeScript: a minor release can still break the backoffice code, and this finds out
+# before a site does. It runs weekly and on demand, never on pull requests, and it never publishes, so it can't
+# break the normal build. The normal build keeps the lowest supported version (UmbracoVersion in the Directory.Packages.props files).
+# A failure here means: look at what Umbraco changed, and fix the package or the promised surface within the major.
+name: Umbraco minors
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+    inputs:
+      umbraco-version:
+        description: Umbraco.Cms version to build against (default: the newest 17.x on NuGet)
+        required: false
+
+permissions:
+  contents: read
+
+env:
+  CLIENT_DIR: src/Umbricians.FeatureFlags/Client
+  TYPES_DIR: src/Umbricians.FeatureFlags.Types
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  latest-17:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          dotnet-version: 10.0.x
+
+      # The newest stable Umbraco.Cms 17.x on NuGet, unless one was asked for.
+      - name: Find the Umbraco version
+        id: umbraco
+        env:
+          REQUESTED: ${{ inputs.umbraco-version }}
+        run: |
+          version="$REQUESTED"
+          if [[ -z "$version" ]]; then
+            version=$(curl -fsS https://api.nuget.org/v3-flatcontainer/umbraco.cms/index.json \
+              | node -e 'const v = JSON.parse(require("fs").readFileSync(0, "utf8")).versions.filter((x) => /^17\.\d+\.\d+$/.test(x)); console.log(v.sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).pop())')
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Umbraco $version"
+
+      # The newest @umbraco-cms/backoffice with the same version, so the client compiles against what ships.
+      - name: Build and test the client against it
+        working-directory: ${{ env.CLIENT_DIR }}
+        run: |
+          npm ci
+          npm install --no-save "@umbraco-cms/backoffice@${{ steps.umbraco.outputs.version }}"
+          npm test
+          npm run build
+
+      - name: Check the npm types against it
+        working-directory: ${{ env.TYPES_DIR }}
+        run: |
+          npm ci
+          npm install --no-save "@umbraco-cms/backoffice@${{ steps.umbraco.outputs.version }}"
+          npm run typecheck
+          npm test
+
+      - name: Build and test the package against it
+        run: |
+          dotnet build Umbricians.FeatureFlags.slnx -c Release -p:UmbracoVersion=${{ steps.umbraco.outputs.version }}
+          dotnet test Umbricians.FeatureFlags.slnx -c Release --no-build -p:UmbracoVersion=${{ steps.umbraco.outputs.version }}

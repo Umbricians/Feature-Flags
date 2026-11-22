@@ -112,13 +112,15 @@ internal sealed class OverrideCache
                 Snapshot read = await LoadAsync(CancellationToken.None);
                 Snapshot? current = _snapshot;
                 _snapshot = read.RetryAt is not null && current is not null
-                    ? current with { RetryAt = read.RetryAt }
+                    ? current with { RetryAt = read.RetryAt, ReadError = read.ReadError }
                     : read;
             }
             catch (Exception exception)
             {
                 _logger.LogError(exception, "Feature Flags couldn't read the settings saved in the backoffice.");
-                _snapshot ??= new Snapshot(new Dictionary<string, SavedOverride>(StringComparer.OrdinalIgnoreCase), _time.GetUtcNow() + RetryAfterFailure);
+                _snapshot = _snapshot is { } last
+                    ? last with { RetryAt = _time.GetUtcNow() + RetryAfterFailure, ReadError = exception }
+                    : new Snapshot(new Dictionary<string, SavedOverride>(StringComparer.OrdinalIgnoreCase), _time.GetUtcNow() + RetryAfterFailure, exception);
             }
 
             lock (_gate)
@@ -145,17 +147,33 @@ internal sealed class OverrideCache
             _logger.LogWarning(exception,
                 "Feature Flags couldn't read the settings saved in the backoffice, so flags keep the settings read last, or "
                 + "their defaults if there are none yet. If the package was just installed, its migration may not have run yet.");
-            return new Snapshot(new Dictionary<string, SavedOverride>(StringComparer.OrdinalIgnoreCase), _time.GetUtcNow() + RetryAfterFailure);
+            return new Snapshot(new Dictionary<string, SavedOverride>(StringComparer.OrdinalIgnoreCase), _time.GetUtcNow() + RetryAfterFailure, exception);
         }
 
+        var unreadable = new List<string>();
         IReadOnlyDictionary<string, SavedOverride> entries = await SavedOverride.ReadAllAsync(
             overrides,
-            (flagName, exception) => _logger.LogWarning(exception,
-                "Feature Flags couldn't read the setting saved for the flag '{FlagName}', so it uses its default.", flagName));
+            (flagName, exception) =>
+            {
+                unreadable.Add(flagName);
+                _logger.LogWarning(exception,
+                    "Feature Flags couldn't read the setting saved for the flag '{FlagName}', so it uses its default.", flagName);
+            });
 
-        return new Snapshot(entries, null);
+        return new Snapshot(entries, null, null, unreadable);
     }
 
-    /// <summary>The overrides as last read. <see cref="RetryAt"/> is set when the latest read failed.</summary>
-    public sealed record Snapshot(IReadOnlyDictionary<string, SavedOverride> Overrides, DateTimeOffset? RetryAt);
+    /// <summary>
+    /// The overrides as last read. <see cref="RetryAt"/> is set when the latest read failed, and <see cref="ReadError"/>
+    /// says why. <see cref="UnreadableFlags"/> names the flags whose saved setting was read but can't be understood.
+    /// </summary>
+    public sealed record Snapshot(
+        IReadOnlyDictionary<string, SavedOverride> Overrides,
+        DateTimeOffset? RetryAt,
+        Exception? ReadError = null,
+        IReadOnlyList<string>? UnreadableFlags = null)
+    {
+        /// <summary>The flags whose saved setting can't be read, so they use their defaults.</summary>
+        public IReadOnlyList<string> Unreadable => UnreadableFlags ?? [];
+    }
 }

@@ -23,7 +23,7 @@ public class StartupTests : IntegrationTest
     [Test]
     public async Task A_site_that_starts_with_a_saved_override_in_its_database_uses_it()
     {
-        string definition = FlagDefinitions.ToJson("Tests.Off", new FlagSettings(true, null));
+        string definition = FlagDefinitions.ToJson("Tests.Off", FlagSettings.ForAudience(true, null));
         await using (SqlConnection connection = await Site.OpenConnectionAsync())
         await using (SqlCommand command = connection.CreateCommand())
         {

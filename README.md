@@ -27,6 +27,14 @@ the members it is on for.
 - **[Audiences](docs/audiences.md)**: how members and member groups are matched, group providers, and identifying
   people another way.
 - **[Using the backoffice](docs/backoffice.md)**: the guide for editors.
+- **[Conditions](docs/conditions.md)**: what a condition is, and registering a rule of your own so the backoffice
+  knows it.
+- **[Extending the backoffice](docs/backoffice.md#extending-the-backoffice)**: the entity types, aliases, flag
+  workspace context and entity actions the backoffice promises developers, and the `@umbricians/feature-flags` types.
+- **[Notifications](docs/notifications.md)**: react to, or refuse, a change to a flag's override; audit and
+  permission examples.
+- **[Headless front ends](docs/headless.md)**: tell a front end that Umbraco doesn't render which public flags are on
+  for its request.
 
 ## Installation
 
@@ -135,24 +143,16 @@ builder.AddFeatureFlags(flags => flags
 | --- | --- |
 | `IFeatureFlagGroupProvider` | Put members in groups by a rule of the site's own, such as "premium in the CRM". Editors pick its groups beside member groups. See [Audiences](docs/audiences.md#group-providers). |
 | `ITargetingContextAccessor` (Microsoft's) | Identify people some other way than Umbraco members. Register your own and it replaces the package's. |
-| `IFeatureFlagOverrideStore` | Keep editors' settings somewhere other than the Umbraco database. Register your own and it replaces the package's. |
+| `IFeatureFlagCondition` | Tell the backoffice about a feature filter of your own: validate its parameters and summarise it for the list. Register with `AddCondition<T>()`. See [Conditions](docs/conditions.md). |
+| `IFeatureFlagService` | Read flags and change their overrides from code, with the backoffice's rules and no permission checks. Change overrides through this; see [Changing flags from code](docs/declaring-flags.md#changing-flags-from-code). |
+| `IFeatureFlagOverrideStore` | Keep editors' settings somewhere other than the Umbraco database. Register your own and it replaces the package's. Only for where they are kept: change them through `IFeatureFlagService`, because writing to the store skips the rules and the refresh on other servers. |
 | `IFeatureDefinitionProvider` (Microsoft's) | Use your own flag source. Register it before Umbraco is added and Feature Flags puts editors' settings in front of it. |
 
 ## API
 
-The backoffice uses a Management API under `/umbraco/umbriciansfeatureflags/api/v1/`, listed as
-`umbricians-feature-flags` in the backoffice's Swagger UI. Every endpoint needs a backoffice user with View feature
-flags; changes need Change feature flags too.
-
-| Endpoint | |
-| --- | --- |
-| `GET flags?skip&take&filter&state&show&marks&section&tag&orderBy` | A page of flags (at most 100), searched, filtered and sorted across every flag. `show` is `declared` or `undeclared`; `marks` narrows to flags with every one of `changed`, `differs` and `twice`. `section` is a section's name, or empty for flags in no section; leave it out for every section. Items come with `actions` (`switch`, `save`, `reset`, `remove`), each allowed or not with a reason. |
-| `GET flags/summary` | The sections and tags in use, counts, whether overrides are read-only, and the environment's name. |
-| `GET flag?name=` | One flag, with its default, its saved setting and who it is on for. Each group in its audience comes with its kind (`memberGroup`, `namedMemberGroup`, `providerGroup` or `unknown`) and name. |
-| `GET provider-groups` | The groups the site's group providers offer. |
-| `PUT flag?name=` | Save a flag's state and audience. Body: `{ "enabled": true, "audience": { "members": [], "groups": [] } }`, with `audience` null for everyone. `groups` holds member group keys or names and group providers' ids. |
-| `PUT flag/enabled?name=` | Switch a flag on or off, keeping its audience. Body: `{ "enabled": true }`. |
-| `DELETE flag?name=` | Reset a flag to its default, or remove the setting of a flag nobody declares any more. Refused (409) when nothing is saved, or on a read-only site. |
+Feature Flags has a Management API under `/umbraco/umbriciansfeatureflags/api/v1/` that the backoffice uses and your
+scripts and CI pipelines can call as an Umbraco API user. See [Calling the API from scripts](docs/api.md) for getting a
+token, examples, the endpoints, the status codes and what is promised.
 
 ## Licence
 

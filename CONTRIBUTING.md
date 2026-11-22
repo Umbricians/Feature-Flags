@@ -26,6 +26,18 @@ node build/smoke-test.mjs demo/Umbricians.FeatureFlags.Demo /App_Plugins/Umbrici
 dotnet pack src/Umbricians.FeatureFlags -c Release -o artifacts
 ```
 
+### Coverage
+
+Coverage of the package assembly, `Umbricians.FeatureFlags`, must stay at or above 90%. Measure it with the unit tests:
+
+```bash
+dotnet test tests/Umbricians.FeatureFlags.Tests --collect "Code Coverage;Format=cobertura"
+```
+
+The run prints the path of a `*.cobertura.xml` file under `tests/Umbricians.FeatureFlags.Tests/TestResults/`. In it,
+read the `line-rate` attribute of `<package name="Umbricians.FeatureFlags">`: `0.977` is 97.7%. The file also has a
+package for the test assembly and a total at the top, which are not the number to watch. `TestResults` is git-ignored.
+
 ### SQL Server tests
 
 The unit tests run against SQLite. The integration tests in `tests/Umbricians.FeatureFlags.IntegrationTests` start a

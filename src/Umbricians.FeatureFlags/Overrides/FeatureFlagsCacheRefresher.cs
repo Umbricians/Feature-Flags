@@ -28,7 +28,9 @@ internal sealed class FeatureFlagsCacheRefresher : CacheRefresherBase<FeatureFla
 
     public override void RefreshAll()
     {
-        _cache.Reload();
+        // Wait for the read, so a handler of the notification sees the new overrides. It runs on its own, outside this thread's
+        // context, so waiting here can't deadlock.
+        _cache.ReloadAsync().GetAwaiter().GetResult();
         base.RefreshAll();
     }
 
@@ -39,6 +41,13 @@ internal sealed class FeatureFlagsCacheRefresher : CacheRefresherBase<FeatureFla
     public override void Remove(int id) => RefreshAll();
 }
 
-/// <summary>Published on each server after it reads the overrides again.</summary>
-internal sealed class FeatureFlagsCacheRefresherNotification(object messageObject, MessageType messageType)
+/// <summary>
+/// Published on every server when any server changes an override, including the one that made the change, after that
+/// server has read the overrides again. Unlike the Saved and Reset notifications, which are published only on the server
+/// that made the change, handle this one to react on every server of a load-balanced site. It says only that overrides
+/// changed, not which; read them with <see cref="IFeatureFlagService"/>.
+/// </summary>
+/// <param name="messageObject">What Umbraco's server messaging sent; not used by Feature Flags.</param>
+/// <param name="messageType">How Umbraco's server messaging says the cache changed.</param>
+public sealed class FeatureFlagsCacheRefresherNotification(object messageObject, MessageType messageType)
     : CacheRefresherNotification(messageObject, messageType);

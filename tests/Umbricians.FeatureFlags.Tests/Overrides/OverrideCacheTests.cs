@@ -19,7 +19,7 @@ public class OverrideCacheTests
     public async Task Reads_an_override_switched_off_into_a_disabled_definition_and_settings_that_keep_its_audience()
     {
         var site = new TestSite();
-        site.Store.With("F", new FlagSettings(false, new FlagAudience(["m"], ["g"])));
+        site.Store.With("F", FlagSettings.ForAudience(false, new FlagAudience(["m"], ["g"])));
 
         SavedOverride saved = await ReadAsync(site, "f");
 
@@ -43,7 +43,7 @@ public class OverrideCacheTests
     }
 
     [Test]
-    public async Task An_override_the_backoffice_can_not_edit_has_a_definition_but_no_settings()
+    public async Task An_override_with_a_filter_has_a_definition_and_conditions()
     {
         var site = new TestSite();
         site.Store.WithJson("F", """{ "id": "F", "enabled": true, "conditions": { "client_filters": [ { "name": "Microsoft.TimeWindow", "parameters": { "Start": "Mon, 01 Jan 2024 00:00:00 GMT" } } ] } }""");
@@ -51,8 +51,8 @@ public class OverrideCacheTests
         SavedOverride saved = await ReadAsync(site, "F");
 
         Assert.That(saved.Definition, Is.Not.Null);
-        Assert.That(saved.Settings, Is.Null);
-        Assert.That(saved.NotEditableReason, Does.Contain("Microsoft.TimeWindow"));
+        Assert.That(saved.Settings!.Conditions.Single().Name, Is.EqualTo("Microsoft.TimeWindow"));
+        Assert.That(saved.NotEditableReason, Is.Null);
     }
 
     [Test]
@@ -61,7 +61,7 @@ public class OverrideCacheTests
         var invalid = new List<string>();
 
         IReadOnlyDictionary<string, SavedOverride> saved = await SavedOverride.ReadAllAsync(
-            new InMemoryOverrideStore().With("Good", new FlagSettings(true, null)).WithJson("Bad", "{").All,
+            new InMemoryOverrideStore().With("Good", FlagSettings.ForAudience(true, null)).WithJson("Bad", "{").All,
             (flagName, _) => invalid.Add(flagName));
 
         Assert.That(invalid, Is.EqualTo(new[] { "Bad" }));
@@ -91,7 +91,7 @@ public class OverrideCacheTests
         });
         OverrideCache cache = site.Provider.GetRequiredService<OverrideCache>();
         await cache.GetAsync();
-        store.Overrides = new InMemoryOverrideStore().With("F", new FlagSettings(true, null)).All;
+        store.Overrides = new InMemoryOverrideStore().With("F", FlagSettings.ForAudience(true, null)).All;
 
         time.Advance(TimeSpan.FromMinutes(1));
         await cache.GetAsync();
@@ -109,7 +109,7 @@ public class OverrideCacheTests
     [Test]
     public async Task Keeps_the_last_good_read_when_a_reload_can_not_read_the_store()
     {
-        var store = new ThrowingStore { Overrides = new InMemoryOverrideStore().With("F", new FlagSettings(true, null)).All };
+        var store = new ThrowingStore { Overrides = new InMemoryOverrideStore().With("F", FlagSettings.ForAudience(true, null)).All };
         var site = new TestSite(before: services => services.AddSingleton<IFeatureFlagOverrideStore>(store));
         OverrideCache cache = site.Provider.GetRequiredService<OverrideCache>();
         await cache.GetAsync();

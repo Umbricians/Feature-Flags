@@ -81,6 +81,7 @@ export class FeatureFlagsFiltersElement extends UmbLitElement {
             { name: term("umbriciansFeatureFlags_stateOff"), value: "off" },
             { name: term("umbriciansFeatureFlags_stateEveryone"), value: "everyone" },
             { name: term("umbriciansFeatureFlags_stateAudience"), value: "audience" },
+            { name: term("umbriciansFeatureFlags_stateConditions"), value: "conditions" },
             { name: term("umbriciansFeatureFlags_stateCustom"), value: "custom" },
           ],
           this._filter.state,

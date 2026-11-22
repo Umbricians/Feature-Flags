@@ -27,3 +27,11 @@ updates:
     # @umbraco-cms/backoffice stays at the lowest Umbraco version the package supports.
     ignore:
       - dependency-name: "@umbraco-cms/backoffice"
+
+  - package-ecosystem: npm
+    directory: /src/Umbricians.FeatureFlags.Types
+    schedule:
+      interval: weekly
+    # The types check against the lowest Umbraco version the package supports.
+    ignore:
+      - dependency-name: "@umbraco-cms/backoffice"

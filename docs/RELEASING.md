@@ -62,6 +62,22 @@ hotfix and release the next version number; a version is never reused, and a tag
 nuget.org keeps the README each version was published with, so README changes reach the package page with the
 next release.
 
+## The npm types package
+
+`@umbricians/feature-flags` (`src/Umbricians.FeatureFlags.Types`) is types only and carries the NuGet package's
+version. Every build stamps that version into its `package.json` with `build/stamp-version.mjs`, type-checks it,
+tests that its string literals equal the client's `constants.ts`, and packs it as the `npm-types-package` artifact.
+**Nothing publishes it automatically.** To publish a release, after the NuGet package is out:
+
+1. Download `npm-types-package` from the tag's run (its version is the tag's), and check the `.tgz` with
+   `npm pack --dry-run` style listing: `index.d.ts`, `README.md`, `LICENSE`, `package.json`.
+2. From a maintainer's machine logged in to an npm account in the `@umbricians` scope, run
+   `npm publish umbricians-feature-flags-1.2.0.tgz --access public` (add `--tag next` for a pre-release).
+
+Later this can move to npm trusted publishing from the `production` environment, the way NuGet's works: register the
+workflow on npmjs.com, give the job `id-token: write` and run `npm publish` on the downloaded tarball. That needs the
+package to exist first, so the first publish is manual either way.
+
 ## How publishing is authorised
 
 Publishing uses [NuGet Trusted Publishing](https://learn.microsoft.com/nuget/nuget-org/trusted-publishing), so no

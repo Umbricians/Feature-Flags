@@ -25,15 +25,17 @@ public sealed class FeatureFlagsBuilder
     /// <param name="section">The section of the flag list editors find it in; by default the text before the first <c>.</c> in
     /// its name.</param>
     /// <param name="tags">Words editors can filter by.</param>
+    /// <param name="isPublic">Whether the flag may be shown to visitors' browsers; flags are private unless declared public.</param>
     public FeatureFlagsBuilder Declare(
         string name,
         bool enabled = false,
         string? description = null,
         string? section = null,
-        IEnumerable<string>? tags = null)
+        IEnumerable<string>? tags = null,
+        bool isPublic = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        return Declare(FlagDefinitions.Simple(name, enabled), description, section, tags);
+        return Declare(FlagDefinitions.Simple(name, enabled), description, section, tags, isPublic);
     }
 
     /// <summary>
@@ -44,11 +46,24 @@ public sealed class FeatureFlagsBuilder
         FeatureDefinition definition,
         string? description = null,
         string? section = null,
-        IEnumerable<string>? tags = null)
+        IEnumerable<string>? tags = null,
+        bool isPublic = false)
     {
         ArgumentNullException.ThrowIfNull(definition);
         ArgumentException.ThrowIfNullOrWhiteSpace(definition.Name);
-        _services.AddSingleton(new CodeFlagDeclaration(definition, new FlagDetails(description, section, tags?.ToArray() ?? [])));
+        _services.AddSingleton(new CodeFlagDeclaration(definition, new FlagDetails(description, section, tags?.ToArray() ?? [], isPublic)));
+        return this;
+    }
+
+    /// <summary>
+    /// Marks flags as public, whichever flag source declares them: code, configuration or the site's own. It wins over a
+    /// flag that says <c>"public": false</c> in configuration or <c>isPublic: false</c> in code.
+    /// </summary>
+    /// <param name="names">The flags' names, which are compared without regard to case.</param>
+    public FeatureFlagsBuilder MakePublic(params string[] names)
+    {
+        ArgumentNullException.ThrowIfNull(names);
+        _services.AddSingleton(new PublicFlagNames(names));
         return this;
     }
 
@@ -60,6 +75,19 @@ public sealed class FeatureFlagsBuilder
         where TProvider : class, IFeatureFlagGroupProvider
     {
         _services.TryAddEnumerable(ServiceDescriptor.Singleton<IFeatureFlagGroupProvider, TProvider>());
+        return this;
+    }
+
+    /// <summary>
+    /// Registers the C# half of a condition of the site's own, so editors' saves are validated, the list can summarise it,
+    /// and flags that use it count as having conditions the backoffice knows rather than custom ones. Register the
+    /// Microsoft filter that evaluates it the usual Microsoft way too. Call it once for each condition. See
+    /// <c>docs/conditions.md</c>.
+    /// </summary>
+    public FeatureFlagsBuilder AddCondition<TCondition>()
+        where TCondition : class, IFeatureFlagCondition
+    {
+        _services.TryAddEnumerable(ServiceDescriptor.Singleton<IFeatureFlagCondition, TCondition>());
         return this;
     }
 }

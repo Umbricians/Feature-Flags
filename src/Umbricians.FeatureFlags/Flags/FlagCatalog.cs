@@ -14,23 +14,32 @@ internal sealed class FlagCatalog
     private readonly FlagResolution _resolution;
     private readonly CodeFlags _code;
     private readonly ConfigurationFlagDetails _configurationDetails;
+    private readonly PublicFlags _public;
     private readonly IOptionsMonitor<FeatureFlagsOptions> _options;
+    private readonly ConditionRegistry _conditions;
 
     public FlagCatalog(
         FlagResolution resolution,
         CodeFlags code,
         ConfigurationFlagDetails configurationDetails,
-        IOptionsMonitor<FeatureFlagsOptions> options)
+        PublicFlags publicFlags,
+        IOptionsMonitor<FeatureFlagsOptions> options,
+        ConditionRegistry conditions)
     {
+        _conditions = conditions;
         _resolution = resolution;
         _code = code;
         _configurationDetails = configurationDetails;
+        _public = publicFlags;
         _options = options;
     }
 
-    public async Task<IReadOnlyList<CatalogFlag>> GetAllAsync(CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<FeatureFlag>> GetAllAsync(CancellationToken cancellationToken) =>
+        Describe(await _resolution.GetAllAsync(cancellationToken));
+
+    /// <summary>The flags as the backoffice shows them, from a listing a caller already has.</summary>
+    public IReadOnlyList<FeatureFlag> Describe(ResolvedFlags resolved)
     {
-        ResolvedFlags resolved = await _resolution.GetAllAsync(cancellationToken);
         bool readOnly = _options.CurrentValue.OverridesAreReadOnly();
 
         return resolved.Flags.Select(flag => flag switch
@@ -43,16 +52,17 @@ internal sealed class FlagCatalog
 
     // Finds the flag in the whole list, not by asking the flag source for one name: the list is what the editor sees,
     // so a change is checked against exactly that.
-    public async Task<CatalogFlag?> FindAsync(string name, CancellationToken cancellationToken) =>
+    public async Task<FeatureFlag?> FindAsync(string name, CancellationToken cancellationToken) =>
         (await GetAllAsync(cancellationToken)).FirstOrDefault(flag => string.Equals(flag.Name, name, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>What helps editors find the flag: configuration's details first, then code's.</summary>
     private FlagDetails FlagDetailsFor(DeclaredFlag declared)
     {
         FlagDetails fromCode = _code.Find(declared.Name)?.Details ?? FlagDetails.None;
-        return declared.DeclaredIn == FlagDeclaredIn.Code
+        FlagDetails details = declared.DeclaredIn == FeatureFlagDeclaredIn.Code
             ? fromCode
             : _configurationDetails.Find(declared.Name).Or(fromCode);
+        return _public.Contains(declared.Name) ? details with { IsPublic = true } : details;
     }
 
     private const string ReadOnlySiteReason = "Settings from the backoffice are switched off on this site (Umbricians:FeatureFlags:Overrides is ReadOnly).";
@@ -62,149 +72,165 @@ internal sealed class FlagCatalog
     private const string UnreadableSettingsReason = "Its settings can't be read, so the backoffice can't change them.";
 
     /// <summary>What an editor may do with a flag. The one place that decides: the service enforces it, the API reports it.</summary>
-    private static FlagActions ActionsFor(bool readOnlySite, bool isDeclared, FlagSettings? settings, string? notEditableReason, bool hasOverride)
+    private static FeatureFlagActions ActionsFor(bool readOnlySite, bool isDeclared, FlagSettings? settings, string? notEditableReason, bool hasOverride)
     {
         if (readOnlySite)
         {
-            FlagAction refused = FlagAction.Refuse(ReadOnlySiteReason);
-            return new FlagActions(refused, refused, refused, refused);
+            FeatureFlagAction refused = FeatureFlagAction.Refuse(ReadOnlySiteReason);
+            return new FeatureFlagActions(refused, refused, refused, refused);
         }
 
         if (!isDeclared)
         {
-            FlagAction undeclared = FlagAction.Refuse(UndeclaredReason);
-            return new FlagActions(undeclared, undeclared, undeclared, FlagAction.Allow);
+            FeatureFlagAction undeclared = FeatureFlagAction.Refuse(UndeclaredReason);
+            return new FeatureFlagActions(undeclared, undeclared, undeclared, FeatureFlagAction.Allow);
         }
 
-        FlagAction edit = settings is not null && notEditableReason is null
-            ? FlagAction.Allow
-            : FlagAction.Refuse(notEditableReason ?? UnreadableSettingsReason);
-        return new FlagActions(
+        FeatureFlagAction edit = settings is not null && notEditableReason is null
+            ? FeatureFlagAction.Allow
+            : FeatureFlagAction.Refuse(notEditableReason ?? UnreadableSettingsReason);
+        return new FeatureFlagActions(
             edit,
             edit,
-            hasOverride ? FlagAction.Allow : FlagAction.Refuse(NoOverrideReason),
-            FlagAction.Refuse(DeclaredReason));
+            hasOverride ? FeatureFlagAction.Allow : FeatureFlagAction.Refuse(NoOverrideReason),
+            FeatureFlagAction.Refuse(DeclaredReason));
     }
 
-    private static CatalogFlag Describe(ResolvedFlag flag, FlagDetails details, bool readOnly)
+    private FeatureFlag Describe(ResolvedFlag flag, FlagDetails details, bool readOnly)
     {
         DeclaredFlag declared = flag.Declared!;
         FeatureDefinition defaultDefinition = declared.Default!;
         SavedOverride? entry = flag.Override;
         FlagSettings? defaultSettings = FlagDefinitions.ToSettings(defaultDefinition, out string? defaultReason);
+        if (declared.DeclaredIn == FeatureFlagDeclaredIn.Configuration && defaultDefinition.Status == FeatureStatus.Disabled
+            && _configurationDetails.Raw(declared.Name) is { } raw
+            && FlagDefinitions.ReadOverride(raw.ToJsonString(), out string? rawReason) is { } rawSettings)
+        {
+            // Microsoft's provider drops the filters of a flag configured with "enabled": false, so read them from the
+            // configuration itself; otherwise switching it on would save "on for everyone" and lose them.
+            defaultSettings = FlagDefinitions.WithoutAlwaysOn(rawSettings);
+            defaultReason = rawReason;
+        }
 
         FlagSettings? overrideSettings = entry?.Settings;
         string? overrideReason = entry?.NotEditableReason;
 
         FlagSettings? settings = flag.OverrideApplies ? overrideSettings : defaultSettings;
-        FlagDisplayState state = flag.OverrideApplies
+        FeatureFlagState state = flag.OverrideApplies
             ? Display(overrideSettings, flag.Definition!)
             : Display(defaultSettings, defaultDefinition);
 
-        string? notEditableReason = entry is not null ? overrideReason : defaultReason;
+        string? notEditableReason = (entry is not null ? overrideReason : defaultReason)
+            ?? (settings is null ? null : _conditions.NotEditableReason(settings));
 
         bool differs = entry is not null
             && (overrideSettings is null || defaultSettings is null || !overrideSettings.SameAs(defaultSettings));
 
-        return new CatalogFlag(
+        return Build(
             declared.Name,
-            IsDeclared: true,
+            isDeclared: true,
             declared.DeclaredIn,
             declared.DeclaredTwice,
             details.ForFlag(declared.Name),
-            defaultSettings,
-            Display(defaultSettings, defaultDefinition),
-            entry?.Override,
-            settings,
             state,
-            ActionsFor(readOnly, isDeclared: true, settings, notEditableReason, hasOverride: entry is not null),
-            differs);
+            Display(defaultSettings, defaultDefinition),
+            settings,
+            defaultSettings,
+            entry?.Override,
+            differs,
+            ActionsFor(readOnly, isDeclared: true, settings, notEditableReason, hasOverride: entry is not null));
     }
 
-    private static CatalogFlag Unreadable(DeclaredFlag declared, FlagDetails details, SavedOverride? entry, Exception exception, bool readOnly)
+    private FeatureFlag Unreadable(DeclaredFlag declared, FlagDetails details, SavedOverride? entry, Exception exception, bool readOnly)
     {
         string reason = $"Its definition can't be read, so checking it fails: {(exception.InnerException ?? exception).Message}";
-        return new CatalogFlag(
+        return Build(
             declared.Name,
-            IsDeclared: true,
+            isDeclared: true,
             declared.DeclaredIn,
             declared.DeclaredTwice,
             details.ForFlag(declared.Name),
-            DefaultSettings: null,
-            DefaultState: FlagDisplayState.Custom,
+            FeatureFlagState.Custom,
+            FeatureFlagState.Custom,
+            settings: null,
+            defaultSettings: null,
             entry?.Override,
-            Settings: null,
-            State: FlagDisplayState.Custom,
-            ActionsFor(readOnly, isDeclared: true, settings: null, reason, hasOverride: entry is not null),
-            DiffersFromDefault: entry is not null);
+            differsFromDefault: entry is not null,
+            ActionsFor(readOnly, isDeclared: true, settings: null, reason, hasOverride: entry is not null));
     }
 
-    private static CatalogFlag Undeclared(SavedOverride entry, bool readOnly)
+    private FeatureFlag Undeclared(SavedOverride entry, bool readOnly)
     {
         FlagSettings? settings = entry.Settings;
-        FlagDisplayState state = settings is null ? FlagDisplayState.Custom : (FlagDisplayState)settings.State;
-        return new CatalogFlag(
+        FeatureFlagState state = settings is null ? FeatureFlagState.Custom : Display(settings);
+        return Build(
             entry.Override.FlagName,
-            IsDeclared: false,
-            FlagDeclaredIn.Code,
-            DeclaredTwice: false,
+            isDeclared: false,
+            FeatureFlagDeclaredIn.Code,
+            declaredTwice: false,
             FlagDetails.None.ForFlag(entry.Override.FlagName),
-            DefaultSettings: null,
-            DefaultState: FlagDisplayState.Off,
-            entry.Override,
-            settings,
             state,
-            ActionsFor(readOnly, isDeclared: false, settings, notEditableReason: null, hasOverride: true),
-            DiffersFromDefault: false);
+            FeatureFlagState.Off,
+            settings,
+            defaultSettings: null,
+            entry.Override,
+            differsFromDefault: false,
+            ActionsFor(readOnly, isDeclared: false, settings, notEditableReason: null, hasOverride: true));
     }
 
-    private static FlagDisplayState Display(FlagSettings? settings, FeatureDefinition definition)
+    private FeatureFlag Build(
+        string name,
+        bool isDeclared,
+        FeatureFlagDeclaredIn declaredIn,
+        bool declaredTwice,
+        FlagDetails details,
+        FeatureFlagState state,
+        FeatureFlagState defaultState,
+        FlagSettings? settings,
+        FlagSettings? defaultSettings,
+        FeatureFlagOverride? featureFlagOverride,
+        bool differsFromDefault,
+        FeatureFlagActions actions) =>
+        new(
+            name,
+            isDeclared,
+            declaredIn,
+            declaredTwice,
+            details.Section,
+            details.Description,
+            details.Tags,
+            details.IsPublic ?? false,
+            state,
+            defaultState,
+            settings?.Copy(),
+            defaultSettings?.Copy(),
+            featureFlagOverride,
+            differsFromDefault,
+            actions,
+            settings is null ? null : _conditions.Summarize(settings));
+
+    // A flag with conditions nobody registered, or that the backoffice can't edit (a targeting condition with percentages
+    // or exclusions), shows as custom: save and switch are refused for it, so it can't be called editable conditions.
+    private FeatureFlagState Display(FlagSettings settings) =>
+        settings.State switch
+        {
+            FlagState.Off => FeatureFlagState.Off,
+            FlagState.Everyone => FeatureFlagState.Everyone,
+            FlagState.Audience => FeatureFlagState.Audience,
+            _ => _conditions.AllRegistered(settings) && _conditions.NotEditableReason(settings) is null
+                ? FeatureFlagState.Conditions
+                : FeatureFlagState.Custom,
+        };
+
+    private FeatureFlagState Display(FlagSettings? settings, FeatureDefinition definition)
     {
         if (settings is not null)
         {
-            return (FlagDisplayState)settings.State;
+            return Display(settings);
         }
 
         return definition.Status == FeatureStatus.Disabled || definition.EnabledFor?.Any() != true
-            ? FlagDisplayState.Off
-            : FlagDisplayState.Custom;
+            ? FeatureFlagState.Off
+            : FeatureFlagState.Custom;
     }
-}
-
-/// <summary>A flag as the backoffice shows it.</summary>
-/// <param name="Name">The flag's name, as its flag source spells it.</param>
-/// <param name="IsDeclared">False for an override whose flag nobody declares any more.</param>
-/// <param name="DeclaredIn">Where the flag is declared; the site's flag source wins when code declares it too.</param>
-/// <param name="DeclaredTwice">Whether code and the flag source both declare it.</param>
-/// <param name="Details">Its description, section (from its name when none is given) and tags.</param>
-/// <param name="DefaultSettings">Its default as the backoffice reads it, or null when it uses more than the backoffice edits.</param>
-/// <param name="DefaultState">How its default is evaluated.</param>
-/// <param name="Override">An editor's override, when there is one.</param>
-/// <param name="Settings">What applies now, when the backoffice can read it.</param>
-/// <param name="State">How it is evaluated now.</param>
-/// <param name="Actions">What an editor may do with it, each with the reason when not.</param>
-/// <param name="DiffersFromDefault">Whether its override says something different from its default.</param>
-internal sealed record CatalogFlag(
-    string Name,
-    bool IsDeclared,
-    FlagDeclaredIn DeclaredIn,
-    bool DeclaredTwice,
-    FlagDetails Details,
-    FlagSettings? DefaultSettings,
-    FlagDisplayState DefaultState,
-    FeatureFlagOverride? Override,
-    FlagSettings? Settings,
-    FlagDisplayState State,
-    FlagActions Actions,
-    bool DiffersFromDefault);
-
-/// <summary>How a flag is evaluated, as the flag list shows it.</summary>
-internal enum FlagDisplayState
-{
-    Off = FlagState.Off,
-    Everyone = FlagState.Everyone,
-    Audience = FlagState.Audience,
-
-    /// <summary>Something the backoffice can't edit, such as a time window.</summary>
-    Custom,
 }

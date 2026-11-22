@@ -1,32 +1,41 @@
-import { css, customElement, html, nothing, state } from "@umbraco-cms/backoffice/external/lit";
+import { css, customElement, html, nothing, repeat, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbLitElement } from "@umbraco-cms/backoffice/lit-element";
 import { UmbTextStyles } from "@umbraco-cms/backoffice/style";
-import type { UUIRadioGroupEvent } from "@umbraco-cms/backoffice/external/uui";
-import type { AudienceGroup, FeatureFlag, FlagAudience, ProviderGroup } from "../../../api/feature-flags.resource.js";
-import { countAudience, emptyAudience, groupsOfKind, hasGroup, memberGroupKeys } from "../../audience.js";
+import type { UUIPopoverContainerElement, UUIRadioGroupEvent } from "@umbraco-cms/backoffice/external/uui";
+import type { ConditionMatch, FeatureFlag, FlagCondition, RegisteredCondition } from "../../../api/feature-flags.resource.js";
+import { displayNameOf, hasEditor, namesMatch } from "../../../conditions/condition-names.js";
 import { mayDo } from "../../display.js";
-import { changedText, describeAudience, stateLabel } from "../../describe.js";
+import { changedText, stateLabel } from "../../describe.js";
 import { FEATURE_FLAG_WORKSPACE_CONTEXT } from "../flag-workspace.context-token.js";
-import type { FlagEditorMode } from "../flag-editor-state.js";
+import { isCustom, type FlagEditorMode, type SaveBlocker } from "../flag-editor-state.js";
 
 const helpTerms: Record<FlagEditorMode, string> = {
   off: "umbriciansFeatureFlags_offHelp",
   everyone: "umbriciansFeatureFlags_everyoneHelp",
-  audience: "umbriciansFeatureFlags_audienceHelp",
+  conditions: "umbriciansFeatureFlags_conditionsHelp",
 };
 
 /**
- * The flag editor's Settings tab: whether the flag is on, and who for. A flag that is switched off keeps its audience,
- * so switching it back on restores it. Flags the backoffice can't edit are shown read-only with the reason.
+ * The flag editor's Settings tab: whether the flag is on, and under what conditions. A flag that is switched off keeps its
+ * conditions, so switching it back on restores them. Each condition is edited by the element of the manifest whose
+ * `meta.name` matches it. Flags the backoffice can't edit are shown read-only with the reason.
  */
 @customElement("umbricians-feature-flags-settings-view")
 export class FeatureFlagSettingsViewElement extends UmbLitElement {
   #context?: typeof FEATURE_FLAG_WORKSPACE_CONTEXT.TYPE;
+  // One filter function for each condition name: the extension slot starts over whenever it is given a new one.
+  #events: Array<Record<string, (event: Event) => void>> = [];
+  #filters = new Map<string, (manifest: { meta: { name: string } }) => boolean>();
 
   @state() private _flag?: FeatureFlag;
   @state() private _mode: FlagEditorMode = "off";
-  @state() private _audience: FlagAudience = emptyAudience();
-  @state() private _providerGroups: Array<ProviderGroup> = [];
+  @state() private _conditions: ReadonlyArray<FlagCondition> = [];
+  @state() private _match: ConditionMatch = "any";
+  @state() private _switchedForRoot = false;
+  @state() private _registered: Array<RegisteredCondition> = [];
+  @state() private _addable: Array<RegisteredCondition> = [];
+  @state() private _editorNames: Array<string> = [];
+  @state() private _blocker: SaveBlocker | null = null;
   @state() private _canManage = false;
 
   constructor() {
@@ -36,8 +45,13 @@ export class FeatureFlagSettingsViewElement extends UmbLitElement {
       if (!context) return;
       this.observe(context.flag, (flag) => (this._flag = flag), "umbriciansFlag");
       this.observe(context.mode, (mode) => (this._mode = mode), "umbriciansMode");
-      this.observe(context.audience, (audience) => (this._audience = audience), "umbriciansAudience");
-      this.observe(context.providerGroups, (groups) => (this._providerGroups = groups), "umbriciansProviderGroups");
+      this.observe(context.conditions, (conditions) => (this._conditions = conditions), "umbriciansConditions");
+      this.observe(context.match, (match) => (this._match = match), "umbriciansMatch");
+      this.observe(context.matchSwitchedForRoot, (switched) => (this._switchedForRoot = switched), "umbriciansMatchSwitched");
+      this.observe(context.registered, (registered) => (this._registered = registered), "umbriciansRegistered");
+      this.observe(context.addable, (addable) => (this._addable = addable), "umbriciansAddable");
+      this.observe(context.editorNames, (names) => (this._editorNames = names), "umbriciansEditorNames");
+      this.observe(context.saveBlocker, (blocker) => (this._blocker = blocker), "umbriciansSaveBlocker");
       this.observe(context.canManage, (canManage) => (this._canManage = canManage), "umbriciansCanManage");
     });
   }
@@ -45,7 +59,7 @@ export class FeatureFlagSettingsViewElement extends UmbLitElement {
   override render() {
     const flag = this._flag;
     if (!flag) return nothing;
-    const save = mayDo(flag.flag, "save", this._canManage);
+    const save = mayDo(flag, "save", this._canManage);
     const readOnly = !save.allowed;
     return html`<div class="layout">
       <div class="main">
@@ -55,98 +69,135 @@ export class FeatureFlagSettingsViewElement extends UmbLitElement {
             </uui-box>`
           : nothing}
         <uui-box headline=${this.localize.term("umbriciansFeatureFlags_columnState")}>
-          ${flag.flag.state === "custom" && !flag.flag.actions.save.allowed
+          ${isCustom(flag)
             ? html`<p>${this.localize.term("umbriciansFeatureFlags_customState")}</p>`
             : html`<uui-radio-group
                   .value=${this._mode}
                   ?disabled=${readOnly}
                   @change=${(e: UUIRadioGroupEvent) => this.#context?.setMode(e.target.value as FlagEditorMode)}>
-                  ${(["off", "everyone", "audience"] as const).map(
+                  ${(["off", "everyone", "conditions"] as const).map(
                     (mode) => html`<uui-radio value=${mode} label=${stateLabel(this.localize, mode)}></uui-radio>`,
                   )}
                 </uui-radio-group>
                 <p class="hint state-help">${this.localize.term(helpTerms[this._mode])}</p>`}
         </uui-box>
-        ${this._mode === "audience" ? this.#renderAudience(readOnly) : nothing}
+        ${this._mode === "conditions" && !isCustom(flag) ? this.#renderConditions(flag, readOnly) : nothing}
       </div>
       <div class="side">${this.#renderInfo(flag)}</div>
     </div>`;
   }
 
-  #renderAudience(readOnly: boolean) {
-    const selection = (e: Event) => [...(e.target as unknown as { selection: Array<string> }).selection];
-    const named = groupsOfKind(this._audience, "namedMemberGroup");
-    const unknown = groupsOfKind(this._audience, "unknown");
-    return html`<uui-box headline=${this.localize.term("umbriciansFeatureFlags_audience")}>
-      <p class="summary">
-        ${this.localize.term("umbriciansFeatureFlags_onFor", describeAudience(this.localize, countAudience(this._audience)))}
-      </p>
-      <umb-property-layout
-        label=${this.localize.term("umbriciansFeatureFlags_audienceMembers")}
-        description=${this.localize.term("umbriciansFeatureFlags_audienceMembersHelp")}>
-        <umb-input-member
-          slot="editor"
-          .selection=${this._audience.members}
-          ?readonly=${readOnly}
-          @change=${(e: Event) => this.#context?.setMembers(selection(e))}></umb-input-member>
-      </umb-property-layout>
-      <umb-property-layout
-        label=${this.localize.term("umbriciansFeatureFlags_audienceMemberGroups")}
-        description=${this.localize.term("umbriciansFeatureFlags_audienceMemberGroupsHelp")}>
-        <div slot="editor" class="groups">
-          <umb-input-member-group
-            .selection=${memberGroupKeys(this._audience)}
-            ?readonly=${readOnly}
-            @change=${(e: Event) => this.#context?.setMemberGroupKeys(selection(e))}></umb-input-member-group>
-          ${named.map((group) =>
-            this.#renderKeptGroup(group, this.localize.term("umbriciansFeatureFlags_namedMemberGroup", group.name ?? group.id), readOnly),
-          )}
-        </div>
-      </umb-property-layout>
-      ${this._providerGroups.length || unknown.length
-        ? html`<umb-property-layout
-            label=${this.localize.term("umbriciansFeatureFlags_audienceGroups")}
-            description=${this.localize.term("umbriciansFeatureFlags_audienceGroupsHelp")}>
-            <div slot="editor" class="groups">
-              <div class="checkboxes">
-                ${this._providerGroups.map(
-                  (group) => html`<uui-checkbox
-                    label=${group.name}
-                    ?checked=${hasGroup(this._audience, group.id)}
-                    ?disabled=${readOnly}
-                    @change=${(e: Event) => this.#context?.setProviderGroup(group, (e.target as HTMLInputElement).checked)}>
-                    ${group.name}${group.description ? html` <small>${group.description}</small>` : nothing}
-                  </uui-checkbox>`,
-                )}
-              </div>
-              ${unknown.map((group) =>
-                this.#renderKeptGroup(group, this.localize.term("umbriciansFeatureFlags_unknownGroup", group.id), readOnly),
-              )}
-              ${unknown.length ? html`<small>${this.localize.term("umbriciansFeatureFlags_unknownGroupsHelp")}</small>` : nothing}
-            </div>
-          </umb-property-layout>`
+  #renderConditions(flag: FeatureFlag, readOnly: boolean) {
+    const conditions = this._conditions;
+    const withoutEditor = conditions.some((condition) => !hasEditor(this._editorNames, condition.name));
+    return html`${this._blocker ? html`<uui-box class="notice warning">${this.#blockerText(this._blocker)}</uui-box>` : nothing}
+      ${withoutEditor && flag.summary
+        ? html`<p class="hint">${this.localize.term("umbriciansFeatureFlags_currently", flag.summary)}</p>`
         : nothing}
-    </uui-box>`;
+      ${conditions.length === 0 ? html`<p class="hint">${this.localize.term("umbriciansFeatureFlags_noConditions")}</p>` : nothing}
+      ${repeat(
+        conditions,
+        // Two conditions may share a name, so a condition is told apart by where it is as well.
+        (condition, index) => `${index}:${condition.name}`,
+        (condition, index) => this.#renderCondition(condition, index, readOnly),
+      )}
+      ${conditions.length > 1 ? this.#renderMatch(readOnly) : nothing}
+      ${readOnly ? nothing : this.#renderAdd()}`;
   }
 
-  /** A group the pickers can't show, as a tag that stays in the audience until it is removed. */
-  #renderKeptGroup(group: AudienceGroup, label: string, readOnly: boolean) {
-    return html`<div class="kept">
-      <uui-tag look="secondary">${label}</uui-tag>
+  #renderCondition(condition: FlagCondition, index: number, readOnly: boolean) {
+    const name = displayNameOf(this._registered, condition);
+    return html`<uui-box headline=${name}>
       ${readOnly
         ? nothing
         : html`<uui-button
+            slot="header-actions"
             compact
             look="secondary"
-            label=${this.localize.term("umbriciansFeatureFlags_removeGroup", group.name ?? group.id)}
-            @click=${() => this.#context?.removeGroup(group.id)}>
-            <uui-icon name="icon-wrong"></uui-icon>
+            label=${this.localize.term("umbriciansFeatureFlags_removeCondition", name)}
+            @click=${() => this.#context?.removeCondition(index)}>
+            <uui-icon name="icon-trash"></uui-icon>
           </uui-button>`}
+      ${hasEditor(this._editorNames, condition.name)
+        ? html`<umb-extension-slot
+            type="umbriciansFeatureFlagsCondition"
+            .filter=${this.#filterFor(condition.name)}
+            .props=${{ value: condition.parameters, readonly: readOnly }}
+            single
+            .events=${this.#eventsFor(index)}></umb-extension-slot>`
+        : html`<p class="warning">${this.localize.term("umbriciansFeatureFlags_noEditor")}</p>`}
+    </uui-box>`;
+  }
+
+  /**
+   * The slot's events for the condition at an index. The slot keeps the object it was given and only removes its
+   * listeners when handed another, so each index has one object for good: a new object every render would leave the
+   * old handlers listening.
+   */
+  #eventsFor(index: number) {
+    let events = this.#events[index];
+    if (!events) {
+      events = {
+        change: (event: Event) =>
+          this.#context?.setConditionParameters(index, (event.target as unknown as { value: Record<string, unknown> }).value),
+      };
+      this.#events[index] = events;
+    }
+    return events;
+  }
+
+  #filterFor(name: string) {
+    let filter = this.#filters.get(name);
+    if (!filter) {
+      filter = (manifest) => namesMatch(manifest.meta.name, name);
+      this.#filters.set(name, filter);
+    }
+    return filter;
+  }
+
+  #renderMatch(readOnly: boolean) {
+    return html`<uui-box headline=${this.localize.term("umbriciansFeatureFlags_match")}>
+      <uui-radio-group
+        .value=${this._match}
+        ?disabled=${readOnly}
+        @change=${(e: UUIRadioGroupEvent) => this.#context?.setMatch(e.target.value as ConditionMatch)}>
+        <uui-radio value="any" label=${this.localize.term("umbriciansFeatureFlags_matchAny")}></uui-radio>
+        <uui-radio value="all" label=${this.localize.term("umbriciansFeatureFlags_matchAll")}></uui-radio>
+      </uui-radio-group>
+      ${this._switchedForRoot ? html`<p class="hint">${this.localize.term("umbriciansFeatureFlags_matchSwitchedForRoot")}</p>` : nothing}
+    </uui-box>`;
+  }
+
+  #renderAdd() {
+    const add = (name: string, e: Event) => {
+      (e.target as HTMLElement).closest<UUIPopoverContainerElement>("uui-popover-container")?.hidePopover();
+      this.#context?.addCondition(name);
+    };
+    return html`<div>
+      <uui-button
+        look="placeholder"
+        popovertarget="add-condition"
+        label=${this.localize.term("umbriciansFeatureFlags_addCondition")}></uui-button>
+      <uui-popover-container id="add-condition" placement="bottom-start">
+        <umb-popover-layout>
+          ${this._addable.length === 0
+            ? html`<p class="hint menu-empty">${this.localize.term("umbriciansFeatureFlags_noMoreConditions")}</p>`
+            : this._addable.map(
+                (condition) => html`<uui-menu-item label=${condition.displayName} @click=${(e: Event) => add(condition.name, e)}></uui-menu-item>`,
+              )}
+        </umb-popover-layout>
+      </uui-popover-container>
     </div>`;
   }
 
+  #blockerText(blocker: SaveBlocker) {
+    return blocker.kind === "noEditor"
+      ? this.localize.term("umbriciansFeatureFlags_cannotSaveNoEditor", blocker.names.join(", "))
+      : this.localize.term("umbriciansFeatureFlags_cannotSaveNoConditions");
+  }
+
   #renderInfo(flag: FeatureFlag) {
-    const item = flag.flag;
+    const item = flag;
     const declaredIn = this.localize.term(
       item.declaredIn === "code"
         ? "umbriciansFeatureFlags_declaredInCode"
@@ -204,24 +255,8 @@ export class FeatureFlagSettingsViewElement extends UmbLitElement {
       .state-help {
         margin-bottom: 0;
       }
-      .summary {
-        font-weight: bold;
-        margin-top: 0;
-      }
-      .groups {
-        display: flex;
-        flex-direction: column;
-        gap: var(--uui-size-space-2);
-      }
-      .kept {
-        display: flex;
-        align-items: center;
-        gap: var(--uui-size-space-2);
-      }
-      .checkboxes {
-        display: flex;
-        flex-direction: column;
-        gap: var(--uui-size-space-2);
+      .menu-empty {
+        margin: var(--uui-size-space-4);
       }
       dl {
         display: grid;
@@ -247,6 +282,9 @@ export class FeatureFlagSettingsViewElement extends UmbLitElement {
       }
       .notice {
         --uui-box-default-padding: var(--uui-size-space-4);
+      }
+      .notice.warning {
+        color: var(--uui-color-warning-standalone);
       }
     `,
   ];
