@@ -236,3 +236,13 @@ test("an audience and a time window together: Match is Any until it is changed t
   });
   assert.equal(saveBlocker(all, editors), null);
 });
+
+test("adding Root beside the audience switches to All, and the saved flag keeps both conditions", () => {
+  const state = addCondition(loadEditor(flag({ conditions: [targeting(["m1"], [])] })), "Umbricians.Root");
+  assert.equal(state.match, "all");
+  assert.equal(state.matchSwitchedForRoot, true);
+  assert.deepEqual(
+    savePayload(state).conditions.map((condition) => condition.name),
+    ["Microsoft.Targeting", "Umbricians.Root"],
+  );
+});

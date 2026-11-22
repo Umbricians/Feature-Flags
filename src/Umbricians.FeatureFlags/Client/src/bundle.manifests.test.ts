@@ -13,7 +13,7 @@ test("no two extensions share an alias", () => {
   assert.equal(new Set(aliases).size, aliases.length);
 });
 
-test("the audience and the time window are the package's own condition editors, found by the C# condition's name", () => {
+test("the audience, the time window and Root are the package's own condition editors, found by the C# condition's name", () => {
   const conditions = manifests.filter(
     (manifest): manifest is ManifestUmbriciansFeatureFlagsCondition => manifest.type === "umbriciansFeatureFlagsCondition",
   );
@@ -22,6 +22,7 @@ test("the audience and the time window are the package's own condition editors, 
     [
       ["Umbricians.FeatureFlags.Condition.Audience", "Microsoft.Targeting"],
       ["Umbricians.FeatureFlags.Condition.TimeWindow", "Microsoft.TimeWindow"],
+      ["Umbricians.FeatureFlags.Condition.Root", "Umbricians.Root"],
     ],
   );
 });

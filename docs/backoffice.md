@@ -88,6 +88,11 @@ Another condition every site has is **Time window**: "On from [date and time] un
 left empty, but not both, and the start must be before the end. You enter times in your browser's time zone; the UTC
 equivalent is shown beside each, and times are stored as UTC. A window that repeats can be seen but not changed here.
 
+**Only on these sites** limits a flag to the roots (top-level pages in the Content tree) you tick, each shown with its
+domains. A site that has since been deleted shows as "a deleted site" with a Remove button. Adding it to a flag that
+already has another condition switches the match to All. See [Conditions](conditions.md#root-only-on-these-sites-umbriciansroot)
+for how a request's site is found.
+
 Developers can add conditions of their own, such as "French visitors"; they appear in the same menu.
 
 ### Any or all of the conditions

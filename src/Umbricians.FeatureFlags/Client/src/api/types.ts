@@ -127,6 +127,14 @@ export interface FeatureFlagSummary {
   environment: string;
 }
 
+/** A site: a top-level content node the Root condition can name. A deleted one has no name. */
+export interface SiteRoot {
+  key: string;
+  name?: string | null;
+  domains: Array<string>;
+  deleted: boolean;
+}
+
 /** A condition registered on the site: its filter name, and what editors call it. */
 export interface RegisteredCondition {
   name: string;

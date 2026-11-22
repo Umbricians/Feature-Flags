@@ -8,6 +8,7 @@ import type {
   PagedResult,
   ProviderGroup,
   RegisteredCondition,
+  SiteRoot,
   SaveSettings,
 } from "./types.js";
 
@@ -52,6 +53,9 @@ export const fetchProviderGroups = () => request<Array<ProviderGroup>>("GET", "p
 
 /** The conditions registered on the site, which the editor offers in "Add condition". */
 export const fetchConditions = () => request<Array<RegisteredCondition>>("GET", "conditions");
+
+/** The site's roots, each with its domains, for the Root condition's picker. */
+export const fetchRoots = () => request<Array<SiteRoot>>("GET", "roots");
 
 /** Saves an editor's settings: on or off, and the conditions that say who or when for. Returns the flag as it is now. */
 export const saveFlag = (name: string, settings: SaveSettings) =>
