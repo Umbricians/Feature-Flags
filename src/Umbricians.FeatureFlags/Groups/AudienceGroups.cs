@@ -63,7 +63,18 @@ internal sealed class AudienceGroups(IMemberGroups memberGroups, IEnumerable<IFe
             {
                 using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 limit.CancelAfter(timeout);
-                await Task.Run(() => provider.GetGroupsAsync(limit.Token), CancellationToken.None).WaitAsync(timeout, cancellationToken);
+                Task call = Task.Run(() => provider.GetGroupsAsync(limit.Token), CancellationToken.None);
+                try
+                {
+                    await call.WaitAsync(timeout, cancellationToken);
+                }
+                finally
+                {
+                    // Tell a call still hanging to stop, and read what it throws later so nothing goes unobserved.
+                    limit.Cancel();
+                    _ = call.ContinueWith(task => _ = task.Exception, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
+                }
+
                 return null;
             }
             catch (Exception exception) when (!cancellationToken.IsCancellationRequested || exception is not OperationCanceledException)

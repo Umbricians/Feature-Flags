@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc.Abstractions;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Umbraco.Cms.Core;
 using Umbraco.Cms.Core.DeliveryApi;
@@ -9,6 +11,7 @@ using Umbraco.Cms.Core.Routing;
 using Umbraco.Cms.Core.Services;
 using Umbraco.Cms.Core.Services.Navigation;
 using Umbraco.Cms.Core.Web;
+using Umbraco.Cms.Web.Common.Filters;
 using Umbraco.Cms.Web.Common.Routing;
 using Umbraco.Extensions;
 
@@ -144,9 +147,16 @@ internal sealed class UmbracoRootLocator(IServiceProvider services) : IRootLocat
 
         // A request that went to an endpoint that isn't Umbraco's content route, such as the Delivery API or an API
         // controller, is never routed to content, so waiting for that would recompute the root for every flag checked.
+        // The exception is a virtual page (MapUmbracoRoute, IVirtualPageController): an MVC filter fills in its published
+        // request after the endpoint is chosen, so until then it is not routed yet.
         HttpContext? http = services.GetService<IHttpContextAccessor>()?.HttpContext;
-        return http?.GetEndpoint() is not null && http.Features.Get<UmbracoRouteValues>() is null;
+        Endpoint? endpoint = http?.GetEndpoint();
+        return endpoint is not null && http!.Features.Get<UmbracoRouteValues>() is null && !IsVirtualPage(endpoint);
     }
+
+    private static bool IsVirtualPage(Endpoint endpoint) =>
+        endpoint.Metadata.GetMetadata<UmbracoVirtualPageFilterAttribute>() is not null
+        || endpoint.Metadata.GetMetadata<ActionDescriptor>()?.FilterDescriptors.Any(descriptor => descriptor.Filter is UmbracoVirtualPageFilterAttribute) == true;
 
     public Guid? FromDomain(Uri address)
     {
