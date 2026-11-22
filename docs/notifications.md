@@ -53,6 +53,13 @@ public void Handle(FeatureFlagOverrideSavingNotification notification)
 Only cancel with a message: an editor who is refused without one is told only that a handler cancelled the change.
 The Saved and Reset notifications can't be cancelled; the change has been made.
 
+## Inside an Umbraco scope
+
+Called while an Umbraco scope is open (a loop that seeds flags inside `scopeProvider.CreateCoreScope()`, say), a change
+is stored with the scope, like any other Umbraco write. It is seen by flag checks, and the Saved or Reset notification
+is published, once the scope completes. If the scope is rolled back, neither happens. The Saving and Resetting
+notifications are published at once, so a handler can still cancel.
+
 ## Member clean-up
 
 When Umbraco deletes a member or member group, Feature Flags takes it out of every audience. Each flag changed gets a

@@ -203,4 +203,46 @@ public class FlagCatalogTests
     }
 
     private static FlagCatalog Catalog(TestSite site) => site.Provider.GetRequiredService<FlagCatalog>();
+
+    [Test]
+    public async Task Changing_the_conditions_of_a_flag_that_was_returned_does_not_change_the_flag_the_next_read_returns()
+    {
+        var site = new TestSite(Flags);
+        site.Store.With("Checkout.NewFlow", FlagSettings.ForAudience(true, new FlagAudience(["m1"], [])));
+        site.Refresh();
+
+        FeatureFlag first = (await Catalog(site).FindAsync("Checkout.NewFlow", default))!;
+        first.Settings!.Conditions[0].Parameters["Audience"] = "changed";
+        FeatureFlag second = (await Catalog(site).FindAsync("Checkout.NewFlow", default))!;
+
+        Assert.That(second.Settings!.Audience!.Members, Is.EqualTo(new[] { "m1" }));
+        Assert.That(second.State, Is.EqualTo(FeatureFlagState.Audience));
+    }
+
+    [Test]
+    public async Task Changing_a_default_that_was_returned_does_not_change_the_flag_the_next_read_returns()
+    {
+        var site = new TestSite("""
+            { "feature_management": { "feature_flags": [
+                { "id": "Sale", "enabled": true, "conditions": { "client_filters": [ { "name": "Targeting", "parameters": { "Audience": { "Users": [ "m1" ], "Groups": [], "DefaultRolloutPercentage": 0 } } } ] } } ] } }
+            """);
+
+        FeatureFlag first = (await Catalog(site).FindAsync("Sale", default))!;
+        first.DefaultSettings!.Conditions[0].Parameters.Clear();
+        FeatureFlag second = (await Catalog(site).FindAsync("Sale", default))!;
+
+        Assert.That(second.DefaultSettings!.Conditions[0].Parameters, Is.Not.Empty);
+    }
+
+    [Test]
+    public async Task Make_public_wins_over_a_flag_that_says_public_false_in_configuration()
+    {
+        var site = new TestSite(
+            """{ "feature_management": { "feature_flags": [ { "id": "ConfigSaysNo", "enabled": false, "public": false } ] } }""",
+            before: services => services.AddSingleton(new PublicFlagNames(["configsaysno"])));
+
+        FeatureFlag flag = (await Catalog(site).FindAsync("ConfigSaysNo", default))!;
+
+        Assert.That(flag.IsPublic, Is.True);
+    }
 }

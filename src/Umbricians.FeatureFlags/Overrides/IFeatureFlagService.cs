@@ -12,7 +12,9 @@ namespace Umbricians.FeatureFlags.Overrides;
 /// The backoffice's rules apply (settings from the backoffice may be switched off, a flag nobody declares can't be
 /// saved, a custom flag can't be switched), but there are no permission checks: code isn't a backoffice user. Problems
 /// come back as a <see cref="FeatureFlagResult"/>; exceptions are for real failures such as the database being down.
-/// To change several flags, call it once for each. Each change publishes the notifications in
+/// To change several flags, call it once for each. Inside an Umbraco scope (<c>ICoreScopeProvider.CreateCoreScope</c>) the
+/// change is stored with the scope, so it is seen, and the Saved or Reset notification published, once the scope completes;
+/// if the scope is rolled back, neither happens. Each change publishes the notifications in
 /// <c>docs/notifications.md</c>; a handler of the Saving or Resetting notification can cancel it, and the result is then
 /// <see cref="FeatureFlagResultStatus.Cancelled"/>.
 /// </remarks>
@@ -51,7 +53,7 @@ public enum FeatureFlagResultStatus
     /// <summary>The change was made, and is already seen by checks on this server.</summary>
     Saved,
 
-    /// <summary>Nobody declares the flag, or it has no override to remove, and the change needs one.</summary>
+    /// <summary>Nobody declares the flag, so there is nothing to change.</summary>
     NotFound,
 
     /// <summary>The rules don't allow the change; <see cref="FeatureFlagResult.Reason"/> says why.</summary>

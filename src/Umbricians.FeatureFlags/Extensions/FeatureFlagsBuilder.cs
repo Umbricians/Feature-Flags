@@ -56,7 +56,8 @@ public sealed class FeatureFlagsBuilder
     }
 
     /// <summary>
-    /// Marks flags as public, whichever flag source declares them: code, configuration or the site's own.
+    /// Marks flags as public, whichever flag source declares them: code, configuration or the site's own. It wins over a
+    /// flag that says <c>"public": false</c> in configuration or <c>isPublic: false</c> in code.
     /// </summary>
     /// <param name="names">The flags' names, which are compared without regard to case.</param>
     public FeatureFlagsBuilder MakePublic(params string[] names)

@@ -1,6 +1,7 @@
 using Umbraco.Cms.Core.Cache;
 using Umbraco.Cms.Core.Events;
 using Umbraco.Cms.Core.Notifications;
+using Umbraco.Cms.Core.Scoping;
 using Umbricians.FeatureFlags.Flags;
 using Umbricians.FeatureFlags.Groups;
 
@@ -21,6 +22,7 @@ internal sealed class FeatureFlagService : IFeatureFlagService
     private readonly TimeProvider _time;
     private readonly AudienceGroups _groups;
     private readonly IEventAggregator _events;
+    private readonly ICoreScopeProvider? _scopes;
 
     public FeatureFlagService(
         IFeatureFlagOverrideStore store,
@@ -29,7 +31,8 @@ internal sealed class FeatureFlagService : IFeatureFlagService
         TimeProvider time,
         AudienceGroups groups,
         IEventAggregator events,
-        DistributedCache? distributedCache = null)
+        DistributedCache? distributedCache = null,
+        ICoreScopeProvider? scopes = null)
     {
         _store = store;
         _catalog = catalog;
@@ -38,6 +41,7 @@ internal sealed class FeatureFlagService : IFeatureFlagService
         _groups = groups;
         _events = events;
         _distributedCache = distributedCache;
+        _scopes = scopes;
     }
 
     public async Task<IReadOnlyList<FeatureFlag>> GetAllAsync(CancellationToken cancellationToken = default) =>
@@ -101,19 +105,18 @@ internal sealed class FeatureFlagService : IFeatureFlagService
 
         var messages = new EventMessages();
         var saving = new FeatureFlagOverrideSavingNotification(
-            flag.Name, before?.Settings, before?.Override.Definition, normalized, json, flag.IsDeclared, userKey, when, cause, messages);
+            flag.Name, Copy(before?.Settings), before?.Override.Definition, Copy(normalized), json, flag.IsDeclared, userKey, when, cause, messages);
         if (await _events.PublishCancelableAsync(saving))
         {
             return FeatureFlagResult.Cancelled(MessagesIn(messages));
         }
 
         await _store.SaveAsync(new FeatureFlagOverride(flag.Name, json, userKey, when.UtcDateTime), cancellationToken);
-        await RefreshAsync();
-        await _events.PublishAsync(
+        await AfterStoreAsync(() => _events.PublishAsync(
             new FeatureFlagOverrideSavedNotification(
-                flag.Name, before?.Settings, before?.Override.Definition, normalized, json, flag.IsDeclared, userKey, when, cause, messages)
+                flag.Name, Copy(before?.Settings), before?.Override.Definition, Copy(normalized), json, flag.IsDeclared, userKey, when, cause, messages)
                 .WithStateFrom(saving),
-            cancellationToken);
+            cancellationToken));
         return FeatureFlagResult.Saved;
     }
 
@@ -137,19 +140,18 @@ internal sealed class FeatureFlagService : IFeatureFlagService
 
         var messages = new EventMessages();
         var resetting = new FeatureFlagOverrideResettingNotification(
-            flag.Name, before?.Settings, before?.Override.Definition, null, null, flag.IsDeclared, userKey, when, cause, messages);
+            flag.Name, Copy(before?.Settings), before?.Override.Definition, null, null, flag.IsDeclared, userKey, when, cause, messages);
         if (await _events.PublishCancelableAsync(resetting))
         {
             return FeatureFlagResult.Cancelled(MessagesIn(messages));
         }
 
         await _store.DeleteAsync(flag.Name, cancellationToken);
-        await RefreshAsync();
-        await _events.PublishAsync(
+        await AfterStoreAsync(() => _events.PublishAsync(
             new FeatureFlagOverrideResetNotification(
-                flag.Name, before?.Settings, before?.Override.Definition, null, null, flag.IsDeclared, userKey, when, cause, messages)
+                flag.Name, Copy(before?.Settings), before?.Override.Definition, null, null, flag.IsDeclared, userKey, when, cause, messages)
                 .WithStateFrom(resetting),
-            cancellationToken);
+            cancellationToken));
         return FeatureFlagResult.Saved;
     }
 
@@ -195,18 +197,48 @@ internal sealed class FeatureFlagService : IFeatureFlagService
             return;
         }
 
-        await RefreshAsync();
         DateTimeOffset when = _time.GetUtcNow();
-        foreach ((string flagName, FeatureFlagOverride before, FlagSettings beforeSettings, FlagSettings afterSettings, string afterJson) in changes)
+        await AfterStoreAsync(async () =>
         {
-            FeatureFlag? flag = await _catalog.FindAsync(flagName, cancellationToken);
-            await _events.PublishAsync(
-                new FeatureFlagOverrideSavedNotification(
-                    flagName, beforeSettings, before.Definition, afterSettings, afterJson, flag?.IsDeclared ?? false, null, when,
-                    FeatureFlagChangeCause.MemberCleanup, new EventMessages()),
-                cancellationToken);
-        }
+            foreach ((string flagName, FeatureFlagOverride before, FlagSettings beforeSettings, FlagSettings afterSettings, string afterJson) in changes)
+            {
+                FeatureFlag? flag = await _catalog.FindAsync(flagName, cancellationToken);
+                await _events.PublishAsync(
+                    new FeatureFlagOverrideSavedNotification(
+                        flagName, beforeSettings, before.Definition, afterSettings, afterJson, flag?.IsDeclared ?? false, null, when,
+                        FeatureFlagChangeCause.MemberCleanup, new EventMessages()),
+                    cancellationToken);
+            }
+        });
     }
+
+    /// <summary>
+    /// Once a change is stored: every server reads the overrides again, then the Saved or Reset notification is published.
+    /// Inside an Umbraco scope the store hasn't committed yet, and reading from another connection would wait for it, so
+    /// this waits for the scope to complete instead; a scope that doesn't complete, and so rolls the change back,
+    /// publishes nothing and reads nothing.
+    /// </summary>
+    private async Task AfterStoreAsync(Func<Task> publish)
+    {
+        if (_scopes?.Context is { } context)
+        {
+            context.Enlist($"Umbricians.FeatureFlags.{Guid.NewGuid()}", completed =>
+            {
+                if (completed)
+                {
+                    RefreshAsync().GetAwaiter().GetResult();
+                    publish().GetAwaiter().GetResult();
+                }
+            });
+            return;
+        }
+
+        await RefreshAsync();
+        await publish();
+    }
+
+    /// <summary>Settings for a notification, copied so a handler can't change what the cache holds.</summary>
+    private static FlagSettings? Copy(FlagSettings? settings) => settings?.Copy();
 
     /// <summary>The override as the cache last read it, for the notifications' "before"; null when the flag has none.</summary>
     private async Task<SavedOverride?> SavedAsync(string flagName, CancellationToken cancellationToken) =>

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.FeatureManagement;
+using Umbraco.Cms.Core.Scoping;
 using Umbricians.FeatureFlags.Flags;
 using Umbricians.FeatureFlags.Overrides;
 
@@ -106,6 +107,46 @@ public class FeatureFlagServiceTests : IntegrationTest
         Assert.That(await IsEnabledAsync("Frozen.Checkout"), Is.False);
         Assert.That((await service.SaveAsync("Tests.Off", FlagSettings.ForAudience(true, null))).IsSaved, Is.True);
         await service.ResetAsync("Tests.Off");
+    }
+
+    [Test]
+    public async Task A_save_inside_an_open_scope_does_not_hang_and_is_seen_once_the_scope_completes()
+    {
+        IFeatureFlagService service = Site.Services.GetRequiredService<IFeatureFlagService>();
+        ICoreScopeProvider scopes = Site.Services.GetRequiredService<ICoreScopeProvider>();
+
+        using (ICoreScope scope = scopes.CreateCoreScope())
+        {
+            FeatureFlagResult saved = await service.SaveAsync("Tests.Off", FlagSettings.ForAudience(true, null)).WaitAsync(TimeSpan.FromSeconds(30));
+            Assert.That(saved.IsSaved, Is.True);
+            scope.Complete();
+        }
+
+        Assert.That(await IsEnabledAsync("Tests.Off"), Is.True);
+
+        using (ICoreScope scope = scopes.CreateCoreScope())
+        {
+            await service.ResetAsync("Tests.Off").WaitAsync(TimeSpan.FromSeconds(30));
+            scope.Complete();
+        }
+
+        Assert.That(await IsEnabledAsync("Tests.Off"), Is.False);
+        Assert.That(await Site.Services.GetRequiredService<IFeatureFlagOverrideStore>().GetAllAsync(default), Is.Empty);
+    }
+
+    [Test]
+    public async Task A_save_inside_a_scope_that_is_not_completed_is_rolled_back_and_never_seen()
+    {
+        IFeatureFlagService service = Site.Services.GetRequiredService<IFeatureFlagService>();
+        ICoreScopeProvider scopes = Site.Services.GetRequiredService<ICoreScopeProvider>();
+
+        using (scopes.CreateCoreScope())
+        {
+            await service.SaveAsync("Tests.Off", FlagSettings.ForAudience(true, null)).WaitAsync(TimeSpan.FromSeconds(30));
+        }
+
+        Assert.That(await IsEnabledAsync("Tests.Off"), Is.False);
+        Assert.That(await Site.Services.GetRequiredService<IFeatureFlagOverrideStore>().GetAllAsync(default), Is.Empty);
     }
 
     private async Task<bool> IsEnabledAsync(string flagName, bool variants = false)

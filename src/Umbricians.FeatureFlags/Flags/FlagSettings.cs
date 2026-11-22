@@ -30,6 +30,10 @@ public sealed record FlagSettings(bool Enabled, IReadOnlyList<FlagCondition> Con
     public FlagAudience? Audience =>
         Conditions.Count == 1 && IsTargeting(Conditions[0].Name) ? FlagAudience.TryRead(Conditions[0].Parameters, out _) : null;
 
+    /// <summary>A copy that shares nothing with this one, so a caller can change its condition parameters freely.</summary>
+    internal FlagSettings Copy() =>
+        new(Enabled, Conditions.Select(condition => new FlagCondition(condition.Name, (JsonObject)condition.Parameters.DeepClone())).ToArray(), Match);
+
     internal FlagState State =>
         !Enabled ? FlagState.Off
         : Conditions.Count == 0 ? FlagState.Everyone

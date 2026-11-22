@@ -186,15 +186,21 @@ internal sealed class FlagCatalog
             details.IsPublic ?? false,
             state,
             defaultState,
-            settings,
-            defaultSettings,
+            settings?.Copy(),
+            defaultSettings?.Copy(),
             featureFlagOverride,
             differsFromDefault,
             actions);
 
     // Conditions the backoffice can't edit show as custom until it knows which conditions are registered.
     private static FeatureFlagState Display(FlagSettings settings) =>
-        settings.State == FlagState.Conditions ? FeatureFlagState.Custom : (FeatureFlagState)settings.State;
+        settings.State switch
+        {
+            FlagState.Off => FeatureFlagState.Off,
+            FlagState.Everyone => FeatureFlagState.Everyone,
+            FlagState.Audience => FeatureFlagState.Audience,
+            _ => FeatureFlagState.Custom,
+        };
 
     private static FeatureFlagState Display(FlagSettings? settings, FeatureDefinition definition)
     {
