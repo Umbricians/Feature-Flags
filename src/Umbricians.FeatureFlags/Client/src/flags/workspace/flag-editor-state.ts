@@ -1,7 +1,9 @@
 // The flag editor's unsaved state, as immutable functions. No backoffice imports, so Node can test it.
 import type { ConditionMatch, FeatureFlag, FlagCondition, SaveSettings } from "../../api/types.js";
 import { audienceFromParameters, emptyAudience, isTargeting, toTargetingCondition } from "../audience.js";
-import { hasEditor, isRoot, namesMatch } from "../../conditions/condition-names.js";
+import { hasEditor, isRoot, isTimeWindow, namesMatch } from "../../conditions/condition-names.js";
+import { readRoots } from "../../conditions/root/root.js";
+import { windowProblems, type WindowProblem } from "../../conditions/time-window/time-window.js";
 import { mayDo } from "../display.js";
 
 /** What the editor's state choice means: off (keeping its conditions), on for everyone, or on with conditions. */
@@ -28,7 +30,11 @@ export type SaveBlocker =
   /** "On with conditions" holds none. */
   | { kind: "noConditions" }
   /** The audience condition names no member or group and gives no percentage, so the flag would be on for nobody. */
-  | { kind: "nobody" };
+  | { kind: "nobody" }
+  /** A time window that the server would refuse: no start or end, an end that isn't after the start, or a time that can't be read. */
+  | { kind: "timeWindow"; problem: WindowProblem }
+  /** A Root condition that names no site, so the flag would be on for no request. */
+  | { kind: "noSites" };
 
 /** The editor for a flag as the server has it, with nothing changed. */
 export function loadEditor(flag: FeatureFlag): FlagEditorState {
@@ -99,7 +105,8 @@ export function isCustom(flag: FeatureFlag): boolean {
 
 /**
  * Why saving is refused beyond what the catalog says, or null. A condition with no editor can't be saved from here
- * unless "on for everyone" replaces it; "on with conditions" needs at least one; and an audience must name someone.
+ * unless "on for everyone" replaces it; "on with conditions" needs at least one; an audience must name someone; a time window
+ * must have a start or an end; and a Root condition must name a site.
  */
 export function saveBlocker(state: FlagEditorState, editorNames: ReadonlyArray<string>): SaveBlocker | null {
   if (state.mode === "everyone") return null;
@@ -107,7 +114,16 @@ export function saveBlocker(state: FlagEditorState, editorNames: ReadonlyArray<s
   if (without.length > 0) return { kind: "noEditor", names: without };
   if (state.mode !== "conditions") return null;
   if (state.conditions.length === 0) return { kind: "noConditions" };
-  return state.conditions.some(isEmptyAudience) ? { kind: "nobody" } : null;
+  if (state.conditions.some(isEmptyAudience)) return { kind: "nobody" };
+  for (const condition of state.conditions) {
+    if (isTimeWindow(condition.name)) {
+      const [problem] = windowProblems(condition.parameters);
+      if (problem) return { kind: "timeWindow", problem };
+    } else if (isRoot(condition.name) && readRoots(condition.parameters).length === 0) {
+      return { kind: "noSites" };
+    }
+  }
+  return null;
 }
 
 /** An audience condition that names no member or group, and no percentage of everyone: nobody would get the feature. */

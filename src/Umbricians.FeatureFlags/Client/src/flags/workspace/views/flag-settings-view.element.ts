@@ -190,11 +190,24 @@ export class FeatureFlagSettingsViewElement extends UmbLitElement {
   }
 
   #blockerText(blocker: SaveBlocker) {
-    return blocker.kind === "noEditor"
-      ? this.localize.term("umbriciansFeatureFlags_cannotSaveNoEditor", blocker.names.join(", "))
-      : blocker.kind === "nobody"
-        ? this.localize.term("umbriciansFeatureFlags_cannotSaveNobody")
-        : this.localize.term("umbriciansFeatureFlags_cannotSaveNoConditions");
+    switch (blocker.kind) {
+      case "noEditor":
+        return this.localize.term("umbriciansFeatureFlags_cannotSaveNoEditor", blocker.names.join(", "));
+      case "nobody":
+        return this.localize.term("umbriciansFeatureFlags_cannotSaveNobody");
+      case "noSites":
+        return this.localize.term("umbriciansFeatureFlags_cannotSaveNoSites");
+      case "timeWindow":
+        return this.localize.term(
+          blocker.problem === "neither"
+            ? "umbriciansFeatureFlags_cannotSaveWindowNeither"
+            : blocker.problem === "startNotBeforeEnd"
+              ? "umbriciansFeatureFlags_cannotSaveWindowOrder"
+              : "umbriciansFeatureFlags_cannotSaveWindowUnreadable",
+        );
+      default:
+        return this.localize.term("umbriciansFeatureFlags_cannotSaveNoConditions");
+    }
   }
 
   #renderInfo(flag: FeatureFlag) {

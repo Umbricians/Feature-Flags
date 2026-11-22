@@ -257,3 +257,33 @@ test("adding Root beside the audience switches to All, and the saved flag keeps 
     ["Microsoft.Targeting", "Umbricians.Root"],
   );
 });
+
+const withCondition = (name: string, parameters: Record<string, unknown>) =>
+  setConditionParameters(addCondition(setMode(loadEditor(flag({ enabled: false })), "conditions"), name), 0, parameters);
+
+test("a time window with no start or end is blocked until one is chosen", () => {
+  const editors = ["Microsoft.TimeWindow"];
+  assert.deepEqual(saveBlocker(withCondition("Microsoft.TimeWindow", {}), editors), { kind: "timeWindow", problem: "neither" });
+  assert.equal(saveBlocker(withCondition("Microsoft.TimeWindow", { Start: "2026-12-01T09:00:00Z" }), editors), null);
+  assert.equal(saveBlocker(withCondition("Microsoft.TimeWindow", { End: "2026-12-01T09:00:00Z" }), editors), null);
+});
+
+test("a time window that ends before it starts, or holds an unreadable time, is blocked", () => {
+  const editors = ["Microsoft.TimeWindow"];
+  const backwards = { Start: "2026-12-02T09:00:00Z", End: "2026-12-01T09:00:00Z" };
+  assert.deepEqual(saveBlocker(withCondition("Microsoft.TimeWindow", backwards), editors), { kind: "timeWindow", problem: "startNotBeforeEnd" });
+  assert.deepEqual(saveBlocker(withCondition("Microsoft.TimeWindow", { Start: "soon" }), editors), { kind: "timeWindow", problem: "unreadableStart" });
+});
+
+test("a Root condition that names no site is blocked until one is chosen", () => {
+  const editors = ["Umbricians.Root"];
+  assert.deepEqual(saveBlocker(withCondition("Umbricians.Root", { Roots: [] }), editors), { kind: "noSites" });
+  assert.equal(saveBlocker(withCondition("Umbricians.Root", { Roots: ["abc"] }), editors), null);
+});
+
+test("an incomplete time window or Root condition doesn't block a flag that is off or on for everyone", () => {
+  const editors = ["Microsoft.TimeWindow", "Umbricians.Root"];
+  const window = withCondition("Microsoft.TimeWindow", {});
+  assert.equal(saveBlocker(setMode(window, "off"), editors), null);
+  assert.equal(saveBlocker(setMode(window, "everyone"), editors), null);
+});
