@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       umbraco-version:
-        description: Umbraco.Cms version to build against (default: the newest 17.x on NuGet)
+        description: "Umbraco.Cms version to build against (default: the newest 17.x on NuGet)"
         required: false
 
 permissions:
