@@ -16,7 +16,7 @@ public class FeatureFlagNotificationTests
     private static readonly Guid Editor = Guid.NewGuid();
 
     [Test]
-    public async Task A_save_publishes_Saving_then_stores_then_reads_again_then_publishes_Saved()
+    public async Task A_save_reads_the_store_then_publishes_Saving_then_stores_then_reads_again_then_publishes_Saved()
     {
         var site = new TestSite(Flags);
         await site.IsOnAsync("Checkout.NewFlow");
@@ -28,12 +28,12 @@ public class FeatureFlagNotificationTests
 
         Assert.That(log, Is.EqualTo(new[]
         {
-            nameof(FeatureFlagOverrideSavingNotification), "store", "read", nameof(FeatureFlagOverrideSavedNotification),
+            "read", nameof(FeatureFlagOverrideSavingNotification), "store", "read", nameof(FeatureFlagOverrideSavedNotification),
         }));
     }
 
     [Test]
-    public async Task A_reset_publishes_Resetting_then_stores_then_reads_again_then_publishes_Reset()
+    public async Task A_reset_reads_the_store_then_publishes_Resetting_then_stores_then_reads_again_then_publishes_Reset()
     {
         var site = new TestSite(Flags);
         site.Store.With("Checkout.NewFlow", FlagSettings.ForAudience(true, null));
@@ -46,7 +46,7 @@ public class FeatureFlagNotificationTests
 
         Assert.That(log, Is.EqualTo(new[]
         {
-            nameof(FeatureFlagOverrideResettingNotification), "store", "read", nameof(FeatureFlagOverrideResetNotification),
+            "read", nameof(FeatureFlagOverrideResettingNotification), "store", "read", nameof(FeatureFlagOverrideResetNotification),
         }));
     }
 
@@ -184,6 +184,20 @@ public class FeatureFlagNotificationTests
         Assert.That(saving.SettingsBefore.Audience!.Members, Is.EqualTo(audience.Members));
         Assert.That(saving.SettingsAfter!.Enabled, Is.False);
         Assert.That(saving.SettingsAfter.Audience!.Members, Is.EqualTo(audience.Members));
+    }
+
+    [Test]
+    public async Task The_settings_before_are_what_the_store_holds_even_when_the_cache_is_a_change_behind()
+    {
+        var site = new TestSite(Flags);
+        FeatureFlagService service = Service(site);
+        await service.SaveAsync("Checkout.NewFlow", FlagSettings.ForAudience(true, null), Editor, default);
+
+        // Another change reached the store, as a first save in the same open scope does, without the cache having read it.
+        site.Store.With("Checkout.NewFlow", FlagSettings.Off);
+        await service.SaveAsync("Checkout.NewFlow", FlagSettings.ForAudience(true, null), Editor, default);
+
+        Assert.That(site.Events.Of<FeatureFlagOverrideSavingNotification>().Last().SettingsBefore!.Enabled, Is.False);
     }
 
     [Test]

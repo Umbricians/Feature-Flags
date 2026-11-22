@@ -2,6 +2,7 @@ using Umbraco.Cms.Core.Cache;
 using Umbraco.Cms.Core.Events;
 using Umbraco.Cms.Core.Notifications;
 using Umbraco.Cms.Core.Scoping;
+using Umbraco.Cms.Infrastructure.Scoping;
 using Umbricians.FeatureFlags.Flags;
 using Umbricians.FeatureFlags.Groups;
 
@@ -23,6 +24,7 @@ internal sealed class FeatureFlagService : IFeatureFlagService
     private readonly AudienceGroups _groups;
     private readonly IEventAggregator _events;
     private readonly ICoreScopeProvider? _scopes;
+    private readonly IScopeAccessor? _scopeAccessor;
     private readonly ConditionRegistry _conditions;
 
     public FeatureFlagService(
@@ -34,7 +36,8 @@ internal sealed class FeatureFlagService : IFeatureFlagService
         IEventAggregator events,
         ConditionRegistry conditions,
         DistributedCache? distributedCache = null,
-        ICoreScopeProvider? scopes = null)
+        ICoreScopeProvider? scopes = null,
+        IScopeAccessor? scopeAccessor = null)
     {
         _store = store;
         _catalog = catalog;
@@ -45,6 +48,7 @@ internal sealed class FeatureFlagService : IFeatureFlagService
         _conditions = conditions;
         _distributedCache = distributedCache;
         _scopes = scopes;
+        _scopeAccessor = scopeAccessor;
     }
 
     public async Task<IReadOnlyList<FeatureFlag>> GetAllAsync(CancellationToken cancellationToken = default) =>
@@ -226,11 +230,14 @@ internal sealed class FeatureFlagService : IFeatureFlagService
     /// Once a change is stored: every server reads the overrides again, then the Saved or Reset notification is published.
     /// Inside an Umbraco scope the store hasn't committed yet, and reading from another connection would wait for it, so
     /// this waits for the scope to complete instead; a scope that doesn't complete, and so rolls the change back,
-    /// publishes nothing and reads nothing.
+    /// publishes nothing and reads nothing. With no scope open the change is already stored, so it happens at once.
     /// </summary>
     private async Task AfterStoreAsync(Func<Task> publish)
     {
-        if (_scopes?.Context is { } context)
+        // Only an open scope defers: Umbraco keeps the scope context alive while the scope exits and runs the callbacks
+        // enlisted in it, and ignores anything enlisted from inside them. A change made from a Saved handler, or by member
+        // clean-up, after the scope has been popped has already been committed, so it is read and published straight away.
+        if (_scopeAccessor?.AmbientScope is not null && _scopes?.Context is { } context)
         {
             context.Enlist($"Umbricians.FeatureFlags.{Guid.NewGuid()}", completed =>
             {
@@ -250,18 +257,32 @@ internal sealed class FeatureFlagService : IFeatureFlagService
     /// <summary>Settings for a notification, copied so a handler can't change what the cache holds.</summary>
     private static FlagSettings? Copy(FlagSettings? settings) => settings?.Copy();
 
-    /// <summary>The override as the cache last read it, for the notifications' "before"; null when the flag has none.</summary>
-    private async Task<SavedOverride?> SavedAsync(string flagName, CancellationToken cancellationToken) =>
-        (await _cache.GetAsync(cancellationToken)).Overrides.GetValueOrDefault(flagName);
+    /// <summary>
+    /// The override as the store holds it now, for the notifications' "before"; null when the flag has none. Read from the
+    /// store, not the cache: inside a scope the cache is a change behind, and a failed cache read leaves it empty.
+    /// </summary>
+    private async Task<SavedOverride?> SavedAsync(string flagName, CancellationToken cancellationToken)
+    {
+        FeatureFlagOverride? row = (await _store.GetAllAsync(cancellationToken))
+            .FirstOrDefault(saved => string.Equals(saved.FlagName, flagName, StringComparison.OrdinalIgnoreCase));
+        return row is null ? null : new SavedOverride(row, null, FlagDefinitions.ReadOverride(row.Definition, out string? reason), reason);
+    }
 
     private static IReadOnlyList<string> MessagesIn(EventMessages messages) =>
         messages.GetAll().Select(message => message.Message).Where(text => !string.IsNullOrWhiteSpace(text)).ToArray();
 
     private Task RefreshAsync()
     {
-        // The distributed cache tells every server to read the overrides again in the background. This server waits for
-        // its own read, so whatever the editor does next sees the change.
-        _distributedCache?.RefreshAll(FeatureFlagsCacheRefresher.UniqueId);
+        // The distributed cache tells every server to read the overrides again; this server's own read finishes before the
+        // call returns, so whatever the editor does next sees the change.
+        // With the distributed cache, refreshing already reads the overrides on this server before it returns, so a second
+        // read would only repeat it.
+        if (_distributedCache is not null)
+        {
+            _distributedCache.RefreshAll(FeatureFlagsCacheRefresher.UniqueId);
+            return Task.CompletedTask;
+        }
+
         return _cache.ReloadAsync();
     }
 }

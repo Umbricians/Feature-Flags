@@ -26,10 +26,26 @@ public sealed class FreezeHandler :
     }
 }
 
+/// <summary>
+/// When Mirror.Source is saved, switches Mirror.Target the same way: a change made from inside a Saved handler, as a site
+/// that keeps two flags together would.
+/// </summary>
+public sealed class MirrorHandler(IFeatureFlagService flags) : INotificationHandler<FeatureFlagOverrideSavedNotification>
+{
+    public void Handle(FeatureFlagOverrideSavedNotification notification)
+    {
+        if (string.Equals(notification.FlagName, "Mirror.Source", StringComparison.OrdinalIgnoreCase))
+        {
+            flags.SwitchAsync("Mirror.Target", notification.SettingsAfter!.Enabled).GetAwaiter().GetResult();
+        }
+    }
+}
+
 /// <summary>Registers the test site's handlers.</summary>
 public sealed class FreezeComposer : IComposer
 {
     public void Compose(IUmbracoBuilder builder) => builder
         .AddNotificationHandler<FeatureFlagOverrideSavingNotification, FreezeHandler>()
-        .AddNotificationHandler<FeatureFlagOverrideResettingNotification, FreezeHandler>();
+        .AddNotificationHandler<FeatureFlagOverrideResettingNotification, FreezeHandler>()
+        .AddNotificationHandler<FeatureFlagOverrideSavedNotification, MirrorHandler>();
 }

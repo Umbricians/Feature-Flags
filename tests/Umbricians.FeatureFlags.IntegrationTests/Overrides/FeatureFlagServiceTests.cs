@@ -149,6 +149,26 @@ public class FeatureFlagServiceTests : IntegrationTest
         Assert.That(await Site.Services.GetRequiredService<IFeatureFlagOverrideStore>().GetAllAsync(default), Is.Empty);
     }
 
+    [Test]
+    public async Task A_change_made_from_a_saved_handler_after_the_scope_completes_is_read_and_published()
+    {
+        IFeatureFlagService service = Site.Services.GetRequiredService<IFeatureFlagService>();
+        ICoreScopeProvider scopes = Site.Services.GetRequiredService<ICoreScopeProvider>();
+
+        using (ICoreScope scope = scopes.CreateCoreScope())
+        {
+            await service.SaveAsync("Mirror.Source", FlagSettings.ForAudience(true, null)).WaitAsync(TimeSpan.FromSeconds(30));
+            scope.Complete();
+        }
+
+        // The Saved handler switched Mirror.Target while the scope was exiting; that change must not be lost.
+        Assert.That(await IsEnabledAsync("Mirror.Source"), Is.True);
+        Assert.That(await IsEnabledAsync("Mirror.Target"), Is.True);
+        Assert.That((await service.GetAsync("Mirror.Target"))!.State, Is.EqualTo(FeatureFlagState.Everyone));
+        await service.ResetAsync("Mirror.Source");
+        await service.ResetAsync("Mirror.Target");
+    }
+
     private async Task<bool> IsEnabledAsync(string flagName, bool variants = false)
     {
         await using AsyncServiceScope scope = Site.CreateScope();
