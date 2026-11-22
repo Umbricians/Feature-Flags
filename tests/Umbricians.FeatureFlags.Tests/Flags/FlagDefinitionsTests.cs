@@ -164,7 +164,7 @@ public class FlagDefinitionsTests
     public void Stored_JSON_written_by_hand_may_list_members_and_groups_as_numbers()
     {
         FlagSettings? read = FlagDefinitions.ReadOverride(
-            """{ "id": "F", "enabled": true, "conditions": { "client_filters": [ { "name": "Microsoft.Targeting", "parameters": { "Audience": { "Users": [1001], "Groups": [ { "Name": 2024 } ] } } } ] } }""",
+            """{ "id": "F", "enabled": true, "conditions": { "client_filters": [ { "name": "Microsoft.Targeting", "parameters": { "Audience": { "Users": [1001], "Groups": [ { "Name": 2024, "RolloutPercentage": 100 } ] } } } ] } }""",
             out _);
 
         Assert.That(read!.Audience, Is.EqualTo(new FlagAudience(["1001"], ["2024"])).Using<FlagAudience>((a, b) => a.SameAs(b)));

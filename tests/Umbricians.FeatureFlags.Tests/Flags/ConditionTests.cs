@@ -139,10 +139,10 @@ public class ConditionTests
     }
 
     [Test]
-    public async Task The_audience_can_not_be_saved_with_percentages_yet()
+    public async Task The_audience_can_not_be_saved_with_a_percentage_over_100()
     {
         TestSite site = Site();
-        var percentage = new FlagCondition("Microsoft.Targeting", new JsonObject { ["Audience"] = new JsonObject { ["DefaultRolloutPercentage"] = 20 } });
+        var percentage = new FlagCondition("Microsoft.Targeting", new JsonObject { ["Audience"] = new JsonObject { ["DefaultRolloutPercentage"] = 120 } });
 
         FeatureFlagResult result = await Service(site).SaveAsync("Everyone", new FlagSettings(true, [percentage]));
 
@@ -284,7 +284,7 @@ public class ConditionTests
     }
 
     [Test]
-    public async Task Targeting_with_a_percentage_is_custom_because_it_can_not_be_saved_or_switched()
+    public async Task Targeting_with_a_percentage_is_an_audience_the_backoffice_can_edit()
     {
         TestSite site = Site();
         var targeting = new FlagCondition("Microsoft.Targeting", new JsonObject
@@ -295,8 +295,8 @@ public class ConditionTests
 
         FeatureFlag flag = await FlagAsync(site, "Aud");
 
-        Assert.That(flag.State, Is.EqualTo(FeatureFlagState.Custom));
-        Assert.That(flag.Actions.Save.Allowed, Is.False);
+        Assert.That(flag.State, Is.EqualTo(FeatureFlagState.Audience));
+        Assert.That(flag.Actions.Save.Allowed, Is.True);
     }
 
     private const string DisabledWithConditions = """

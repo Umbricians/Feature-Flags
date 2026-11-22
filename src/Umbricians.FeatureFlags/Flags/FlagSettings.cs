@@ -17,15 +17,15 @@ public sealed record FlagSettings(bool Enabled, IReadOnlyList<FlagCondition> Con
     /// <summary>Off, with no conditions.</summary>
     public static FlagSettings Off { get; } = new(false, []);
 
-    /// <summary>Settings for an audience: on for the members and groups in it, or for everyone when there is none.</summary>
+    /// <summary>Settings for an audience: on for those in it, or for everyone when there is none.</summary>
     /// <param name="enabled">Whether the flag is on.</param>
     /// <param name="audience">Who it is on for; null for everyone.</param>
     public static FlagSettings ForAudience(bool enabled, FlagAudience? audience) =>
         new(enabled, audience is null ? [] : [new FlagCondition(TargetingName, audience.ToParameters())]);
 
     /// <summary>
-    /// Who the flag is on for, when its only condition is a targeting condition the backoffice can read: members by key
-    /// and groups by id, with no percentages or exclusions. Otherwise null.
+    /// Who the flag is on for, when its only condition is a targeting condition the backoffice can read: members, groups,
+    /// percentages and exclusions. Otherwise null.
     /// </summary>
     public FlagAudience? Audience =>
         Conditions.Count == 1 && IsTargeting(Conditions[0].Name) ? FlagAudience.TryRead(Conditions[0].Parameters, out _) : null;
@@ -102,9 +102,10 @@ public enum ConditionMatch
 }
 
 /// <summary>
-/// Who a flag is on for: members by key, and groups by id. Microsoft's targeting keeps every group in one list, so group
-/// ids are member group keys, member group names or group providers' ids; <c>AudienceGroups</c> says which. An empty
-/// audience includes nobody.
+/// Who a flag is on for: members by key, and groups by id, with a percentage of everyone else and of each group, and
+/// members and groups left out. Microsoft's targeting keeps every group in one list, so group ids are member group keys,
+/// member group names or group providers' ids; <c>AudienceGroups</c> says which. An empty audience includes nobody.
+/// Percentages are of members only: Microsoft hashes each member's id, so the same member is always in or out.
 /// </summary>
 /// <param name="Members">The keys of the members it includes.</param>
 /// <param name="Groups">The ids of the groups it includes.</param>
@@ -113,67 +114,94 @@ public sealed record FlagAudience(IReadOnlyList<string> Members, IReadOnlyList<s
     /// <summary>An audience that includes nobody.</summary>
     public static FlagAudience Empty { get; } = new([], []);
 
+    /// <summary>The percentage, 0 to 100, of every member not otherwise included. 0 by default.</summary>
+    public int DefaultPercentage { get; init; }
+
+    /// <summary>The percentage of a group that is included, by group id. A group not listed is included in full.</summary>
+    public IReadOnlyDictionary<string, int> GroupPercentages { get; init; } = new Dictionary<string, int>();
+
+    /// <summary>The keys of members left out, even when they are in a group or the percentage of everyone.</summary>
+    public IReadOnlyList<string> ExcludedMembers { get; init; } = [];
+
+    /// <summary>The ids of groups left out, even when a member is also in an included group.</summary>
+    public IReadOnlyList<string> ExcludedGroups { get; init; } = [];
+
+    /// <summary>The percentage of a group that is included: 100 unless <see cref="GroupPercentages"/> says otherwise.</summary>
+    public int PercentageOf(string group) =>
+        GroupPercentages.FirstOrDefault(pair => string.Equals(pair.Key, group, StringComparison.OrdinalIgnoreCase)) is { Key: not null } found
+            ? found.Value
+            : 100;
+
     internal bool SameAs(FlagAudience other) =>
         Members.ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(other.Members)
-        && Groups.ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(other.Groups);
+        && Groups.ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(other.Groups)
+        && DefaultPercentage == other.DefaultPercentage
+        && Groups.All(group => PercentageOf(group) == other.PercentageOf(group))
+        && ExcludedMembers.ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(other.ExcludedMembers)
+        && ExcludedGroups.ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(other.ExcludedGroups);
 
-    /// <summary>Microsoft's targeting parameters for this audience: everyone in it, and nobody else.</summary>
+    /// <summary>Microsoft's targeting parameters for this audience.</summary>
     internal JsonObject ToParameters()
     {
         var groups = new JsonArray();
         foreach (string group in Groups)
         {
-            groups.Add(new JsonObject { ["Name"] = group, ["RolloutPercentage"] = 100 });
+            groups.Add(new JsonObject { ["Name"] = group, ["RolloutPercentage"] = PercentageOf(group) });
         }
 
-        return new JsonObject
+        var audience = new JsonObject
         {
-            ["Audience"] = new JsonObject
-            {
-                ["Users"] = new JsonArray(Members.Select(m => (JsonNode?)m).ToArray()),
-                ["Groups"] = groups,
-                ["DefaultRolloutPercentage"] = 0,
-            },
+            ["Users"] = new JsonArray(Members.Select(m => (JsonNode?)m).ToArray()),
+            ["Groups"] = groups,
+            ["DefaultRolloutPercentage"] = DefaultPercentage,
         };
+
+        if (ExcludedMembers.Count > 0 || ExcludedGroups.Count > 0)
+        {
+            audience["Exclusion"] = new JsonObject
+            {
+                ["Users"] = new JsonArray(ExcludedMembers.Select(m => (JsonNode?)m).ToArray()),
+                ["Groups"] = new JsonArray(ExcludedGroups.Select(g => (JsonNode?)g).ToArray()),
+            };
+        }
+
+        return new JsonObject { ["Audience"] = audience };
     }
 
     /// <summary>
-    /// The audience targeting parameters amount to, or null with the reason when they say more than members and groups:
-    /// a percentage of everyone or of a group, or exclusions.
+    /// The audience targeting parameters amount to, or null with the reason when they can't be read as one: a percentage
+    /// that isn't a whole number from 0 to 100, or a list of the wrong shape. Numbers may be written as text, as
+    /// configuration gives them, and keys may be in any case, as Microsoft reads them.
     /// </summary>
     internal static FlagAudience? TryRead(JsonObject parameters, out string? reason)
     {
         reason = null;
         JsonObject? audience = Child(parameters, "Audience") as JsonObject;
 
-        if (Percentage(Child(audience, "DefaultRolloutPercentage")) is not (null or 0))
+        if (!TryPercentage(Child(audience, "DefaultRolloutPercentage"), 0, "The percentage of everyone else", out int defaultPercentage, out reason))
         {
-            reason = "It is on for a percentage of everyone, which the backoffice can't edit yet.";
-            return null;
-        }
-
-        if (Child(audience, "Exclusion") is JsonObject exclusion
-            && (Child(exclusion, "Users") is JsonArray { Count: > 0 } || Child(exclusion, "Groups") is JsonArray { Count: > 0 }))
-        {
-            reason = "It excludes members or groups, which the backoffice can't edit yet.";
             return null;
         }
 
         var groups = new List<string>();
+        var percentages = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         if (Child(audience, "Groups") is JsonArray groupNodes)
         {
             foreach (JsonNode? node in groupNodes)
             {
-                if (Percentage(Child(node as JsonObject, "RolloutPercentage")) is not (null or 100))
+                // Microsoft binds a missing percentage as 0, so a group without one includes nobody.
+                if (Text(Child(node as JsonObject, "Name")) is not { } name)
                 {
-                    reason = "It is on for a percentage of a group, which the backoffice can't edit yet.";
+                    continue;
+                }
+
+                if (!TryPercentage(Child(node as JsonObject, "RolloutPercentage"), 0, $"The percentage of the group '{name}'", out int percentage, out reason))
+                {
                     return null;
                 }
 
-                if (Text(Child(node as JsonObject, "Name")) is { } name)
-                {
-                    groups.Add(name);
-                }
+                groups.Add(name);
+                percentages.TryAdd(name, percentage);
             }
         }
 
@@ -183,7 +211,14 @@ public sealed record FlagAudience(IReadOnlyList<string> Members, IReadOnlyList<s
             members.AddRange(users.Select(Text).OfType<string>());
         }
 
-        return new FlagAudience(members, groups);
+        JsonObject? exclusion = Child(audience, "Exclusion") as JsonObject;
+        return new FlagAudience(members, groups)
+        {
+            DefaultPercentage = defaultPercentage,
+            GroupPercentages = percentages.Where(pair => pair.Value != 100).ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase),
+            ExcludedMembers = Child(exclusion, "Users") is JsonArray excludedUsers ? excludedUsers.Select(Text).OfType<string>().ToArray() : [],
+            ExcludedGroups = Child(exclusion, "Groups") is JsonArray excludedGroups ? excludedGroups.Select(Text).OfType<string>().ToArray() : [],
+        };
     }
 
     // Microsoft reads configuration keys without regard to case, so these do too.
@@ -202,16 +237,35 @@ public sealed record FlagAudience(IReadOnlyList<string> Members, IReadOnlyList<s
         return string.IsNullOrWhiteSpace(text) ? null : text;
     }
 
-    // A number, or text that reads as one, whichever way the JSON value holds it.
-    private static double? Percentage(JsonNode? node) => node is JsonValue value
-        && (value.GetValueKind() == System.Text.Json.JsonValueKind.Number || value.TryGetValue(out string? _))
-        && double.TryParse(
-            value.GetValueKind() == System.Text.Json.JsonValueKind.Number ? value.ToJsonString() : value.GetValue<string>(),
-            System.Globalization.NumberStyles.Float,
-            System.Globalization.CultureInfo.InvariantCulture,
-            out double number)
-            ? number
+    // A percentage written as a number or as text that reads as one; missing means the fallback. Anything else, or a
+    // number that isn't a whole number from 0 to 100, is why the audience can't be read.
+    private static bool TryPercentage(JsonNode? node, int fallback, string what, out int percentage, out string? reason)
+    {
+        percentage = fallback;
+        reason = null;
+        if (node is null)
+        {
+            return true;
+        }
+
+        string? text = node is JsonValue value
+            ? value.GetValueKind() == System.Text.Json.JsonValueKind.Number ? value.ToJsonString() : value.TryGetValue(out string? s) ? s : null
             : null;
+        if (text is null || !double.TryParse(text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double number))
+        {
+            reason = $"{what} isn't a number.";
+            return false;
+        }
+
+        if (number is < 0 or > 100 || number != Math.Floor(number))
+        {
+            reason = $"{what} is {text}, and must be a whole number from 0 to 100.";
+            return false;
+        }
+
+        percentage = (int)number;
+        return true;
+    }
 }
 
 /// <summary>How a flag is evaluated, as editors see it.</summary>

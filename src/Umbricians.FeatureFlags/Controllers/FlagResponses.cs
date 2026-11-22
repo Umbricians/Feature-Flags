@@ -47,20 +47,32 @@ internal sealed class FlagResponses
     private static AudienceDetailModel Detail(FlagAudience audience, GroupDirectory groups) => new()
     {
         Members = audience.Members,
-        Groups = audience.Groups.Select(groups.Classify).Select(group => new AudienceGroupModel
-        {
-            Id = group.Id,
-            Kind = ApiNames.GroupKind(group.Kind),
-            Name = group.Name,
-        }).ToArray(),
+        Groups = audience.Groups.Select(id => GroupModel(id, groups, audience.PercentageOf(id))).ToArray(),
+        DefaultPercentage = audience.DefaultPercentage,
+        ExcludedMembers = audience.ExcludedMembers,
+        ExcludedGroups = audience.ExcludedGroups.Select(id => GroupModel(id, groups, 100)).ToArray(),
     };
+
+    private static AudienceGroupModel GroupModel(string id, GroupDirectory groups, int percentage)
+    {
+        AudienceGroup group = groups.Classify(id);
+        return new AudienceGroupModel { Id = group.Id, Kind = ApiNames.GroupKind(group.Kind), Name = group.Name, Percentage = percentage };
+    }
 
     /// <summary>How many of each an audience has: member groups include those named in appsettings; unknown ids count with provider groups.</summary>
     private static AudienceCountsModel Counts(FlagAudience audience, GroupDirectory groups)
     {
         AudienceGroupKind[] kinds = audience.Groups.Select(id => groups.Classify(id).Kind).ToArray();
         int memberGroups = kinds.Count(kind => kind is AudienceGroupKind.MemberGroup or AudienceGroupKind.NamedMemberGroup);
-        return new AudienceCountsModel { Members = audience.Members.Count, MemberGroups = memberGroups, Groups = kinds.Length - memberGroups };
+        return new AudienceCountsModel
+        {
+            Members = audience.Members.Count,
+            MemberGroups = memberGroups,
+            Groups = kinds.Length - memberGroups,
+            DefaultPercentage = audience.DefaultPercentage,
+            ExcludedMembers = audience.ExcludedMembers.Count,
+            ExcludedGroups = audience.ExcludedGroups.Count,
+        };
     }
 
     private static FlagActionsModel Actions(FeatureFlagActions actions) => new()

@@ -129,6 +129,13 @@ internal sealed class AudienceCountsModel
     public int MemberGroups { get; init; }
 
     public int Groups { get; init; }
+
+    /// <summary>The percentage of everyone else it includes, 0 to 100.</summary>
+    public int DefaultPercentage { get; init; }
+
+    public int ExcludedMembers { get; init; }
+
+    public int ExcludedGroups { get; init; }
 }
 
 /// <summary>Who a flag is on for, as the editor shows it.</summary>
@@ -138,6 +145,14 @@ internal sealed class AudienceDetailModel
     public IReadOnlyList<string> Members { get; init; } = [];
 
     public IReadOnlyList<AudienceGroupModel> Groups { get; init; } = [];
+
+    /// <summary>The percentage of everyone else it includes, 0 to 100.</summary>
+    public int DefaultPercentage { get; init; }
+
+    /// <summary>Keys of members left out.</summary>
+    public IReadOnlyList<string> ExcludedMembers { get; init; } = [];
+
+    public IReadOnlyList<AudienceGroupModel> ExcludedGroups { get; init; } = [];
 }
 
 /// <summary>A group in an audience, and what the site knows it to be.</summary>
@@ -151,6 +166,9 @@ internal sealed class AudienceGroupModel
 
     /// <summary>What editors see, or null when the site doesn't know the group.</summary>
     public string? Name { get; init; }
+
+    /// <summary>The percentage of the group that is included, 0 to 100; 100 for a group left out.</summary>
+    public int Percentage { get; init; } = 100;
 }
 
 /// <summary>What the flag list's filters offer, and what the list says about the site.</summary>

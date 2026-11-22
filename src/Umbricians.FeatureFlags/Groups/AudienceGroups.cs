@@ -82,9 +82,29 @@ internal sealed class GroupDirectory(IReadOnlyList<FeatureFlagGroup> providerGro
     /// Members and member group keys written the way targeting compares them; every other id trimmed and kept as it is;
     /// blanks and repeats dropped.
     /// </summary>
-    public FlagAudience Normalize(FlagAudience audience) => new(
-        Clean(audience.Members, id => Guid.TryParse(id, out Guid key) ? TargetingIds.For(key) : id),
-        Clean(audience.Groups, id => Classify(id).Kind == AudienceGroupKind.MemberGroup ? TargetingIds.For(Guid.Parse(id)) : id));
+    public FlagAudience Normalize(FlagAudience audience)
+    {
+        string WriteMember(string id) => Guid.TryParse(id, out Guid key) ? TargetingIds.For(key) : id;
+        string WriteGroup(string id) => Classify(id).Kind == AudienceGroupKind.MemberGroup ? TargetingIds.For(Guid.Parse(id)) : id;
+
+        // A group's percentage follows it to the way its id is written, the first of any repeats winning.
+        var percentages = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (string group in audience.Groups.Where(id => !string.IsNullOrWhiteSpace(id)))
+        {
+            if (audience.PercentageOf(group) is var percentage and not 100)
+            {
+                percentages.TryAdd(WriteGroup(group.Trim()), percentage);
+            }
+        }
+
+        return new FlagAudience(Clean(audience.Members, WriteMember), Clean(audience.Groups, WriteGroup))
+        {
+            DefaultPercentage = audience.DefaultPercentage,
+            GroupPercentages = percentages,
+            ExcludedMembers = Clean(audience.ExcludedMembers, WriteMember),
+            ExcludedGroups = Clean(audience.ExcludedGroups, WriteGroup),
+        };
+    }
 
     private static string[] Clean(IEnumerable<string> ids, Func<string, string> write) => ids
         .Where(id => !string.IsNullOrWhiteSpace(id))

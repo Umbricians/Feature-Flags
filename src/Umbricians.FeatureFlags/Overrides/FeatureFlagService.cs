@@ -170,7 +170,7 @@ internal sealed class FeatureFlagService : IFeatureFlagService
     }
 
     /// <summary>
-    /// Takes members or groups that no longer exist out of every override's audience. An audience left empty includes
+    /// Takes members or groups that no longer exist out of every override's audience, and out of its exclusions. An audience left empty includes
     /// nobody, so a flag never opens up to everyone because its audience was deleted.
     /// </summary>
     public async Task RemoveFromAudiencesAsync(IReadOnlyCollection<string> ids, CancellationToken cancellationToken)
@@ -192,9 +192,15 @@ internal sealed class FeatureFlagService : IFeatureFlagService
                 continue;
             }
 
-            var audience = new FlagAudience(
-                settings.Audience.Members.Where(member => !removed.Contains(member)).ToArray(),
-                settings.Audience.Groups.Where(group => !removed.Contains(group)).ToArray());
+            FlagAudience current = settings.Audience;
+            FlagAudience audience = current with
+            {
+                Members = current.Members.Where(member => !removed.Contains(member)).ToArray(),
+                Groups = current.Groups.Where(group => !removed.Contains(group)).ToArray(),
+                GroupPercentages = current.GroupPercentages.Where(pair => !removed.Contains(pair.Key)).ToDictionary(pair => pair.Key, pair => pair.Value),
+                ExcludedMembers = current.ExcludedMembers.Where(member => !removed.Contains(member)).ToArray(),
+                ExcludedGroups = current.ExcludedGroups.Where(group => !removed.Contains(group)).ToArray(),
+            };
             if (audience.SameAs(settings.Audience))
             {
                 continue;

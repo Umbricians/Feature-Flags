@@ -144,6 +144,33 @@ public class FlagApiTests
     }
 
     [Test]
+    public async Task A_flag_describes_its_percentages_and_who_is_left_out()
+    {
+        TestSite site = Site();
+        site.Store.With("Checkout", FlagSettings.ForAudience(true, new FlagAudience(["m1"], ["crm:premium"])
+        {
+            DefaultPercentage = 30,
+            GroupPercentages = new Dictionary<string, int> { ["crm:premium"] = 50 },
+            ExcludedMembers = ["m2"],
+            ExcludedGroups = ["VIPs", PremiumKey.ToString()],
+        }));
+        site.Refresh();
+
+        FlagResponseModel flag = await GetFlagAsync(Controller(site), "Checkout");
+
+        Assert.That(flag.State, Is.EqualTo("audience"));
+        Assert.That(flag.AudienceDetail!.DefaultPercentage, Is.EqualTo(30));
+        Assert.That(flag.AudienceDetail.Groups.Single().Percentage, Is.EqualTo(50));
+        Assert.That(flag.AudienceDetail.ExcludedMembers, Is.EqualTo(new[] { "m2" }));
+        Assert.That(flag.AudienceDetail.ExcludedGroups.Select(group => (group.Kind, group.Name)), Is.EqualTo(new (string, string?)[]
+        {
+            ("namedMemberGroup", "VIPs"),
+            ("memberGroup", "Premium members"),
+        }));
+        Assert.That((flag.Audience!.DefaultPercentage, flag.Audience.ExcludedMembers, flag.Audience.ExcludedGroups), Is.EqualTo((30, 1, 2)));
+    }
+
+    [Test]
     public async Task A_flag_without_an_audience_has_no_audience_detail()
     {
         TestSite site = Site();

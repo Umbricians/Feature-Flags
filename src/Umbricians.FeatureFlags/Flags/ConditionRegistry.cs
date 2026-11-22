@@ -44,7 +44,7 @@ internal sealed class ConditionRegistry
                 return $"It uses the '{condition.Name}' filter, which no condition is registered for, so the backoffice can't edit it.";
             }
 
-            // The audience editor can't yet edit percentages or exclusions.
+            // The audience editor edits every audience it can read.
             if (FlagSettings.IsTargeting(condition.Name))
             {
                 FlagAudience.TryRead(condition.Parameters, out string? reason);

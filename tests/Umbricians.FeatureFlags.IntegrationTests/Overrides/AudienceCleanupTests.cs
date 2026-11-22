@@ -55,6 +55,25 @@ public class AudienceCleanupTests : IntegrationTest
         await groups.DeleteAsync(staying.Key);
     }
 
+    [Test]
+    public async Task Deleting_a_member_or_a_member_group_takes_it_out_of_the_exclusions_too()
+    {
+        await using AsyncServiceScope scope = Site.CreateScope();
+        IMemberService members = scope.ServiceProvider.GetRequiredService<IMemberService>();
+        IMemberGroupService groups = scope.ServiceProvider.GetRequiredService<IMemberGroupService>();
+        IMember leaving = NewMember(members, "excluded");
+        IMemberGroup leavingGroup = await NewGroupAsync(groups, "ExcludedGroup");
+        await SaveAudienceAsync("Tests.Off", new FlagAudience(["someone"], []) { DefaultPercentage = 20, ExcludedMembers = [TargetingIds.For(leaving.Key)], ExcludedGroups = [TargetingIds.For(leavingGroup.Key)] });
+
+        members.Delete(leaving);
+        await groups.DeleteAsync(leavingGroup.Key);
+
+        FlagAudience audience = await SavedAudienceAsync("Tests.Off");
+        Assert.That(audience.ExcludedMembers, Is.Empty);
+        Assert.That(audience.ExcludedGroups, Is.Empty);
+        Assert.That(audience.DefaultPercentage, Is.EqualTo(20));
+    }
+
     private static IMember NewMember(IMemberService members, string name)
     {
         string unique = $"{name}-{Guid.NewGuid():N}";
