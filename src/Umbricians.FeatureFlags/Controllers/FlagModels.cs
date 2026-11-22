@@ -232,3 +232,16 @@ internal sealed class SetFlagEnabledRequestModel
     [Required]
     public bool? Enabled { get; init; }
 }
+
+/// <summary>A site (a root) for the Root condition's picker.</summary>
+internal sealed class RootResponseModel
+{
+    public Guid Key { get; init; }
+
+    /// <summary>The root's name; null for a root that has been deleted.</summary>
+    public string? Name { get; init; }
+
+    public required IReadOnlyList<string> Domains { get; init; }
+
+    public bool Deleted { get; init; }
+}

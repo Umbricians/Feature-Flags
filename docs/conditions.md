@@ -229,4 +229,27 @@ members and groups left out. See [Audiences](audiences.md).
 - A window with a **recurrence** shows its summary (ending "(repeats)") but can't be changed: the flag shows as **Custom**,
   with "Repeating windows can't be edited yet" as the reason. Change it where the flag is declared.
 
-The Root condition ("Only on these sites") comes next.
+### Root: "Only on these sites" (`Umbricians.Root`)
+
+For a site with several [roots](../GLOSSARY.md#root) (top-level content nodes, each usually a site with its own domain).
+The flag is on only for requests in the roots an editor picks. Parameters: `{ "Roots": [ "<root key>", ... ] }`; roots are
+stored by key, so renaming a root or changing its domains changes nothing.
+
+**Which root a request is in**, first match wins:
+
+1. **The content the request found.** The top-level ancestor of the page Umbraco routed the request to.
+2. **The `Start-Item` header**, for headless requests, read as the Delivery API reads it: a root's key (a key of a page
+   that isn't a root names nothing), or a root's URL segment, ignoring case and leading or trailing slashes. Only
+   published roots count. The package reads this itself, so it works whether or not the Delivery API is installed.
+3. **The domain** Umbraco matches to the request's host and path (the same match it uses to route pages). A domain
+   assigned to a page below the root puts the request in that page's root.
+4. **Otherwise no root**, and the condition fails. The same when there is no request, such as in a background job.
+
+The answer is worked out once for each request.
+
+**A deleted root** stays in the condition by its key. The summary says "a deleted site" and it never matches (a root in
+the recycle bin, or moved below another page, counts as deleted). The health check warns; nothing is
+cleaned up automatically, so an editor removes it from the condition.
+
+Adding Root to a flag that has another condition switches the flag to **All**, since "this audience or this site" is
+rarely what editors mean; they can change it back.

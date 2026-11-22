@@ -83,6 +83,7 @@ curl -s -X DELETE -H "Authorization: Bearer $TOKEN" "$SITE/umbraco/umbriciansfea
 | `GET flag?name=` | One flag. |
 | `GET provider-groups` | The groups the site's group providers offer. |
 | `GET conditions` | The conditions registered on the site, as `[ { name, displayName } ]`; `name` is the filter's name as the C# condition gives it. The backoffice offers these in "Add condition". |
+| `GET roots?keys=` | The sites (top-level content nodes) the [Root condition](conditions.md#root-only-on-these-sites-umbriciansroot) can name, as `[ { key, name, domains, deleted } ]`. Without `keys`, every root. With `keys` (comma-separated), just those, and a key with no root any more has `deleted` true and no name. `domains` are those assigned to the root itself. |
 | `PUT flag?name=` | Save a flag's settings. Body: `{ "enabled": true, "conditions": [ { "name": "...", "parameters": { } } ], "match": "any" }`. Returns the flag as it is now. |
 | `PUT flag/enabled?name=` | Switch a flag on or off, keeping its conditions. Body: `{ "enabled": true }`. Returns the flag. |
 | `DELETE flag?name=` | Reset a flag to its default, or remove the setting of a flag nobody declares any more. Returns the flag; for a removed flag there is nothing left to return, so the body is empty. |

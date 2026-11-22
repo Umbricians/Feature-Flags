@@ -238,7 +238,7 @@ public class ConditionTests
 
         Assert.That(services.Count(service => service.ServiceType == typeof(IFeatureFlagCondition)), Is.EqualTo(1));
         var site = Site();
-        Assert.That(site.Provider.GetRequiredService<ConditionRegistry>().All.Select(c => c.Name), Is.EquivalentTo(new[] { "Microsoft.Targeting", "Microsoft.TimeWindow", "Contoso.Culture" }));
+        Assert.That(site.Provider.GetRequiredService<ConditionRegistry>().All.Select(c => c.Name), Is.EquivalentTo(new[] { "Microsoft.Targeting", "Microsoft.TimeWindow", "Umbricians.Root", "Contoso.Culture" }));
     }
 
     [TestCase("Microsoft.Targeting", "Microsoft.Targeting")]

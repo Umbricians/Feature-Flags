@@ -49,6 +49,12 @@ internal static class ServiceCollectionExtensions
 
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IFeatureFlagCondition, AudienceCondition>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IFeatureFlagCondition, TimeWindowCondition>());
+        services.TryAddSingleton<ISiteRoots, UmbracoSiteRoots>();
+        services.TryAddSingleton<IRootLocator, UmbracoRootLocator>();
+        services.TryAddSingleton<RequestRoot>();
+        services.TryAddSingleton<DeletedRootFlags>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IFeatureFilterMetadata, RootFilter>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IFeatureFlagCondition, RootCondition>());
         services.TryAddSingleton<ConditionRegistry>();
         services.TryAddSingleton<CodeFlags>();
         services.TryAddSingleton<PublicFlags>();

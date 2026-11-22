@@ -14,6 +14,7 @@ using Umbricians.FeatureFlags.Controllers;
 using Umbricians.FeatureFlags.Flags;
 using Umbricians.FeatureFlags.Groups;
 using Umbricians.FeatureFlags.Overrides;
+using Umbricians.FeatureFlags.Targeting;
 
 namespace Umbricians.FeatureFlags.Tests.Controllers;
 
@@ -67,13 +68,14 @@ public class FlagApiTests
             : null),
         site.Provider.GetRequiredService<AudienceGroups>());
 
-    private static FlagsController Controller(TestSite site, string userName = "Ada") => new(
+    private static FlagsController Controller(TestSite site, string userName = "Ada", ISiteRoots? roots = null) => new(
         site.Provider.GetRequiredService<FlagList>(),
         site.Provider.GetRequiredService<IFeatureFlagService>(),
         Responses(site, userName),
         site.Provider.GetRequiredService<AudienceGroups>(),
         site.Provider.GetRequiredService<ConditionRegistry>(),
-        new TestEnvironment());
+        new TestEnvironment(),
+        roots ?? site.Provider.GetRequiredService<ISiteRoots>());
 
     private static ManageFlagsController Manager(TestSite site) => new(
         site.Provider.GetRequiredService<FeatureFlagService>(),
@@ -273,6 +275,39 @@ public class FlagApiTests
         IEnumerable<ConditionResponseModel> conditions = Controller(Site()).Conditions();
 
         Assert.That(conditions.Select(condition => (condition.Name, condition.DisplayName)), Does.Contain(("Microsoft.Targeting", "Audience")));
+    }
+
+    [Test]
+    public async Task Lists_every_root_with_its_domains()
+    {
+        var result = (OkObjectResult)await Controller(Site(), roots: new Tests.Targeting.RootTests.FakeRoots()).Roots(null, default);
+
+        RootResponseModel[] roots = ((IEnumerable<RootResponseModel>)result.Value!).ToArray();
+        Assert.That(roots.Select(root => root.Name), Is.EqualTo(["UK shop", "US shop"]));
+        Assert.That(roots[0].Domains, Is.EqualTo(["uk.example.com", "example.com/uk"]));
+        Assert.That(roots.Any(root => root.Deleted), Is.False);
+    }
+
+    [Test]
+    public async Task Looks_up_roots_by_key_and_marks_a_deleted_one()
+    {
+        var fake = new Tests.Targeting.RootTests.FakeRoots();
+        string keys = $"{Tests.Targeting.RootTests.Us}, {Tests.Targeting.RootTests.Gone},{Tests.Targeting.RootTests.Us}";
+
+        var result = (OkObjectResult)await Controller(Site(), roots: fake).Roots(keys, default);
+
+        RootResponseModel[] roots = ((IEnumerable<RootResponseModel>)result.Value!).ToArray();
+        Assert.That(roots.Select(root => (root.Key, root.Name, root.Deleted)), Is.EqualTo(
+            [(Tests.Targeting.RootTests.Us, "US shop", false), (Tests.Targeting.RootTests.Gone, (string?)null, true)]));
+        Assert.That(roots[1].Domains, Is.Empty);
+    }
+
+    [Test]
+    public async Task A_key_that_is_not_a_key_is_a_bad_request()
+    {
+        var result = await Controller(Site(), roots: new Tests.Targeting.RootTests.FakeRoots()).Roots("uk-shop", default);
+
+        Assert.That(result, Is.TypeOf<BadRequestObjectResult>());
     }
 
     private static SaveFlagRequestModel Request(bool enabled, string match = "any", params FlagConditionModel[] conditions) =>

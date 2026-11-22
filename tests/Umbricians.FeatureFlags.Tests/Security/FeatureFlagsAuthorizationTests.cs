@@ -77,6 +77,7 @@ public class FeatureFlagsAuthorizationTests
             $"GET flag: {Permissions.View}",
             $"GET provider-groups: {Permissions.View}",
             $"GET conditions: {Permissions.View}",
+            $"GET roots: {Permissions.View}",
             $"PUT flag: {string.Join(", ", new[] { Permissions.Manage, Permissions.View }.Order())}",
             $"PUT flag/enabled: {string.Join(", ", new[] { Permissions.Manage, Permissions.View }.Order())}",
             $"DELETE flag: {string.Join(", ", new[] { Permissions.Manage, Permissions.View }.Order())}",

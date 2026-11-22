@@ -8,6 +8,7 @@ using Umbricians.FeatureFlags.Flags;
 using Umbricians.FeatureFlags.Groups;
 using Umbricians.FeatureFlags.Overrides;
 using Umbricians.FeatureFlags.Security;
+using Umbricians.FeatureFlags.Targeting;
 
 namespace Umbricians.FeatureFlags.Controllers;
 
@@ -27,6 +28,7 @@ internal sealed class FlagsController : FeatureFlagsControllerBase
     private readonly AudienceGroups _audienceGroups;
     private readonly ConditionRegistry _conditions;
     private readonly IHostEnvironment _environment;
+    private readonly ISiteRoots _roots;
 
     public FlagsController(
         FlagList list,
@@ -34,7 +36,8 @@ internal sealed class FlagsController : FeatureFlagsControllerBase
         FlagResponses responses,
         AudienceGroups audienceGroups,
         ConditionRegistry conditions,
-        IHostEnvironment environment)
+        IHostEnvironment environment,
+        ISiteRoots roots)
     {
         _list = list;
         _flags = flags;
@@ -42,6 +45,7 @@ internal sealed class FlagsController : FeatureFlagsControllerBase
         _audienceGroups = audienceGroups;
         _conditions = conditions;
         _environment = environment;
+        _roots = roots;
     }
 
     /// <summary>A page of flags, searched, filtered and sorted across every flag.</summary>
@@ -119,4 +123,54 @@ internal sealed class FlagsController : FeatureFlagsControllerBase
     [ProducesResponseType<IEnumerable<ConditionResponseModel>>(StatusCodes.Status200OK)]
     public IEnumerable<ConditionResponseModel> Conditions() =>
         _conditions.All.Select(condition => new ConditionResponseModel { Name = condition.Name, DisplayName = condition.DisplayName });
+
+    /// <summary>
+    /// The sites (top-level content nodes) the Root condition can name, each with its domains. Without <paramref name="keys"/>
+    /// every root; with them, only those keys, and a key with no root any more comes back with <c>deleted</c> true.
+    /// </summary>
+    /// <param name="keys">Root keys, comma-separated.</param>
+    /// <param name="cancellationToken">Cancelled when the request is.</param>
+    [HttpGet("roots")]
+    [ProducesResponseType<IEnumerable<RootResponseModel>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> Roots(string? keys = null, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(keys))
+        {
+            var all = new List<RootResponseModel>();
+            foreach (SiteRoot root in await _roots.GetAllAsync(cancellationToken))
+            {
+                all.Add(await ModelAsync(root.Key, root, cancellationToken));
+            }
+
+            return Ok(all);
+        }
+
+        var asked = new List<Guid>();
+        foreach (string text in keys.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (!Guid.TryParse(text, out Guid key))
+            {
+                return BadRequest(new ProblemDetails { Title = "Invalid keys", Detail = $"'{text}' isn't a key." });
+            }
+
+            asked.Add(key);
+        }
+
+        var found = new List<RootResponseModel>();
+        foreach (Guid key in asked.Distinct())
+        {
+            found.Add(await ModelAsync(key, _roots.Find(key), cancellationToken));
+        }
+
+        return Ok(found);
+    }
+
+    private async Task<RootResponseModel> ModelAsync(Guid key, SiteRoot? root, CancellationToken cancellationToken) => new()
+    {
+        Key = key,
+        Name = root?.Name,
+        Domains = root is null ? [] : await _roots.GetDomainsAsync(key, cancellationToken),
+        Deleted = root is null,
+    };
 }
