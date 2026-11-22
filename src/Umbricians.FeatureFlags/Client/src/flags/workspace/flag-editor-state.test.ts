@@ -59,7 +59,7 @@ const culture: FlagCondition = { name: "Contoso.Culture", parameters: { Cultures
 
 const window: FlagCondition = { name: "Microsoft.TimeWindow", parameters: { Start: "2026-01-01T00:00:00Z" } };
 const root: FlagCondition = { name: "Umbricians.Root", parameters: { Roots: ["r1"] } };
-const editors = ["Microsoft.Targeting", "Contoso.Culture", "Umbricians.Root"];
+const editors = ["Microsoft.Targeting", "Microsoft.TimeWindow", "Contoso.Culture", "Umbricians.Root"];
 
 test("a flag that is off but keeps conditions opens off, with those conditions", () => {
   const state = loadEditor(flag({ enabled: false, conditions: [culture] }));
@@ -216,4 +216,23 @@ test("cannot save when the catalog refuses, when the editor can't manage flags, 
   assert.equal(canSave(edit(flag({ actions: { save: { allowed: false, reason: "It has a time window." } } })), true, editors), false);
   assert.equal(canSave(edit(flag()), false, editors), false);
   assert.equal(canSave(loadEditor(flag()), true, editors), false);
+});
+
+test("an audience and a time window together: Match is Any until it is changed to All, and both are saved", () => {
+  const audience = targeting(["m1"], []);
+  const loaded = loadEditor(flag({ conditions: [audience] }));
+  const added = addCondition(loaded, "Microsoft.TimeWindow");
+
+  assert.deepEqual(added.conditions.map((condition) => condition.name), ["Microsoft.Targeting", "Microsoft.TimeWindow"]);
+  assert.equal(added.match, "any");
+  assert.equal(addCondition(added, "Microsoft.TimeWindow").conditions.length, 2, "a window is offered once");
+
+  const windowed = setConditionParameters(added, 1, { Start: "2026-12-01T09:00:00Z" });
+  const all = setMatch(windowed, "all");
+  assert.deepEqual(savePayload(all), {
+    enabled: true,
+    conditions: [audience, { name: "Microsoft.TimeWindow", parameters: { Start: "2026-12-01T09:00:00Z" } }],
+    match: "all",
+  });
+  assert.equal(saveBlocker(all, editors), null);
 });

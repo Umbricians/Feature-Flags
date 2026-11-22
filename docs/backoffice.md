@@ -83,6 +83,11 @@ Percentages count signed-in members only, and are sticky: the same members are i
 [Audiences](audiences.md#percentages-and-exclusions).
 
 A member gets the feature if they are in any of the chosen members or groups or in the percentage, and only while they are signed in.
+
+Another condition every site has is **Time window**: "On from [date and time] until [date and time]". Either end can be
+left empty, but not both, and the start must be before the end. You enter times in your browser's time zone; the UTC
+equivalent is shown beside each, and times are stored as UTC. A window that repeats can be seen but not changed here.
+
 Developers can add conditions of their own, such as "French visitors"; they appear in the same menu.
 
 ### Any or all of the conditions

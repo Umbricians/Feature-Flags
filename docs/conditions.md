@@ -206,7 +206,27 @@ export const manifests: Array<UmbExtensionManifest> = [
 Register it like any Umbraco extension, with a `bundle` in your package's `umbraco-package.json`. The culture
 condition now shows in **Add condition**, and the flag editor saves `{ "Cultures": [ "fr", "de" ] }`.
 
-## The audience
+## The package's own conditions
 
-The package's own audience is a condition registered the same way, as `Microsoft.Targeting` ("Audience"). Its editor is the package's own `umbriciansFeatureFlagsCondition`, built on the contract above. Percentages
-and exclusions are Microsoft's, but the backoffice can't edit them yet, so saving them is refused for now.
+The package registers its own conditions through the same contract as yours, so they appear in **Add condition** beside
+any you add.
+
+### Audience (`Microsoft.Targeting`)
+
+Members, member groups and groups from group providers, with a percentage of everyone else and of each group, and the
+members and groups left out. See [Audiences](audiences.md).
+
+### Time window (`Microsoft.TimeWindow`)
+
+"On from a time until a time", with either end optional; at least one is needed, and the start must be before the end.
+
+- Editors enter and see times in their browser's time zone, with the UTC equivalent beside each. The backoffice stores
+  them as UTC, in ISO 8601 ending in `Z`, such as `2026-12-01T09:00:00Z`.
+- Microsoft reads `Start` and `End` as a `DateTimeOffset`, so values written some other way still work. ISO 8601 and
+  RFC 1123 (`Tue, 01 Dec 2026 09:00:00 GMT`) are both read and shown, and are only rewritten as ISO 8601 when an editor
+  changes that end. A time with no zone is read by Microsoft in the server's own time zone; the backoffice can't
+  know which, so it shows that end as unreadable until an editor chooses a new time.
+- A window with a **recurrence** shows its summary (ending "(repeats)") but can't be changed: the flag shows as **Custom**,
+  with "Repeating windows can't be edited yet" as the reason. Change it where the flag is declared.
+
+The Root condition ("Only on these sites") comes next.
