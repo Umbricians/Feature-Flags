@@ -29,6 +29,8 @@ the members it is on for.
 - **[Using the backoffice](docs/backoffice.md)**: the guide for editors.
 - **[Conditions](docs/conditions.md)**: what a condition is, and registering a rule of your own so the backoffice
   knows it.
+- **[Extending the backoffice](docs/backoffice.md#extending-the-backoffice)**: the entity types, aliases, flag
+  workspace context and entity actions the backoffice promises developers, and the `@umbricians/feature-flags` types.
 - **[Notifications](docs/notifications.md)**: react to, or refuse, a change to a flag's override; audit and
   permission examples.
 - **[Headless front ends](docs/headless.md)**: tell a front end that Umbraco doesn't render which public flags are on

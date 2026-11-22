@@ -287,7 +287,8 @@ server, across every flag, so paging stays correct on a site with hundreds.
 2. **1.0:** what developers can extend and rely on: conditions of their own, editable in the backoffice;
    percentages and exclusions in the audience; time windows; the Root condition for a site with several roots; a
    public service and notifications for changing overrides; the Management API as a contract; a health check;
-   flags for headless front ends; and a promised backoffice extension surface. Specified in
+   flags for headless front ends; and a promised backoffice extension surface, with its npm types (in progress on
+   the 1.0 branches; not released). Specified in
    [spec-1.0.md](spec-1.0.md).
 
 ### Later

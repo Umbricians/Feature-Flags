@@ -132,3 +132,115 @@ undone.
 - **The list says flags can't be changed here:** the developers have set this site so flags are only changed in
   its configuration. Every flag uses its default, and Reset and Remove aren't offered either.
 - **One flag can't be changed:** it is **Custom**, or has a condition with no editor. A box at the top of its editor says why.
+
+## Extending the backoffice
+
+For developers. Feature Flags promises a small part of its backoffice to your own extensions, and nothing else.
+
+### What is promised
+
+Within one Umbraco major version (all of 17.x), these keep working and are never renamed:
+
+- the entity types `umbricians-feature-flags-flag` (one flag; its `unique` is the flag's name) and
+  `umbricians-feature-flags-root` (the list);
+- the aliases of the flag workspace (`Umbricians.FeatureFlags.Workspace.Flag`), the root workspace
+  (`Umbricians.FeatureFlags.Workspace.Root`), the collection (`Umbricians.FeatureFlags.Collection`) and the menu item
+  (`Umbricians.FeatureFlags.MenuItem.Root`);
+- the permission condition `Umbricians.FeatureFlags.Condition.Permission`, whose `permission` is
+  `Umbricians.FeatureFlags.View` or `Umbricians.FeatureFlags.Manage`, so your UI shows only to editors who may view
+  or change flags;
+- the `umbriciansFeatureFlagsCondition` manifest type and its element's contract: `value` in, a `change` event out
+  (see [Conditions](conditions.md));
+- the read-only flag workspace context, with the alias `Umbricians.FeatureFlags.FlagWorkspaceContext.Public`. Its
+  `flag` is an observable of the flag, shaped like the Management API's flag. Changes never go through it: they go
+  through conditions or the Management API;
+- entity actions you register for the flag entity type, which show in the flag workspace's actions menu and on each
+  flag in the list (table and card views).
+
+Not promised: element tag names, repositories, the generated API client, the editor's state, the summary context and
+the built-in collection and workspace views. There is no extension type for list columns: if you need a different
+list, add a collection view to the promised collection.
+
+**Why only within a major.** Umbraco's promise of no breaking changes in a minor release is about its C# API. Its
+backoffice TypeScript has no such promise, and its own breaking changes have all come in majors so far. So this
+surface is promised for an Umbraco major, not for every minor. A scheduled workflow
+([Umbraco minors](../.github/workflows/umbraco-minors.yml)) builds and tests the package against the newest 17.x every
+week to find a break early.
+
+### The npm package
+
+`@umbricians/feature-flags` has the types only, with `@umbraco-cms/backoffice` `^17.0.0` as a peer dependency.
+It has no runtime code, so a `declare const` in it has no value when your code runs: write the string, or build a
+token from it. The types make a misspelt string fail to compile.
+
+```ts
+import type { FeatureFlag, UmbriciansFeatureFlagWorkspaceContext } from "@umbricians/feature-flags";
+```
+
+### A workspace view that reads the flag
+
+Register a workspace view for the flag workspace, and read the context with a token built from its alias:
+
+```ts
+// manifests
+{
+  type: "workspaceView",
+  alias: "Contoso.WorkspaceView.FlagUsage",
+  name: "Flag usage",
+  element: () => import("./flag-usage.element.js"),
+  weight: 50,
+  meta: { label: "Usage", pathname: "usage", icon: "icon-search" },
+  conditions: [
+    { alias: "Umb.Condition.WorkspaceAlias", match: "Umbricians.FeatureFlags.Workspace.Flag" },
+    { alias: "Umbricians.FeatureFlags.Condition.Permission", permission: "Umbricians.FeatureFlags.View" },
+  ],
+}
+```
+
+```ts
+// flag-usage.element.ts
+import { html, customElement, state } from "@umbraco-cms/backoffice/external/lit";
+import { UmbLitElement } from "@umbraco-cms/backoffice/lit-element";
+import { UmbContextToken } from "@umbraco-cms/backoffice/context-api";
+import type { FeatureFlag, UmbriciansFeatureFlagWorkspaceContext } from "@umbricians/feature-flags";
+
+const FLAG_CONTEXT = new UmbContextToken<UmbriciansFeatureFlagWorkspaceContext>("Umbricians.FeatureFlags.FlagWorkspaceContext.Public");
+
+@customElement("contoso-flag-usage")
+export class FlagUsageElement extends UmbLitElement {
+  @state() private _flag?: FeatureFlag;
+
+  constructor() {
+    super();
+    this.consumeContext(FLAG_CONTEXT, (context) => this.observe(context?.flag, (flag) => (this._flag = flag)));
+  }
+
+  override render() {
+    return html`<uui-box>${this._flag?.name}: ${this._flag?.summary}</uui-box>`;
+  }
+}
+export { FlagUsageElement as element };
+```
+
+### An entity action for flags
+
+Register an ordinary Umbraco entity action for the flag entity type. It receives the flag's name as `unique`:
+
+```ts
+{
+  type: "entityAction",
+  kind: "default",
+  alias: "Contoso.EntityAction.FlagUsage",
+  name: "Show flag usage",
+  forEntityTypes: ["umbricians-feature-flags-flag"],
+  api: () => import("./show-usage.action.js"),
+  meta: { icon: "icon-search", label: "Show usage" },
+}
+```
+
+It appears in the actions menu in the flag's workspace header and on that flag's row or card in the list. Feature Flags
+registers no entity actions of its own, so there is nothing to conflict with.
+
+### A condition's editor
+
+See [Conditions](conditions.md#writing-your-own) for the manifest type and the element's contract.
