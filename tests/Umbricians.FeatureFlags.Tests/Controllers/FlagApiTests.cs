@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using Umbraco.Cms.Core.Events;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
@@ -68,13 +69,14 @@ public class FlagApiTests
 
     private static FlagsController Controller(TestSite site, string userName = "Ada") => new(
         site.Provider.GetRequiredService<FlagList>(),
-        site.Provider.GetRequiredService<FlagCatalog>(),
+        site.Provider.GetRequiredService<IFeatureFlagService>(),
         Responses(site, userName),
         site.Provider.GetRequiredService<AudienceGroups>(),
         new TestEnvironment());
 
     private static ManageFlagsController Manager(TestSite site) => new(
         site.Provider.GetRequiredService<FeatureFlagService>(),
+        Responses(site),
         Stub.Of<IBackOfficeSecurityAccessor>((_, _) => null));
 
     private static FlagAudience AnAudience() => new(
@@ -102,11 +104,11 @@ public class FlagApiTests
             ("crm:gone", "unknown", null),
             (GoneKey.ToString(), "unknown", null),
         }));
-        Assert.That(flag.Flag.Audience, Is.Not.Null.And.Property(nameof(AudienceCountsModel.Members)).EqualTo(2)
+        Assert.That(flag.Audience, Is.Not.Null.And.Property(nameof(AudienceCountsModel.Members)).EqualTo(2)
             .And.Property(nameof(AudienceCountsModel.MemberGroups)).EqualTo(2)
             .And.Property(nameof(AudienceCountsModel.Groups)).EqualTo(3));
         Assert.That(flag.DefaultState, Is.EqualTo("off"));
-        Assert.That(flag.OverrideDefinition, Is.Not.Null);
+        Assert.That(flag.Override!.Definition, Is.Not.Null);
     }
 
     [Test]
@@ -116,9 +118,9 @@ public class FlagApiTests
         site.Store.With("Search", FlagSettings.Off).With("Promo.Removed", FlagSettings.Off);
         site.Refresh();
 
-        FlagActionsModel withOverride = (await GetFlagAsync(Controller(site), "Search")).Flag.Actions;
-        FlagActionsModel noOverride = (await GetFlagAsync(Controller(site), "Checkout")).Flag.Actions;
-        FlagActionsModel undeclared = (await GetFlagAsync(Controller(site), "Promo.Removed")).Flag.Actions;
+        FlagActionsModel withOverride = (await GetFlagAsync(Controller(site), "Search")).Actions;
+        FlagActionsModel noOverride = (await GetFlagAsync(Controller(site), "Checkout")).Actions;
+        FlagActionsModel undeclared = (await GetFlagAsync(Controller(site), "Promo.Removed")).Actions;
 
         Assert.That((withOverride.Switch.Allowed, withOverride.Reset.Allowed, withOverride.Remove.Allowed), Is.EqualTo((true, true, false)));
         Assert.That(noOverride.Reset, Has.Property(nameof(FlagActionModel.Allowed)).False
@@ -134,8 +136,8 @@ public class FlagApiTests
         FlagResponseModel flag = await GetFlagAsync(Controller(site), "Search");
 
         Assert.That(flag.AudienceDetail, Is.Null);
-        Assert.That(flag.Flag.Audience, Is.Null);
-        Assert.That(flag.Flag.Enabled, Is.True);
+        Assert.That(flag.Audience, Is.Null);
+        Assert.That(flag.Enabled, Is.True);
     }
 
     [Test]
@@ -145,12 +147,12 @@ public class FlagApiTests
         await site.Store.SaveAsync(new FeatureFlagOverride("Checkout", FlagDefinitions.ToJson("Checkout", FlagSettings.ForAudience(true, AnAudience())), Editor, new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)), default);
         site.Refresh();
 
-        var page = (PagedViewModel<FlagListItemResponseModel>)((OkObjectResult)await Controller(site).Flags(cancellationToken: default)).Value!;
+        var page = (PagedViewModel<FlagResponseModel>)((OkObjectResult)await Controller(site).Flags(cancellationToken: default)).Value!;
 
         Assert.That(page.Total, Is.EqualTo(3));
-        FlagListItemResponseModel checkout = page.Items.Single(item => item.Name == "Checkout");
+        FlagResponseModel checkout = page.Items.Single(item => item.Name == "Checkout");
         Assert.That(checkout.Audience, Has.Property(nameof(AudienceCountsModel.MemberGroups)).EqualTo(2));
-        Assert.That(checkout.UpdatedBy, Has.Property(nameof(UpdatedByModel.Name)).EqualTo("Ada").And.Property(nameof(UpdatedByModel.Key)).EqualTo(Editor));
+        Assert.That(checkout.Override, Has.Property(nameof(FlagOverrideModel.UpdatedByName)).EqualTo("Ada").And.Property(nameof(FlagOverrideModel.UpdatedBy)).EqualTo(Editor));
         Assert.That(page.Items.Single(item => item.Name == "Search").Audience, Is.Null);
         Assert.That(page.Items.Single(item => item.Name == "Sale").State, Is.EqualTo("custom"));
         Assert.That(page.Items.Select(item => item.DeclaredIn), Is.All.EqualTo("configuration"));
@@ -171,7 +173,7 @@ public class FlagApiTests
     {
         FlagsController controller = Controller(Site());
 
-        var none = (PagedViewModel<FlagListItemResponseModel>)((OkObjectResult)await controller.Flags(section: "", tag: "beta", filter: "Che")).Value!;
+        var none = (PagedViewModel<FlagResponseModel>)((OkObjectResult)await controller.Flags(section: "", tag: "beta", filter: "Che")).Value!;
 
         Assert.That(none.Total, Is.Zero);
     }
@@ -183,7 +185,7 @@ public class FlagApiTests
         site.Store.With("Search", FlagSettings.Off);
         site.Refresh();
 
-        var page = (PagedViewModel<FlagListItemResponseModel>)((OkObjectResult)await Controller(site).Flags(
+        var page = (PagedViewModel<FlagResponseModel>)((OkObjectResult)await Controller(site).Flags(
             state: "off", show: "declared", marks: "changed,differs", orderBy: "updated", filter: "Sea")).Value!;
 
         Assert.That(page.Items.Select(item => item.Name), Is.EqualTo(new[] { "Search" }));
@@ -223,30 +225,44 @@ public class FlagApiTests
             .And.Property(nameof(ProviderGroupResponseModel.Description)).EqualTo("Pays us."));
     }
 
+    private static SaveFlagRequestModel Request(bool enabled, string match = "any", params FlagConditionModel[] conditions) =>
+        new() { Enabled = enabled, Match = match, Conditions = conditions };
+
+    private static FlagConditionModel Audience(string[] members, string[] groups) => new()
+    {
+        Name = "Microsoft.Targeting",
+        Parameters = FlagSettings.ForAudience(true, new FlagAudience(members, groups)).Conditions[0].Parameters,
+    };
+
     [Test]
-    public async Task Saving_sends_every_group_id_through_as_the_editor_chose_it()
+    public async Task Saving_sends_every_group_id_through_as_the_editor_chose_it_and_returns_the_flag()
     {
         TestSite site = Site();
 
-        IActionResult result = await Manager(site).Save("Checkout", new SaveFlagRequestModel
-        {
-            Enabled = true,
-            Audience = new SaveAudienceRequestModel { Members = ["m1"], Groups = [PremiumKey.ToString().ToUpperInvariant(), "VIPs", "crm:premium"] },
-        }, default);
+        IActionResult result = await Manager(site).Save("Checkout", Request(true, "any", Audience(["m1"], [PremiumKey.ToString().ToUpperInvariant(), "VIPs", "crm:premium"])), default);
 
-        Assert.That(result, Is.InstanceOf<OkResult>());
+        var flag = (FlagResponseModel)((OkObjectResult)result).Value!;
+        Assert.That(flag, Has.Property(nameof(FlagResponseModel.Name)).EqualTo("Checkout")
+            .And.Property(nameof(FlagResponseModel.State)).EqualTo("audience"));
+        Assert.That(flag.Settings!.Conditions.Single().Name, Is.EqualTo("Microsoft.Targeting"));
         Assert.That(FlagDefinitions.ReadOverride(site.Store.All.Single().Definition, out _)!.Audience!.Groups,
             Is.EqualTo(new[] { PremiumKey.ToString(), "VIPs", "crm:premium" }));
     }
 
     [Test]
-    public async Task Saving_without_an_audience_is_on_for_everyone()
+    public async Task Saving_without_conditions_is_on_for_everyone()
     {
         TestSite site = Site();
 
-        await Manager(site).Save("Checkout", new SaveFlagRequestModel { Enabled = true }, default);
+        await Manager(site).Save("Checkout", Request(true), default);
 
         Assert.That(FlagDefinitions.ReadOverride(site.Store.All.Single().Definition, out _)!.State, Is.EqualTo(FlagState.Everyone));
+    }
+
+    [Test]
+    public async Task Saving_with_a_match_the_api_does_not_know_is_a_bad_request()
+    {
+        Assert.That(await Manager(Site()).Save("Checkout", Request(true, "most"), default), Is.InstanceOf<BadRequestObjectResult>());
     }
 
     [Test]
@@ -254,8 +270,21 @@ public class FlagApiTests
     {
         ManageFlagsController manager = Manager(Site());
 
-        Assert.That(await manager.Save("Nope", new SaveFlagRequestModel(), default), Is.InstanceOf<NotFoundObjectResult>());
-        Assert.That(await manager.Save("Sale", new SaveFlagRequestModel(), default), Is.InstanceOf<ConflictObjectResult>());
+        Assert.That(await manager.Save("Nope", Request(false), default), Is.InstanceOf<NotFoundObjectResult>());
+        Assert.That(await manager.Save("Sale", Request(false), default), Is.InstanceOf<ConflictObjectResult>());
+    }
+
+    [Test]
+    public async Task Saving_conditions_nobody_registered_or_that_are_invalid_is_a_conflict_that_lists_the_problems()
+    {
+        TestSite site = Site();
+
+        var conflict = (ConflictObjectResult)await Manager(site).Save("Checkout", Request(true, "any", new FlagConditionModel { Name = "Nobody.Registered" }), default);
+
+        var problem = (ProblemDetails)conflict.Value!;
+        Assert.That(problem.Extensions["problems"], Is.Not.Empty);
+        Assert.That(problem.Detail, Is.Not.Empty);
+        Assert.That(site.Store.All, Is.Empty);
     }
 
     [Test]
@@ -264,9 +293,9 @@ public class FlagApiTests
         TestSite site = Site();
         ManageFlagsController manager = Manager(site);
 
-        Assert.That(await manager.SetEnabled("Checkout", new SetFlagEnabledRequestModel { Enabled = true }, default), Is.InstanceOf<OkResult>());
+        Assert.That(await manager.SetEnabled("Checkout", new SetFlagEnabledRequestModel { Enabled = true }, default), Is.InstanceOf<OkObjectResult>());
         Assert.That(site.Store.All, Has.Count.EqualTo(1));
-        Assert.That(await manager.Reset("Checkout", default), Is.InstanceOf<OkResult>());
+        Assert.That(await manager.Reset("Checkout", default), Is.InstanceOf<OkObjectResult>());
         Assert.That(site.Store.All, Is.Empty);
     }
 
@@ -277,7 +306,7 @@ public class FlagApiTests
         site.Events.On<FeatureFlagOverrideSavingNotification>(saving =>
             saving.CancelOperation(new EventMessage("Frozen", "Checkout is frozen.", EventMessageType.Error)));
 
-        var conflict = (ConflictObjectResult)await Manager(site).Save("Checkout", new SaveFlagRequestModel { Enabled = true }, default);
+        var conflict = (ConflictObjectResult)await Manager(site).Save("Checkout", Request(true), default);
 
         var problem = (ProblemDetails)conflict.Value!;
         Assert.That(problem.Detail, Is.EqualTo("Checkout is frozen."));

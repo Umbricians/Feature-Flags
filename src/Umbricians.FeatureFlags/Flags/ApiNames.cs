@@ -30,6 +30,30 @@ internal static class ApiNames
 
     public static string State(FeatureFlagState state) => States[state];
 
+    /// <summary>How a flag with several conditions matches them, as the API says it.</summary>
+    public static string Match(ConditionMatch match) => match == ConditionMatch.All ? "all" : "any";
+
+    /// <summary>A match from its name; false for a name the API doesn't know.</summary>
+    public static bool TryParseMatch(string? name, out ConditionMatch match)
+    {
+        match = ConditionMatch.Any;
+        if (string.Equals(name, "all", StringComparison.OrdinalIgnoreCase))
+        {
+            match = ConditionMatch.All;
+            return true;
+        }
+
+        return string.Equals(name, "any", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Where a flag is declared, as the API says it.</summary>
+    public static string DeclaredIn(FeatureFlagDeclaredIn declaredIn) => declaredIn switch
+    {
+        FeatureFlagDeclaredIn.Configuration => "configuration",
+        FeatureFlagDeclaredIn.FlagSource => "flagSource",
+        _ => "code",
+    };
+
     /// <summary>What an audience group is, as the API says it.</summary>
     public static string GroupKind(AudienceGroupKind kind) => kind switch
     {

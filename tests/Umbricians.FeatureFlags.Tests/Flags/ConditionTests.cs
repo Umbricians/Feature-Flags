@@ -5,6 +5,7 @@ using Microsoft.FeatureManagement;
 using Umbricians.FeatureFlags.Controllers;
 using Umbricians.FeatureFlags.Extensions;
 using Umbricians.FeatureFlags.Flags;
+using Umbricians.FeatureFlags.Groups;
 using Umbricians.FeatureFlags.Overrides;
 
 namespace Umbricians.FeatureFlags.Tests.Flags;
@@ -175,27 +176,58 @@ public class ConditionTests
     public async Task The_controller_turns_problems_into_a_conflict_with_a_problems_list()
     {
         TestSite site = Site();
-        var manager = new ManageFlagsController(site.Provider.GetRequiredService<FeatureFlagService>(), Stub.Of<Umbraco.Cms.Core.Security.IBackOfficeSecurityAccessor>((_, _) => null));
+        var manager = new ManageFlagsController(
+            site.Provider.GetRequiredService<FeatureFlagService>(),
+            new FlagResponses(Stub.Of<Umbraco.Cms.Core.Services.IUserService>((_, _) => null), site.Provider.GetRequiredService<AudienceGroups>()),
+            Stub.Of<Umbraco.Cms.Core.Security.IBackOfficeSecurityAccessor>((_, _) => null));
         FeatureFlagResult result = await Service(site).SaveAsync("Everyone", new FlagSettings(true, [Culture()]));
 
-        var conflict = (Microsoft.AspNetCore.Mvc.ConflictObjectResult)manager.Respond("Everyone", result);
+        var conflict = (Microsoft.AspNetCore.Mvc.ConflictObjectResult)await manager.RespondAsync("Everyone", result, default);
 
         var problem = (Microsoft.AspNetCore.Mvc.ProblemDetails)conflict.Value!;
         Assert.That(problem.Extensions["problems"], Is.EqualTo(new[] { "Culture: Choose at least one culture." }));
         Assert.That(problem.Detail, Does.Contain("Choose at least one culture"));
     }
 
+    private static ManageFlagsController Manager(TestSite site) => new(
+        site.Provider.GetRequiredService<FeatureFlagService>(),
+        new FlagResponses(Stub.Of<Umbraco.Cms.Core.Services.IUserService>((_, _) => null), site.Provider.GetRequiredService<AudienceGroups>()),
+        Stub.Of<Umbraco.Cms.Core.Security.IBackOfficeSecurityAccessor>((_, _) => null));
+
     [Test]
-    public async Task The_audience_only_api_refuses_to_overwrite_a_flag_with_conditions()
+    public async Task The_api_saves_conditions_and_how_to_match_them_and_returns_the_flag()
+    {
+        TestSite site = Site();
+        var request = new SaveFlagRequestModel
+        {
+            Enabled = true,
+            Match = "all",
+            Conditions =
+            [
+                new FlagConditionModel { Name = "Microsoft.Targeting", Parameters = FlagSettings.ForAudience(true, new FlagAudience(["m1"], [])).Conditions[0].Parameters },
+                new FlagConditionModel { Name = "Contoso.Culture", Parameters = Cultures("fr") },
+            ],
+        };
+
+        var ok = (Microsoft.AspNetCore.Mvc.OkObjectResult)await Manager(site).Save("Cultured", request, default);
+
+        var flag = (FlagResponseModel)ok.Value!;
+        Assert.That(flag.State, Is.EqualTo("conditions"));
+        Assert.That(flag.Settings, Has.Property(nameof(FlagSettingsModel.Match)).EqualTo("all"));
+        Assert.That(flag.Settings!.Conditions.Select(condition => condition.Name), Is.EqualTo(new[] { "Microsoft.Targeting", "Contoso.Culture" }));
+        Assert.That(flag.Summary, Is.EqualTo("1 member; fr"));
+    }
+
+    [Test]
+    public async Task A_flag_on_with_conditions_can_be_saved_through_the_api_again()
     {
         TestSite site = Site();
         site.Store.With("Cultured", new FlagSettings(true, [Culture("fr")]));
-        var manager = new ManageFlagsController(site.Provider.GetRequiredService<FeatureFlagService>(), Stub.Of<Umbraco.Cms.Core.Security.IBackOfficeSecurityAccessor>((_, _) => null));
 
-        var result = await manager.Save("Cultured", new SaveFlagRequestModel { Enabled = true }, default);
+        var result = await Manager(site).Save("Cultured", new SaveFlagRequestModel { Enabled = false }, default);
 
-        Assert.That(result, Is.InstanceOf<Microsoft.AspNetCore.Mvc.ConflictObjectResult>());
-        Assert.That(site.Store.All.Single().Definition, Does.Contain("Contoso.Culture"));
+        Assert.That(result, Is.InstanceOf<Microsoft.AspNetCore.Mvc.OkObjectResult>());
+        Assert.That(site.Store.All.Single().Definition, Does.Not.Contain("Contoso.Culture"));
     }
 
     [Test]

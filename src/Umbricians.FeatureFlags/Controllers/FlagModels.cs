@@ -1,46 +1,102 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Nodes;
 
 namespace Umbricians.FeatureFlags.Controllers;
 
-/// <summary>A flag in the flag list.</summary>
-internal sealed class FlagListItemResponseModel
+/// <summary>
+/// A flag, mirroring <c>FeatureFlag</c> field for field with the words the API uses, plus what only the backoffice
+/// shows: whether it is on, how many members and groups its audience has, and who is in it.
+/// </summary>
+internal sealed class FlagResponseModel
 {
     public required string Name { get; init; }
 
-    public string? Description { get; init; }
-
-    /// <summary>The section of the flag list it is in, or null for none.</summary>
-    public string? Section { get; init; }
-
-    public required IReadOnlyList<string> Tags { get; init; }
+    /// <summary>False for an override whose flag nobody declares any more.</summary>
+    public bool IsDeclared { get; init; }
 
     /// <summary><c>configuration</c>, <c>flagSource</c> or <c>code</c>.</summary>
     public required string DeclaredIn { get; init; }
 
     public bool DeclaredTwice { get; init; }
 
-    /// <summary>False for an override whose flag nobody declares any more.</summary>
-    public bool IsDeclared { get; init; }
+    /// <summary>The section of the flag list it is in, or null for none.</summary>
+    public string? Section { get; init; }
 
-    /// <summary><c>off</c>, <c>everyone</c>, <c>audience</c> or <c>custom</c> (something the backoffice can't edit).</summary>
+    public string? Description { get; init; }
+
+    public required IReadOnlyList<string> Tags { get; init; }
+
+    /// <summary>Whether it is declared public, so the headless endpoint may serve it.</summary>
+    public bool IsPublic { get; init; }
+
+    /// <summary><c>off</c>, <c>everyone</c>, <c>audience</c>, <c>conditions</c> or <c>custom</c> (something the backoffice can't edit).</summary>
     public required string State { get; init; }
 
-    /// <summary>Whether the flag is switched on; a flag that is off may still keep an audience.</summary>
+    /// <summary>Its default's state, in the same words.</summary>
+    public required string DefaultState { get; init; }
+
+    /// <summary>What applies now, or null when it uses more than settings can say (state <c>custom</c>).</summary>
+    public FlagSettingsModel? Settings { get; init; }
+
+    /// <summary>Its default as settings, or null when it uses more than settings can say.</summary>
+    public FlagSettingsModel? DefaultSettings { get; init; }
+
+    /// <summary>Its override: who saved it and when, with the definition as stored; null when it has none.</summary>
+    public FlagOverrideModel? Override { get; init; }
+
+    public bool DiffersFromDefault { get; init; }
+
+    /// <summary>What may be done with it, each with the reason when not.</summary>
+    public required FlagActionsModel Actions { get; init; }
+
+    /// <summary>What its conditions amount to in one line, or null when it has none to describe.</summary>
+    public string? Summary { get; init; }
+
+    /// <summary>Whether the flag is switched on; a flag that is off may still keep conditions.</summary>
     public bool Enabled { get; init; }
 
     /// <summary>How many members and groups its audience has, when it has one, even while off.</summary>
     public AudienceCountsModel? Audience { get; init; }
 
-    public bool HasOverride { get; init; }
+    /// <summary>Who it is on for, with what each group is, when its only condition is an audience the backoffice can read.</summary>
+    public AudienceDetailModel? AudienceDetail { get; init; }
+}
 
-    public bool DiffersFromDefault { get; init; }
+/// <summary>A flag's settings: whether it is on, and the conditions that say who or when it is on for.</summary>
+internal sealed class FlagSettingsModel
+{
+    public bool Enabled { get; init; }
 
-    /// <summary>What an editor may do with it, each with the reason when not.</summary>
-    public required FlagActionsModel Actions { get; init; }
+    public IReadOnlyList<FlagConditionModel> Conditions { get; init; } = [];
 
-    public UpdatedByModel? UpdatedBy { get; init; }
+    /// <summary><c>any</c> (the default) or <c>all</c>: whether one condition is enough, or every one must hold.</summary>
+    public string Match { get; init; } = "any";
+}
 
-    public DateTime? UpdatedUtc { get; init; }
+/// <summary>One of Microsoft's filters on a flag.</summary>
+internal sealed class FlagConditionModel
+{
+    /// <summary>The filter's name, such as <c>Microsoft.Targeting</c>.</summary>
+    [Required]
+    public string Name { get; init; } = "";
+
+    /// <summary>The filter's parameters as JSON; empty when it has none.</summary>
+    public JsonObject Parameters { get; init; } = new();
+}
+
+/// <summary>A flag's override as stored.</summary>
+internal sealed class FlagOverrideModel
+{
+    /// <summary>The flag in Microsoft's <c>feature_management</c> JSON.</summary>
+    public required string Definition { get; init; }
+
+    /// <summary>The key of the backoffice user who saved it, when there was one.</summary>
+    public Guid? UpdatedBy { get; init; }
+
+    /// <summary>That user's name, when they still exist.</summary>
+    public string? UpdatedByName { get; init; }
+
+    public DateTime UpdatedUtc { get; init; }
 }
 
 /// <summary>What an editor may do with a flag.</summary>
@@ -61,21 +117,6 @@ internal sealed class FlagActionModel
     public bool Allowed { get; init; }
 
     public string? Reason { get; init; }
-}
-
-/// <summary>A flag with everything its editor shows.</summary>
-internal sealed class FlagResponseModel
-{
-    public required FlagListItemResponseModel Flag { get; init; }
-
-    /// <summary>Its default: <c>off</c>, <c>everyone</c>, <c>audience</c> or <c>custom</c>.</summary>
-    public required string DefaultState { get; init; }
-
-    /// <summary>Who it is on for now, with what each group is, when the backoffice can read it.</summary>
-    public AudienceDetailModel? AudienceDetail { get; init; }
-
-    /// <summary>The override as stored, in Microsoft's <c>feature_management</c> JSON, when there is one.</summary>
-    public string? OverrideDefinition { get; init; }
 }
 
 internal sealed class AudienceCountsModel
@@ -106,23 +147,6 @@ internal sealed class AudienceGroupModel
     public required string Kind { get; init; }
 
     /// <summary>What editors see, or null when the site doesn't know the group.</summary>
-    public string? Name { get; init; }
-}
-
-/// <summary>Who a flag is on for, as an editor saves it.</summary>
-internal sealed class SaveAudienceRequestModel
-{
-    /// <summary>Member keys.</summary>
-    public IReadOnlyList<string> Members { get; init; } = [];
-
-    /// <summary>Every group's id, of every kind: member group keys or names, and group providers' ids.</summary>
-    public IReadOnlyList<string> Groups { get; init; } = [];
-}
-
-internal sealed class UpdatedByModel
-{
-    public Guid Key { get; init; }
-
     public string? Name { get; init; }
 }
 
@@ -162,13 +186,16 @@ internal sealed class ProviderGroupResponseModel
     public string? Description { get; init; }
 }
 
-/// <summary>An editor's settings for a flag.</summary>
+/// <summary>The settings an editor or script saves for a flag.</summary>
 internal sealed class SaveFlagRequestModel
 {
     public bool Enabled { get; init; }
 
-    /// <summary>Who the flag is on for, or null for everyone.</summary>
-    public SaveAudienceRequestModel? Audience { get; init; }
+    /// <summary>What must hold for the flag to be on; none means everyone.</summary>
+    public IReadOnlyList<FlagConditionModel> Conditions { get; init; } = [];
+
+    /// <summary><c>any</c> (the default) or <c>all</c>.</summary>
+    public string Match { get; init; } = "any";
 }
 
 internal sealed class SetFlagEnabledRequestModel
