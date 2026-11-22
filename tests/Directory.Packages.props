@@ -2,7 +2,7 @@
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <!-- The Umbraco version to build against. The scheduled "Umbraco minors" workflow passes a newer one with -p:UmbracoVersion=. -->
-    <UmbracoVersion Condition="'$(UmbracoVersion)' == ''">17.8.0</UmbracoVersion>
+    <UmbracoVersion Condition="'$(UmbracoVersion)' == ''">17.8.2</UmbracoVersion>
     <!-- Microsoft.Data.SqlClient for the integration tests: at least the version Umbraco 17.8.0 brings in. A newer Umbraco may bring a
          newer one, which would be a package downgrade (NU1605), so the "Umbraco minors" workflow passes the newest with -p:SqlClientVersion=. -->
     <SqlClientVersion Condition="'$(SqlClientVersion)' == ''">7.1.2</SqlClientVersion>
