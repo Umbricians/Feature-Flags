@@ -47,6 +47,8 @@ export class FeatureFlagEditorElement extends UmbLitElement {
       .backPath=${flagListPath()}
       ?loading=${this._loading && !flag}
       ?notFound=${this._notFound}>
+      <!-- The entity actions developers registered for the flag entity type. -->
+      <umb-workspace-entity-action-menu slot="action-menu"></umb-workspace-entity-action-menu>
       ${this._dirty
         ? html`<uui-tag slot="actions" color="warning" look="secondary">${this.localize.term("umbriciansFeatureFlags_unsaved")}</uui-tag>`
         : nothing}

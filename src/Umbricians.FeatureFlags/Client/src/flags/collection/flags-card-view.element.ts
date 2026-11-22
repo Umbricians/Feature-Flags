@@ -7,6 +7,7 @@ import { audienceNote, flagName, markerTags, stateTag } from "./flag-item.templa
 import type { FeatureFlagsCollectionFilter } from "./flags-collection.repository.js";
 import "./flags-filters.element.js";
 import "./flag-switch.element.js";
+import "./flag-row-actions.element.js";
 
 /** The flag list as cards, in its sections. */
 @customElement("umbricians-feature-flags-card-view")
@@ -41,6 +42,7 @@ export class FeatureFlagsCardViewElement extends UmbCollectionViewElementBase<Fe
           ${item.description ? html`<small>${item.description}</small>` : nothing}
         </div>
         <umbricians-feature-flags-switch .item=${item}></umbricians-feature-flags-switch>
+        <umbricians-feature-flags-row-actions .name=${item.unique}></umbricians-feature-flags-row-actions>
       </div>
       <div class="row">
         ${stateTag(this.localize, item)} ${audienceNote(this.localize, item)}

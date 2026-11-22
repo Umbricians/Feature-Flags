@@ -1,6 +1,7 @@
 import {
   FEATURE_FLAGS_COLLECTION_ALIAS,
   FEATURE_FLAGS_COLLECTION_REPOSITORY_ALIAS,
+  FEATURE_FLAGS_MENU_ITEM_ALIAS,
   FEATURE_FLAGS_ROOT_ENTITY_TYPE,
   FEATURE_FLAGS_ROOT_WORKSPACE_ALIAS,
   FEATURE_FLAG_ENTITY_TYPE,
@@ -14,7 +15,7 @@ export const manifests: Array<UmbExtensionManifest> = [
   // Settings → Advanced → Feature Flags, which opens the flag list.
   {
     type: "menuItem",
-    alias: "Umbricians.FeatureFlags.MenuItem.Root",
+    alias: FEATURE_FLAGS_MENU_ITEM_ALIAS,
     name: "Feature Flags Menu Item",
     weight: 50,
     meta: {

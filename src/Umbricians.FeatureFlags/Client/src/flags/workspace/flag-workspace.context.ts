@@ -1,3 +1,4 @@
+import { UmbEntityContext } from "@umbraco-cms/backoffice/entity";
 import { UmbContextBase } from "@umbraco-cms/backoffice/class-api";
 import type { UmbControllerHost } from "@umbraco-cms/backoffice/controller-api";
 import { UmbLocalizationController } from "@umbraco-cms/backoffice/localization-api";
@@ -24,6 +25,8 @@ import {
 } from "../../api/feature-flags.resource.js";
 import { FeatureFlagsRequestError } from "../../api/request-error.js";
 import { FEATURE_FLAG_ENTITY_TYPE, FEATURE_FLAG_WORKSPACE_ALIAS } from "../../constants.js";
+import { flagEntity } from "../entity.js";
+import { FeatureFlagPublicWorkspaceContext } from "./flag-workspace.public-context.js";
 import { FEATURE_FLAGS_PERMISSION_MANAGE } from "../../permissions/constants.js";
 import { observePermission } from "../../permissions/permissions.js";
 import { addableConditions } from "../../conditions/condition-names.js";
@@ -52,6 +55,11 @@ import {
 export class FeatureFlagWorkspaceContext extends UmbContextBase implements UmbRoutableWorkspaceContext {
   readonly workspaceAlias = FEATURE_FLAG_WORKSPACE_ALIAS;
   readonly routes = new UmbWorkspaceRouteManager(this);
+
+  // Gives Umbraco's entity actions (the workspace's actions menu) the flag's entity type and name.
+  #entity = new UmbEntityContext(this);
+  /** The flag's name, once the route has it. Umbraco's workspace action menu reads this. */
+  readonly unique = this.#entity.unique;
 
   #flag = new UmbObjectState<FeatureFlag | undefined>(undefined);
   readonly flag = this.#flag.asObservable();
@@ -102,6 +110,9 @@ export class FeatureFlagWorkspaceContext extends UmbContextBase implements UmbRo
 
   constructor(host: UmbControllerHost) {
     super(host, UMB_WORKSPACE_CONTEXT);
+    this.#entity.setEntityType(FEATURE_FLAG_ENTITY_TYPE);
+    // The read-only facade developers use; the editing context above stays internal.
+    new FeatureFlagPublicWorkspaceContext(this, this.flag);
     observePermission(this, FEATURE_FLAGS_PERMISSION_MANAGE, (permitted) => this.#canManage.setValue(permitted));
     this.consumeContext(UMB_NOTIFICATION_CONTEXT, (context) => (this.#notifications = context));
     this.observe(
@@ -125,9 +136,14 @@ export class FeatureFlagWorkspaceContext extends UmbContextBase implements UmbRo
     return FEATURE_FLAG_ENTITY_TYPE;
   }
 
+  getUnique() {
+    return this.#entity.getUnique();
+  }
+
   async load(name = this.#name) {
     if (!name) return;
     this.#name = name;
+    this.#entity.setUnique(flagEntity(name).unique);
     this.#loading.setValue(true);
     try {
       const [flag, providerGroups, registered] = await Promise.all([
