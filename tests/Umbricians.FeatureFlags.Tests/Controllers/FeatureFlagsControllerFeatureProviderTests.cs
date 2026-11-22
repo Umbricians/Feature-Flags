@@ -14,7 +14,7 @@ public class FeatureFlagsControllerFeatureProviderTests
         Type[] found = Populate(typeof(FeatureFlagsControllerBase).Assembly);
 
         Assert.That(found, Is.Not.Empty);
-        Assert.That(found, Has.All.Matches<Type>(type => type.Assembly == typeof(FeatureFlagsControllerBase).Assembly
+        Assert.That(found, Has.All.Matches<Type>(type => type!.Assembly == typeof(FeatureFlagsControllerBase).Assembly
             && !type.IsPublic && !type.IsAbstract && typeof(ControllerBase).IsAssignableFrom(type)));
         Assert.That(found, Does.Not.Contain(typeof(FeatureFlagsControllerBase)));
     }

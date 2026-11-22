@@ -372,13 +372,13 @@ public class FlagDiagnosticsTests
     }
 
     [Test]
-    public void A_cancellation_by_the_caller_still_stops_the_check()
+    public async Task A_cancellation_by_the_caller_still_stops_the_check()
     {
         var site = new TestSite();
         using var cancelled = new CancellationTokenSource();
         cancelled.Cancel();
 
-        Assert.CatchAsync<OperationCanceledException>(async () => await site.Provider.GetRequiredService<FlagDiagnostics>().RunAsync(cancelled.Token));
+        await Assert.CatchAsync<OperationCanceledException>(async () => await site.Provider.GetRequiredService<FlagDiagnostics>().RunAsync(cancelled.Token));
     }
 
     [Test]

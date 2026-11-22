@@ -105,11 +105,11 @@ public class MemberTargetingContextAccessorTests
     }
 
     [Test]
-    public void A_request_that_is_cancelled_is_not_hidden_as_an_anonymous_visitor()
+    public async Task A_request_that_is_cancelled_is_not_hidden_as_an_anonymous_visitor()
     {
         IHttpContextAccessor http = Request(memberManagerFails: true, failWith: new OperationCanceledException());
 
-        Assert.ThrowsAsync<OperationCanceledException>(async () => await Accessor(http).GetContextAsync());
+        await Assert.ThrowsAsync<OperationCanceledException>(async () => await Accessor(http).GetContextAsync());
     }
 
     private const string MemberScheme = "OpenIddict.Validation.AspNetCore";
