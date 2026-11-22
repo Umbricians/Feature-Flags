@@ -139,15 +139,61 @@ public class FlagDefinitionsTests
     }
 
     [Test]
-    public async Task Reads_a_definitions_filters_with_their_parameters_as_typed_values()
+    public async Task Reads_a_definitions_filters_with_their_parameters_as_the_strings_configuration_holds()
     {
         FlagSettings? settings = FlagDefinitions.ToSettings(
             await ParseAsync("""{ "id": "F", "enabled": true, "conditions": { "requirement_type": "All", "client_filters": [ { "name": "Acme.A", "parameters": { "Limit": 3, "Rate": 1.5, "On": true, "Names": ["x", "y"], "Word": "w" } }, { "name": "Acme.B" } ] } }"""),
             out _);
 
         Assert.That(settings!.Match, Is.EqualTo(ConditionMatch.All));
-        Assert.That(settings.Conditions[0].Parameters.ToJsonString(), Is.EqualTo("""{"Limit":3,"Names":["x","y"],"On":true,"Rate":1.5,"Word":"w"}"""));
+        Assert.That(settings.Conditions[0].Parameters.ToJsonString(), Is.EqualTo("""{"Limit":"3","Names":["x","y"],"On":"True","Rate":"1.5","Word":"w"}"""));
         Assert.That(settings.Conditions[1].Parameters, Is.Empty);
+    }
+
+    [Test]
+    public async Task Keeps_group_names_and_users_that_look_like_numbers_when_read_from_configuration()
+    {
+        FlagSettings? settings = FlagDefinitions.ToSettings(
+            await ParseAsync("""{ "id": "F", "enabled": true, "conditions": { "client_filters": [ { "name": "Microsoft.Targeting", "parameters": { "Audience": { "Users": ["1001"], "Groups": [ { "Name": "2024", "RolloutPercentage": 100 } ] } } } ] } }"""),
+            out _);
+
+        Assert.That(settings!.Audience, Is.EqualTo(new FlagAudience(["1001"], ["2024"])).Using<FlagAudience>((a, b) => a.SameAs(b)));
+    }
+
+    [Test]
+    public async Task A_default_with_a_value_that_is_not_a_number_can_be_written_as_an_override()
+    {
+        FlagSettings settings = FlagDefinitions.ToSettings(
+            await ParseAsync("""{ "id": "F", "enabled": true, "conditions": { "client_filters": [ { "name": "Acme.A", "parameters": { "Rate": "NaN", "Infinity": "Infinity" } } ] } }"""),
+            out _)!;
+
+        string json = FlagDefinitions.ToJson("F", settings);
+
+        Assert.That(FlagDefinitions.ReadOverride(json, out _)!.SameAs(settings), Is.True);
+    }
+
+    [Test]
+    public void Stored_JSON_written_by_hand_may_list_members_and_groups_as_numbers()
+    {
+        FlagSettings? read = FlagDefinitions.ReadOverride(
+            """{ "id": "F", "enabled": true, "conditions": { "client_filters": [ { "name": "Microsoft.Targeting", "parameters": { "Audience": { "Users": [1001], "Groups": [ { "Name": 2024 } ] } } } ] } }""",
+            out _);
+
+        Assert.That(read!.Audience, Is.EqualTo(new FlagAudience(["1001"], ["2024"])).Using<FlagAudience>((a, b) => a.SameAs(b)));
+    }
+
+    [Test]
+    public void Conditions_are_the_same_whether_they_use_a_filters_short_or_long_name()
+    {
+        var parameters = () => System.Text.Json.Nodes.JsonNode.Parse("""{ "Start": "2024-01-01T00:00:00Z" }""")!.AsObject();
+        var limit = () => System.Text.Json.Nodes.JsonNode.Parse("""{ "Audience": { "Users": ["a"], "DefaultRolloutPercentage": 10 } }""")!.AsObject();
+
+        var longNames = new FlagSettings(true, [new FlagCondition("Microsoft.TimeWindow", parameters()), new FlagCondition("Microsoft.Targeting", limit())]);
+        var shortNames = new FlagSettings(true, [new FlagCondition("TimeWindow", parameters()), new FlagCondition("Targeting", limit())]);
+        var other = new FlagSettings(true, [new FlagCondition("TimeWindow", parameters()), new FlagCondition("Acme.Targeting", limit())]);
+
+        Assert.That(longNames.SameAs(shortNames), Is.True);
+        Assert.That(longNames.SameAs(other), Is.False);
     }
 
     [Test]

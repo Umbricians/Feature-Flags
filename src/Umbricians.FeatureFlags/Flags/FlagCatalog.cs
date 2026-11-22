@@ -183,7 +183,7 @@ internal sealed class FlagCatalog
             details.Section,
             details.Description,
             details.Tags,
-            details.IsPublic,
+            details.IsPublic ?? false,
             state,
             defaultState,
             settings,

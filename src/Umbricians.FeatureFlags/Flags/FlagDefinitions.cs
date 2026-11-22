@@ -266,9 +266,7 @@ internal static class FlagDefinitions
         return result;
     }
 
-    private static JsonNode Scalar(string value) =>
-        bool.TryParse(value, out bool boolean) ? JsonValue.Create(boolean)
-        : long.TryParse(value, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out long integer) ? JsonValue.Create(integer)
-        : double.TryParse(value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double number) ? JsonValue.Create(number)
-        : JsonValue.Create(value)!;
+    // Configuration only has strings, and a string such as "2024" or "NaN" must stay one, so a group named 2024 is not
+    // turned into a number. Microsoft's own binding reads these strings as it needs them.
+    private static JsonNode Scalar(string value) => JsonValue.Create(value);
 }

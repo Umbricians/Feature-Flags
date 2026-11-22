@@ -47,18 +47,20 @@ public class FlagCatalogTests
             { "feature_management": { "feature_flags": [
                 { "id": "FromConfig", "enabled": false, "public": true },
                 { "id": "Named", "enabled": false },
+                { "id": "ConfigSaysNo", "enabled": false, "public": false },
                 { "id": "Private", "enabled": false } ] } }
             """,
             before: services =>
             {
                 services.AddSingleton(new CodeFlagDeclaration(FlagDefinitions.Simple("FromCode", false), new FlagDetails(null, null, [], IsPublic: true)));
+                services.AddSingleton(new CodeFlagDeclaration(FlagDefinitions.Simple("ConfigSaysNo", false), new FlagDetails(null, null, [], IsPublic: true)));
                 services.AddSingleton(new PublicFlagNames(["NAMED"]));
             });
 
         Dictionary<string, FeatureFlag> flags = (await Catalog(site).GetAllAsync(default)).ToDictionary(flag => flag.Name);
 
         Assert.That(flags.ToDictionary(flag => flag.Key, flag => flag.Value.IsPublic),
-            Is.EqualTo(new Dictionary<string, bool> { ["FromConfig"] = true, ["Named"] = true, ["Private"] = false, ["FromCode"] = true }));
+            Is.EqualTo(new Dictionary<string, bool> { ["FromConfig"] = true, ["Named"] = true, ["Private"] = false, ["FromCode"] = true, ["ConfigSaysNo"] = false }));
     }
 
     [Test]

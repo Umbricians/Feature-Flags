@@ -36,6 +36,13 @@ public sealed record FlagSettings(bool Enabled, IReadOnlyList<FlagCondition> Con
         : Audience is not null ? FlagState.Audience
         : FlagState.Conditions;
 
+    // Microsoft matches "Targeting" and "Microsoft.Targeting" (and the time window's two names) as the same filter.
+    private static bool SameFilter(string a, string b) =>
+        string.Equals(ShortName(a), ShortName(b), StringComparison.OrdinalIgnoreCase);
+
+    private static string ShortName(string name) =>
+        name.StartsWith("Microsoft.", StringComparison.OrdinalIgnoreCase) ? name["Microsoft.".Length..] : name;
+
     internal static bool IsTargeting(string? name) =>
         string.Equals(name, TargetingName, StringComparison.OrdinalIgnoreCase)
         || string.Equals(name, TargetingShortName, StringComparison.OrdinalIgnoreCase);
@@ -63,7 +70,7 @@ public sealed record FlagSettings(bool Enabled, IReadOnlyList<FlagCondition> Con
             bool same = IsTargeting(mine.Name) && IsTargeting(theirs.Name)
                 && FlagAudience.TryRead(mine.Parameters, out _) is { } a && FlagAudience.TryRead(theirs.Parameters, out _) is { } b
                     ? a.SameAs(b)
-                    : string.Equals(mine.Name, theirs.Name, StringComparison.OrdinalIgnoreCase)
+                    : SameFilter(mine.Name, theirs.Name)
                         && JsonNode.DeepEquals(mine.Parameters, theirs.Parameters);
             if (!same)
             {
@@ -179,8 +186,17 @@ public sealed record FlagAudience(IReadOnlyList<string> Members, IReadOnlyList<s
     private static JsonNode? Child(JsonObject? parent, string name) =>
         parent?.FirstOrDefault(property => string.Equals(property.Key, name, StringComparison.OrdinalIgnoreCase)).Value;
 
-    private static string? Text(JsonNode? node) =>
-        node is JsonValue value && value.TryGetValue(out string? text) && !string.IsNullOrWhiteSpace(text) ? text : null;
+    // Hand-written JSON may hold an id as a number or a boolean, such as "Users": [1001]; its JSON text is the id.
+    private static string? Text(JsonNode? node)
+    {
+        if (node is not JsonValue value)
+        {
+            return null;
+        }
+
+        string? text = value.TryGetValue(out string? s) ? s : value.GetValueKind() is System.Text.Json.JsonValueKind.Number or System.Text.Json.JsonValueKind.True or System.Text.Json.JsonValueKind.False ? value.ToJsonString() : null;
+        return string.IsNullOrWhiteSpace(text) ? null : text;
+    }
 
     // A number, or text that reads as one, whichever way the JSON value holds it.
     private static double? Percentage(JsonNode? node) => node is JsonValue value
