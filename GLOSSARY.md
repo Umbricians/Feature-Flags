@@ -73,7 +73,7 @@ isn't signed in is anonymous and is in no audience.
 ## Override
 
 An editor's setting for a flag, stored in the site's database, which replaces the flag's default on that site.
-Each site and environment has its own overrides. Removed by resetting.
+Each site has its own overrides. Removed by resetting.
 
 ## Public flag
 
@@ -88,7 +88,7 @@ Removing a flag's override, so the flag goes back to its default.
 
 A top-level node in the Content tree and the domains assigned to it, such as the UK shop, on an install that runs
 several. A flag can be limited to chosen roots. Not the [site](#site): one site can have many roots. _Avoid_: site
-(for a root), website.
+(for a root), website, except in the backoffice's labels for editors, such as "Only on these sites".
 
 ## Section
 

@@ -196,7 +196,7 @@ From [The Management API as a public contract](https://github.com/Umbricians/Fea
 From [Telling a headless front end which flags are on](https://github.com/Umbricians/Feature-Flags/issues/17).
 
 - **Endpoint:** `GET /umbraco/umbriciansfeatureflags/delivery/v1/flags`, in its own Swagger document. It's **off
-  until a developer switches it on** in the package's settings, and it follows the Delivery API's access settings:
+  until a developer switches it on** (how, such as a setting under `Umbricians:FeatureFlags`, is still to agree), and it follows the Delivery API's access settings:
   when the Delivery API isn't public, it needs the same `Api-Key`.
 - **Only public flags.** A developer marks a flag public with `public: true` in `Declare(...)`, or `"public": true`
   beside `section` and `tags` in appsettings. Flags are private by default. The flag list shows which flags are
@@ -233,8 +233,8 @@ different list adds a collection view to the promised collection.
 ### Publishing
 
 A types-only npm package, `@umbricians/feature-flags`, with the NuGet package's version and `@umbraco-cms/backoffice`
-^17 as a peer dependency, as Forms and Commerce publish theirs. It has no runtime code and no import-map entry. All
-the aliases and entity types above are exported from it as constants.
+^17 as a peer dependency, as Forms and Commerce publish theirs. It has no runtime code and no import-map entry. How a
+developer gets the alias strings and the context token at runtime is still open (see [To check first](#to-check-first)).
 
 ## Health check
 
@@ -278,14 +278,16 @@ the docs cover it:
 
 ## What 1.0 promises
 
-Stable for all of 1.x; a breaking change needs 2.0.
+Stable for all of 1.x; a breaking change needs 2.0. Rows marked *proposed* go beyond what the tickets decided, and
+need agreeing in review.
 
 | Area | Promised |
 | --- | --- |
-| C# | `IFeatureFlagService`, `FeatureFlag`, `FeatureFlagResult`, `FlagSettings`, `FlagCondition`, `ConditionMatch`, `FlagAudience`, `IFeatureFlagCondition`, the four notifications and the cause, `IFeatureFlagGroupProvider`, `IFeatureFlagOverrideStore`, `AddFeatureFlags` and its builder, the settings under `Umbricians:FeatureFlags` |
+| C# | `IFeatureFlagService`, `FeatureFlag`, `FeatureFlagResult`, `FlagSettings`, `FlagCondition`, `ConditionMatch`, `FlagAudience`, `IFeatureFlagCondition`, the four notifications and the cause, `IFeatureFlagOverrideStore` |
+| C# (*proposed*) | `IFeatureFlagGroupProvider`, `AddFeatureFlags` and its builder, the settings under `Umbricians:FeatureFlags` |
 | Behaviour | a save is seen by the next check on the same server; notifications fire as above |
 | Management API | every `v1` endpoint, field, query parameter and status code. Adding endpoints, fields or parameters doesn't break it. Not human-readable text, and not the order of items except where `orderBy` sets it. |
-| Headless | the endpoint, its response shape and the `public` declaration |
+| Headless (*proposed*) | the endpoint, its response shape and the `public` declaration |
 | Backoffice | the list under [Backoffice extension surface](#backoffice-extension-surface) |
 
 ## Not in 1.0
@@ -312,7 +314,7 @@ Out of scope, with what covers the need instead:
 
 ## Build order
 
-Each step builds on the ones before it.
+A suggested order, to agree when the build is planned. Each step builds on the ones before it.
 
 1. **Public types and settings:** `FlagSettings` with conditions, `FlagCondition`, `ConditionMatch`, `FlagAudience`,
    `FeatureFlag`, `FeatureFlagResult`, and the `public` declaration.
@@ -331,13 +333,19 @@ Each step builds on the ones before it.
 
 ## To check first
 
-Facts the decisions assume but nobody has checked yet:
+Facts the decisions assume but nobody has checked yet, and questions they left open:
 
 - Whether Umbraco's `IMemberManager.GetCurrentMemberAsync()` sees a member signed in with a Delivery API member
   token. If not, the member lookup reads the token itself.
 - Whether the package's permission check passes for an Umbraco API user signed in with client credentials.
 - Whether Umbraco's promise of no breaking changes in minor releases covers the backoffice TypeScript the promised
   surface depends on.
+- How a developer gets the promised alias strings and the workspace context token at runtime, since the npm package
+  is types only.
+- **Open:** how a flag from a source the package can't read details from (a site's own provider, or Azure App
+  Configuration) is marked public. Today `public` can only be read from code or appsettings. This joins the two
+  **Open** points already in [design.md](design.md): details from Azure App Configuration, and marking a single flag
+  read-only.
 
 ## Docs to write
 
