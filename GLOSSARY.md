@@ -4,9 +4,20 @@ The words this codebase uses for its domain. Code, docs and reviews should use t
 
 ## Audience
 
-Who a flag is on for when its state is *on for an audience*: chosen members, chosen groups, and later a
-percentage of everyone and exclusions. It is Microsoft's targeting `Audience`, stored and evaluated as Microsoft
+Who a flag is on for when its state is *on for an audience*: chosen members, chosen groups, a share of
+everyone or of a group (signed-in members only), and members or groups left out. It is Microsoft's targeting `Audience`, stored and evaluated as Microsoft
 defines it. Not a separate list of people that Feature Flags keeps.
+
+## Cause
+
+What changed an override: an editor in the backoffice, a developer's code, or member clean-up (taking a deleted
+member or group out of every audience).
+
+## Condition
+
+A rule a flag must pass to be on for a request, such as an audience, a time window or a developer's own rule.
+Microsoft calls it a feature filter. A condition the package or a developer has registered can be edited in the
+backoffice; any other makes the flag's state custom. _Avoid_: filter (except when naming Microsoft's).
 
 ## Declared flag
 
@@ -18,6 +29,11 @@ override.
 
 What a declared flag does before any editor changes it: its definition as the flag source gives it. New flags
 should be declared off.
+
+## Developer
+
+The person who installs Feature Flags on a site and declares, checks and extends flags in code. Not an editor,
+though one person may be both. _Avoid_: implementer, integrator.
 
 ## Editor
 
@@ -59,9 +75,20 @@ isn't signed in is anonymous and is in no audience.
 An editor's setting for a flag, stored in the site's database, which replaces the flag's default on that site.
 Each site and environment has its own overrides. Removed by resetting.
 
+## Public flag
+
+A flag a developer has said a front end may ask about. Flags are private unless declared public, because their
+names can reveal features not yet released. Editors can see whether a flag is public but not change it.
+
 ## Reset
 
 Removing a flag's override, so the flag goes back to its default.
+
+## Root
+
+A top-level node in the Content tree and the domains assigned to it, such as the UK shop, on an install that runs
+several. A flag can be limited to chosen roots. Not the [site](#site): one site can have many roots. _Avoid_: site
+(for a root), website.
 
 ## Section
 
@@ -69,11 +96,17 @@ The part of the flag list a flag is shown in, such as "Checkout", to help editor
 the flag is declared, or taken from the text before the first `.` in its name. It has no effect on who gets the
 feature. Not a [group](#group).
 
+## Site
+
+One Umbraco install in one environment, with its own database and so its own overrides. It may have several
+[roots](#root).
+
 ## State
 
-How a flag is evaluated: *off*, *on for everyone*, or *on for an audience*. In Microsoft's terms: disabled,
-enabled with no conditions, and enabled with the targeting filter. A flag whose definition is anything else, such as
-a time window, a percentage or variants, is *custom*: the backoffice shows it but can't change it.
+How a flag is evaluated: *off*, *on for everyone*, *on for an audience*, or *on with conditions*. In Microsoft's
+terms: disabled, enabled with no conditions, enabled with only the targeting filter, and enabled with other
+registered conditions. A flag whose definition uses a condition nobody has registered, or variants, is *custom*: the
+backoffice shows it but can't change it.
 
 ## Undeclared flag
 
