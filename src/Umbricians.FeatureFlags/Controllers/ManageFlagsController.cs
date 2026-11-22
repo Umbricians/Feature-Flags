@@ -45,6 +45,11 @@ internal sealed class ManageFlagsController : FeatureFlagsControllerBase
             return BadRequest(new ProblemDetails { Title = "Invalid match", Detail = "match must be 'any' or 'all'." });
         }
 
+        if (request.Conditions.Any(condition => condition is null))
+        {
+            return BadRequest(new ProblemDetails { Title = "Invalid conditions", Detail = "Every condition must be an object with a name and parameters, not null." });
+        }
+
         var settings = new FlagSettings(
             request.Enabled,
             request.Conditions.Select(condition => new FlagCondition(condition.Name, (JsonObject)(condition.Parameters ?? new JsonObject()).DeepClone())).ToArray(),

@@ -42,6 +42,55 @@ public class ApiUserTests : IntegrationTest
     }
 
     [Test]
+    public async Task An_api_user_can_save_the_audience_from_the_docs_then_get_switch_and_reset_the_flag()
+    {
+        using HttpClient client = await SignInAsApiUserAsync(Constants.Permissions.View, Constants.Permissions.Manage);
+
+        HttpResponseMessage saved = await client.PutAsync(Base + "flag?name=Tests.On", new StringContent("""
+            { "enabled": true, "match": "any",
+              "conditions": [ { "name": "Microsoft.Targeting",
+                "parameters": { "Audience": { "Users": [], "Groups": [ { "Name": "Beta testers", "RolloutPercentage": 100 } ], "DefaultRolloutPercentage": 0 } } } ] }
+            """, System.Text.Encoding.UTF8, "application/json"));
+        Assert.That(saved.StatusCode, Is.EqualTo(HttpStatusCode.OK), await saved.Content.ReadAsStringAsync());
+        Assert.That((await saved.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("state").GetString(), Is.EqualTo("audience"));
+
+        HttpResponseMessage read = await client.GetAsync(Base + "flag?name=Tests.On");
+        Assert.That(read.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        Assert.That((await read.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("state").GetString(), Is.EqualTo("audience"));
+
+        HttpResponseMessage off = await client.PutAsJsonAsync(Base + "flag/enabled?name=Tests.On", new { enabled = false });
+        Assert.That(off.StatusCode, Is.EqualTo(HttpStatusCode.OK), await off.Content.ReadAsStringAsync());
+        Assert.That((await off.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("enabled").GetBoolean(), Is.False);
+
+        HttpResponseMessage reset = await client.DeleteAsync(Base + "flag?name=Tests.On");
+        Assert.That(reset.StatusCode, Is.EqualTo(HttpStatusCode.OK), await reset.Content.ReadAsStringAsync());
+        Assert.That((await reset.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("state").GetString(), Is.EqualTo("everyone"));
+    }
+
+    [Test]
+    public async Task A_null_condition_is_a_bad_request_not_a_server_error()
+    {
+        using HttpClient client = await SignInAsApiUserAsync(Constants.Permissions.View, Constants.Permissions.Manage);
+
+        HttpResponseMessage response = await client.PutAsync(Base + "flag?name=Tests.Off", new StringContent(
+            """{"enabled":true,"conditions":[null]}""", System.Text.Encoding.UTF8, "application/json"));
+
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest), await response.Content.ReadAsStringAsync());
+    }
+
+    [Test]
+    public async Task Deeply_nested_parameters_are_refused_by_the_rules_not_by_a_server_error()
+    {
+        using HttpClient client = await SignInAsApiUserAsync(Constants.Permissions.View, Constants.Permissions.Manage);
+        string nested = string.Concat(Enumerable.Repeat("{\"a\":", 60)) + "1" + new string('}', 60);
+
+        HttpResponseMessage response = await client.PutAsync(Base + "flag?name=Tests.Off", new StringContent(
+            $$"""{"enabled":true,"conditions":[{"name":"Contoso.Unregistered","parameters":{{nested}}}]}""", System.Text.Encoding.UTF8, "application/json"));
+
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Conflict), await response.Content.ReadAsStringAsync());
+    }
+
+    [Test]
     public async Task An_api_user_in_a_group_with_only_view_can_read_but_not_change_flags()
     {
         using HttpClient client = await SignInAsApiUserAsync(Constants.Permissions.View);

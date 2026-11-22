@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Nodes;
 
@@ -81,6 +82,8 @@ internal sealed class FlagConditionModel
     public string Name { get; init; } = "";
 
     /// <summary>The filter's parameters as JSON; empty when it has none.</summary>
+    // Never walked by model validation: parameters are free-form JSON, and a deeply nested object would overflow its depth limit.
+    [ValidateNever]
     public JsonObject Parameters { get; init; } = new();
 }
 

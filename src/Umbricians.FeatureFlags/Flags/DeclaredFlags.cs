@@ -110,27 +110,20 @@ internal sealed class ConfigurationFlagDetails(IConfiguration configuration)
     /// A flag's JSON as configuration holds it in the <c>feature_management:feature_flags</c> list, with every value as
     /// text; null when it isn't declared there. For reading what Microsoft's provider drops from a flag that is switched off.
     /// </summary>
-    public JsonObject? Raw(string name)
-    {
-        foreach (IConfigurationSection flag in configuration.GetSection("feature_management:feature_flags").GetChildren())
-        {
-            if (string.Equals(flag["id"], name, StringComparison.OrdinalIgnoreCase))
-            {
-                return FlagDefinitions.ConfigurationToJson(flag) as JsonObject;
-            }
-        }
+    public JsonObject? Raw(string name) =>
+        LastEntry(name) is { } flag ? FlagDefinitions.ConfigurationToJson(flag) as JsonObject : null;
 
-        return null;
-    }
+    /// <summary>The last entry with the id: when ids repeat, Microsoft's provider reads the last one, so this does too.</summary>
+    private IConfigurationSection? LastEntry(string name) => configuration
+        .GetSection("feature_management:feature_flags")
+        .GetChildren()
+        .LastOrDefault(flag => string.Equals(flag["id"], name, StringComparison.OrdinalIgnoreCase));
 
     public FlagDetails Find(string name)
     {
-        foreach (IConfigurationSection flag in configuration.GetSection("feature_management:feature_flags").GetChildren())
+        if (LastEntry(name) is { } entry)
         {
-            if (string.Equals(flag["id"], name, StringComparison.OrdinalIgnoreCase))
-            {
-                return Read(flag, "description", "section", "tags", "public");
-            }
+            return Read(entry, "description", "section", "tags", "public");
         }
 
         IConfigurationSection section = configuration.GetSection("FeatureManagement").GetSection(name);
