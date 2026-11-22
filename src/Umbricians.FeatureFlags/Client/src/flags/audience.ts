@@ -75,6 +75,12 @@ export function withMemberGroupKeys(audience: FlagAudience, keys: Array<string>)
   return { ...audience, groups: [...kept, ...added] };
 }
 
+/** The ids of the member groups (by key) in either side of the audience whose name isn't known yet, for the editor to look up. */
+export function unnamedMemberGroups(audience: FlagAudience): Array<string> {
+  const ids = [...audience.groups, ...audience.excludedGroups].filter((group) => group.kind === "memberGroup" && group.name === null).map((group) => group.id);
+  return [...new Set(ids)];
+}
+
 export function hasGroup(audience: FlagAudience, id: string): boolean {
   return audience.groups.some((group) => group.id === id);
 }

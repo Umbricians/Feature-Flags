@@ -1,6 +1,7 @@
 import { css, customElement, html, live, nothing, property, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbLitElement } from "@umbraco-cms/backoffice/lit-element";
 import { UmbChangeEvent } from "@umbraco-cms/backoffice/event";
+import { UmbMemberGroupItemRepository } from "@umbraco-cms/backoffice/member-group";
 import type { AudienceGroup, FlagAudience, ProviderGroup } from "../../api/feature-flags.resource.js";
 import {
   audienceFromParameters,
@@ -9,6 +10,7 @@ import {
   hasGroup,
   memberGroupKeys,
   sideOf,
+  unnamedMemberGroups,
   toTargetingCondition,
   withDefaultPercentage,
   withGroupPercentage,
@@ -39,6 +41,12 @@ export class AudienceConditionElement extends UmbLitElement implements Umbrician
 
   @state() private _known: Array<AudienceGroup> = [];
   @state() private _providerGroups: Array<ProviderGroup> = [];
+  /** The names of member groups picked since the flag was loaded, which the server hasn't described yet, by the key the flag holds. */
+  @state() private _pickedNames: Record<string, string> = {};
+
+  #memberGroups = new UmbMemberGroupItemRepository(this);
+  /** The keys already looked up, so a group that has no name isn't asked for again and again. */
+  #asked = new Set<string>();
 
   constructor() {
     super();
@@ -55,7 +63,27 @@ export class AudienceConditionElement extends UmbLitElement implements Umbrician
 
   get #audience(): FlagAudience {
     const providerGroups = this._providerGroups.map((group): AudienceGroup => ({ id: group.id, kind: "providerGroup", name: group.name, percentage: 100 }));
-    return audienceFromParameters(this.value, [...this._known, ...providerGroups]);
+    const picked = Object.entries(this._pickedNames).map(([id, name]): AudienceGroup => ({ id, kind: "memberGroup", name, percentage: 100 }));
+    return audienceFromParameters(this.value, [...this._known, ...providerGroups, ...picked]);
+  }
+
+  override willUpdate(changed: Map<PropertyKey, unknown>) {
+    if (changed.has("value") || changed.has("_known")) this.#nameMemberGroups();
+  }
+
+  /** Looks up the names of member groups the server hasn't described, such as one just picked, so they show by name at once. */
+  async #nameMemberGroups() {
+    const keys = unnamedMemberGroups(this.#audience).filter((key) => !this.#asked.has(key));
+    if (!keys.length) return;
+    keys.forEach((key) => this.#asked.add(key));
+    const { data } = await this.#memberGroups.requestItems(keys);
+    if (!data?.length) return;
+    const names = { ...this._pickedNames };
+    for (const item of data) {
+      const key = keys.find((candidate) => candidate.toLowerCase() === item.unique.toLowerCase());
+      if (key) names[key] = item.name;
+    }
+    this._pickedNames = names;
   }
 
   #change(audience: FlagAudience) {

@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { FlagAudience, ProviderGroup } from "../api/types.ts";
 import {
+  unnamedMemberGroups,
   audienceFromParameters,
   countAudience,
   emptyAudience,
@@ -201,4 +202,15 @@ test("a named group's member group key is kept when the audience is read from pa
   const known = named.groups;
   const read = audienceFromParameters({ Audience: { Groups: [{ Name: "Beta testers", RolloutPercentage: 50 }] } }, known);
   assert.equal(read.groups[0].memberGroupKey, "key-9");
+});
+
+test("member groups whose names aren't known yet are the ones to look up, once each", () => {
+  const key = "11111111-1111-1111-1111-111111111111";
+  const audience = audienceFromParameters(
+    { Audience: { Groups: [{ Name: key, RolloutPercentage: 100 }, { Name: "Editors", RolloutPercentage: 100 }], Exclusion: { Groups: [key] } } },
+    [{ id: "Editors", kind: "providerGroup", name: "Editors", percentage: 100 }],
+  );
+  assert.deepEqual(unnamedMemberGroups(audience), [key]);
+  const named = audienceFromParameters({ Audience: { Groups: [{ Name: key }] } }, [{ id: key, kind: "memberGroup", name: "Staff", percentage: 100 }]);
+  assert.deepEqual(unnamedMemberGroups(named), []);
 });
