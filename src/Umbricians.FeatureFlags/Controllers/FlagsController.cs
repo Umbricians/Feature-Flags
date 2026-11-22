@@ -25,6 +25,7 @@ internal sealed class FlagsController : FeatureFlagsControllerBase
     private readonly IFeatureFlagService _flags;
     private readonly FlagResponses _responses;
     private readonly AudienceGroups _audienceGroups;
+    private readonly ConditionRegistry _conditions;
     private readonly IHostEnvironment _environment;
 
     public FlagsController(
@@ -32,12 +33,14 @@ internal sealed class FlagsController : FeatureFlagsControllerBase
         IFeatureFlagService flags,
         FlagResponses responses,
         AudienceGroups audienceGroups,
+        ConditionRegistry conditions,
         IHostEnvironment environment)
     {
         _list = list;
         _flags = flags;
         _responses = responses;
         _audienceGroups = audienceGroups;
+        _conditions = conditions;
         _environment = environment;
     }
 
@@ -110,4 +113,10 @@ internal sealed class FlagsController : FeatureFlagsControllerBase
         GroupDirectory directory = await _audienceGroups.ReadAsync(cancellationToken);
         return directory.ProviderGroups.Select(group => new ProviderGroupResponseModel { Id = group.Id, Name = group.Name, Description = group.Description });
     }
+
+    /// <summary>The conditions registered on this site, so the backoffice can offer them and find their editors.</summary>
+    [HttpGet("conditions")]
+    [ProducesResponseType<IEnumerable<ConditionResponseModel>>(StatusCodes.Status200OK)]
+    public IEnumerable<ConditionResponseModel> Conditions() =>
+        _conditions.All.Select(condition => new ConditionResponseModel { Name = condition.Name, DisplayName = condition.DisplayName });
 }

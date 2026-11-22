@@ -176,6 +176,14 @@ internal sealed class FlagSectionCountModel
     public int Count { get; init; }
 }
 
+/// <summary>A condition registered on the site: its filter name, which a manifest's <c>meta.name</c> matches, and what editors call it.</summary>
+internal sealed class ConditionResponseModel
+{
+    public required string Name { get; init; }
+
+    public required string DisplayName { get; init; }
+}
+
 /// <summary>A group from one of the site's group providers.</summary>
 internal sealed class ProviderGroupResponseModel
 {

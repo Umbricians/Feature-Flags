@@ -72,6 +72,7 @@ public class FlagApiTests
         site.Provider.GetRequiredService<IFeatureFlagService>(),
         Responses(site, userName),
         site.Provider.GetRequiredService<AudienceGroups>(),
+        site.Provider.GetRequiredService<ConditionRegistry>(),
         new TestEnvironment());
 
     private static ManageFlagsController Manager(TestSite site) => new(
@@ -126,6 +127,20 @@ public class FlagApiTests
         Assert.That(noOverride.Reset, Has.Property(nameof(FlagActionModel.Allowed)).False
             .And.Property(nameof(FlagActionModel.Reason)).Contain("already uses its default"));
         Assert.That((undeclared.Save.Allowed, undeclared.Remove.Allowed, undeclared.Remove.Reason), Is.EqualTo((false, true, (string?)null)));
+    }
+
+    [Test]
+    public async Task A_flag_with_an_audience_beside_other_conditions_still_says_what_its_groups_are()
+    {
+        TestSite site = Site();
+        FlagCondition audience = FlagSettings.ForAudience(true, AnAudience()).Conditions[0];
+        site.Store.With("Checkout", new FlagSettings(true, [audience, new FlagCondition("Contoso.Culture", new JsonObject())], ConditionMatch.All));
+        site.Refresh();
+
+        FlagResponseModel flag = await GetFlagAsync(Controller(site), "Checkout");
+
+        Assert.That(flag.AudienceDetail!.Members, Is.EqualTo(new[] { "m1", "m2" }));
+        Assert.That(flag.AudienceDetail.Groups.Select(group => group.Kind), Does.Contain("memberGroup"));
     }
 
     [Test]
@@ -223,6 +238,14 @@ public class FlagApiTests
 
         Assert.That(groups.Single(), Has.Property(nameof(ProviderGroupResponseModel.Id)).EqualTo("crm:premium")
             .And.Property(nameof(ProviderGroupResponseModel.Description)).EqualTo("Pays us."));
+    }
+
+    [Test]
+    public void Offers_the_registered_conditions_by_name()
+    {
+        IEnumerable<ConditionResponseModel> conditions = Controller(Site()).Conditions();
+
+        Assert.That(conditions.Select(condition => (condition.Name, condition.DisplayName)), Does.Contain(("Microsoft.Targeting", "Audience")));
     }
 
     private static SaveFlagRequestModel Request(bool enabled, string match = "any", params FlagConditionModel[] conditions) =>

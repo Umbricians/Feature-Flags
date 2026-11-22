@@ -82,6 +82,7 @@ curl -s -X DELETE -H "Authorization: Bearer $TOKEN" "$SITE/umbraco/umbriciansfea
 | `GET flags/summary` | The sections and tags in use, counts, whether overrides are read-only, and the environment's name. |
 | `GET flag?name=` | One flag. |
 | `GET provider-groups` | The groups the site's group providers offer. |
+| `GET conditions` | The conditions registered on the site, as `[ { name, displayName } ]`; `name` is the filter's name as the C# condition gives it. The backoffice offers these in "Add condition". |
 | `PUT flag?name=` | Save a flag's settings. Body: `{ "enabled": true, "conditions": [ { "name": "...", "parameters": { } } ], "match": "any" }`. Returns the flag as it is now. |
 | `PUT flag/enabled?name=` | Switch a flag on or off, keeping its conditions. Body: `{ "enabled": true }`. Returns the flag. |
 | `DELETE flag?name=` | Reset a flag to its default, or remove the setting of a flag nobody declares any more. Returns the flag; for a removed flag there is nothing left to return, so the body is empty. |
@@ -91,7 +92,8 @@ A flag has every field of `FeatureFlag` in C#, in camelCase: `name`, `isDeclared
 (`{ enabled, conditions, match }`, null when the flag uses more than settings can say), `override`
 (`{ definition, updatedBy, updatedUtc }`), `differsFromDefault`, `actions` (`switch`, `save`, `reset` and `remove`, each
 `{ allowed, reason }`) and `summary`. The backoffice's own fields come after those: `enabled`, `audience` and
-`audienceDetail`, and `override.updatedByName`.
+`audienceDetail` (who the flag's audience condition is on for and what each group is, whenever the flag has one the
+backoffice can read, even beside other conditions), and `override.updatedByName`.
 
 ## Status codes
 

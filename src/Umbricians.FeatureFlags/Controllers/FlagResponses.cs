@@ -25,7 +25,7 @@ internal sealed class FlagResponses
 
     /// <summary>Reads the site's groups once for the whole response, and only when a flag has an audience to describe.</summary>
     private async Task<GroupDirectory?> ReadGroupsAsync(IReadOnlyList<FeatureFlag> flags, CancellationToken cancellationToken) =>
-        flags.Any(flag => flag.Settings?.Audience is not null) ? await _groups.ReadAsync(cancellationToken) : null;
+        flags.Any(flag => ReadableAudience(flag) is not null) ? await _groups.ReadAsync(cancellationToken) : null;
 
     private async Task<IReadOnlyDictionary<Guid, string?>> UserNamesAsync(IReadOnlyList<FeatureFlag> flags)
     {
@@ -37,6 +37,12 @@ internal sealed class FlagResponses
 
     private static FlagResponseModel[] Map(IReadOnlyList<FeatureFlag> flags, GroupDirectory? groups, IReadOnlyDictionary<Guid, string?> userNames) =>
         flags.Select(flag => Map(flag, groups, userNames)).ToArray();
+
+    /// <summary>The audience of the flag's targeting condition when it is one the backoffice can read, whatever other conditions the flag has.</summary>
+    private static FlagAudience? ReadableAudience(FeatureFlag flag) => flag.Settings?.Conditions
+        .Where(condition => FlagSettings.IsTargeting(condition.Name))
+        .Select(condition => FlagAudience.TryRead(condition.Parameters, out _))
+        .FirstOrDefault(audience => audience is not null);
 
     private static AudienceDetailModel Detail(FlagAudience audience, GroupDirectory groups) => new()
     {
@@ -77,6 +83,7 @@ internal sealed class FlagResponses
     private static FlagResponseModel Map(FeatureFlag flag, GroupDirectory? groups, IReadOnlyDictionary<Guid, string?> userNames)
     {
         FlagAudience? audience = flag.Settings?.Audience;
+        FlagAudience? readable = ReadableAudience(flag);
         return new FlagResponseModel
         {
             Name = flag.Name,
@@ -103,7 +110,7 @@ internal sealed class FlagResponses
             Summary = flag.Summary,
             Enabled = flag.Settings?.Enabled ?? flag.State != FeatureFlagState.Off,
             Audience = audience is null ? null : Counts(audience, groups!),
-            AudienceDetail = audience is null ? null : Detail(audience, groups!),
+            AudienceDetail = readable is null ? null : Detail(readable, groups!),
         };
     }
 }
