@@ -196,6 +196,24 @@ public class FlagDiagnosticsTests
     }
 
     [Test]
+    public async Task The_headless_endpoint_switched_on_with_no_public_flag_is_a_warning()
+    {
+        var site = new TestSite("""{ "Umbricians": { "FeatureFlags": { "Headless": { "Enabled": true } } }, "FeatureManagement": { "Shop": true } }""");
+
+        Assert.That(Only(await Run(site), FlagDiagnostics.HeadlessNothingPublic).Severity, Is.EqualTo(DiagnosticSeverity.Warning));
+    }
+
+    [Test]
+    public async Task The_headless_endpoint_with_a_public_flag_or_switched_off_is_all_clear()
+    {
+        var withPublic = new TestSite("""{ "Umbricians": { "FeatureFlags": { "Headless": { "Enabled": true } } }, "feature_management": { "feature_flags": [ { "id": "Shop", "enabled": true, "public": true } ] } }""");
+        var off = new TestSite("""{ "FeatureManagement": { "Shop": true } }""");
+
+        Assert.That((await Run(withPublic)).Select(result => result.Anchor), Does.Not.Contain(FlagDiagnostics.HeadlessNothingPublic));
+        Assert.That((await Run(off)).Select(result => result.Anchor), Does.Not.Contain(FlagDiagnostics.HeadlessNothingPublic));
+    }
+
+    [Test]
     public async Task Undeclared_flags_are_counted_without_names()
     {
         var site = new TestSite();

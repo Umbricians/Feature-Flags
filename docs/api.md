@@ -3,6 +3,9 @@
 Feature Flags has a Management API under `/umbraco/umbriciansfeatureflags/api/v1/`. The backoffice uses it, and so
 can your scripts and CI pipelines. It is listed as `umbricians-feature-flags` in the backoffice's Swagger UI.
 
+This is not the API a headless front end calls. That is a separate, read-only endpoint with its own Swagger
+document, `umbricians-feature-flags-delivery`, which needs no backoffice user: see [Headless front ends](headless.md).
+
 ## Who can call it
 
 - **The backoffice**, signed in as an editor.

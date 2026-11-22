@@ -1,7 +1,11 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Microsoft.FeatureManagement.FeatureFilters;
+using Umbraco.Cms.Core.Configuration.Models;
 using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Core.Security;
 using Umbraco.Cms.Core.Services;
@@ -106,6 +110,154 @@ public class MemberTargetingContextAccessorTests
         IHttpContextAccessor http = Request(memberManagerFails: true, failWith: new OperationCanceledException());
 
         Assert.ThrowsAsync<OperationCanceledException>(async () => await Accessor(http).GetContextAsync());
+    }
+
+    private const string MemberScheme = "OpenIddict.Validation.AspNetCore";
+
+    private static DeliveryApiSettings MemberAuthorizationOn() => new()
+    {
+        MemberAuthorization = new DeliveryApiSettings.MemberAuthorizationSettings { AuthorizationCodeFlow = new DeliveryApiSettings.AuthorizationCodeFlowSettings { Enabled = true } },
+    };
+
+    private sealed class FakeAuthentication(AuthenticateResult result) : IAuthenticationService
+    {
+        public List<string?> Schemes { get; } = [];
+
+        public Task<AuthenticateResult> AuthenticateAsync(HttpContext context, string? scheme)
+        {
+            Schemes.Add(scheme);
+            return Task.FromResult(result);
+        }
+
+        public Task ChallengeAsync(HttpContext context, string? scheme, AuthenticationProperties? properties) => Task.CompletedTask;
+
+        public Task ForbidAsync(HttpContext context, string? scheme, AuthenticationProperties? properties) => Task.CompletedTask;
+
+        public Task SignInAsync(HttpContext context, string? scheme, ClaimsPrincipal principal, AuthenticationProperties? properties) => Task.CompletedTask;
+
+        public Task SignOutAsync(HttpContext context, string? scheme, AuthenticationProperties? properties) => Task.CompletedTask;
+    }
+
+    private static AuthenticateResult Token(bool withMemberKey) => AuthenticateResult.Success(new AuthenticationTicket(
+        new ClaimsPrincipal(new ClaimsIdentity(withMemberKey ? [new Claim("umbraco-member-key", MemberKey.ToString())] : [new Claim("sub", "someone")], "Bearer")),
+        MemberScheme));
+
+    // A request with no member cookie and, optionally, a bearer token that the fake authentication answers for.
+    private static (IHttpContextAccessor Http, FakeAuthentication Auth, List<ClaimsPrincipal> Looked) TokenRequest(
+        AuthenticateResult result, DeliveryApiSettings settings, bool bearer = true)
+    {
+        var auth = new FakeAuthentication(result);
+        var looked = new List<ClaimsPrincipal>();
+        var member = new MemberIdentityUser { Key = MemberKey, UserName = "ada", Email = "ada@example.com" };
+        var services = new ServiceCollection();
+        services.AddSingleton<IAuthenticationService>(auth);
+        services.AddSingleton<IOptionsMonitor<DeliveryApiSettings>>(new StaticOptions<DeliveryApiSettings>(settings));
+        services.AddSingleton(Stub.Of<IMemberManager>((name, args) =>
+        {
+            if (name == "GetUserAsync")
+            {
+                looked.Add((ClaimsPrincipal)args[0]!);
+                return Task.FromResult<MemberIdentityUser?>(member);
+            }
+
+            return name switch
+            {
+                "GetCurrentMemberAsync" => Task.FromResult<MemberIdentityUser?>(null),
+                "GetRolesAsync" => Task.FromResult<IList<string>>([]),
+                _ => null,
+            };
+        }));
+        var context = new DefaultHttpContext { RequestServices = services.BuildServiceProvider() };
+        if (bearer)
+        {
+            context.Request.Headers.Authorization = "Bearer token";
+        }
+
+        return (new HttpContextAccessor { HttpContext = context }, auth, looked);
+    }
+
+    private sealed class StaticOptions<T>(T value) : IOptionsMonitor<T>
+    {
+        public T CurrentValue => value;
+
+        public T Get(string? name) => value;
+
+        public IDisposable? OnChange(Action<T, string?> listener) => null;
+    }
+
+    [Test]
+    public async Task A_member_token_names_the_member_when_the_delivery_api_allows_members()
+    {
+        (IHttpContextAccessor http, FakeAuthentication auth, List<ClaimsPrincipal> looked) = TokenRequest(Token(true), MemberAuthorizationOn());
+
+        TargetingContext context = await Accessor(http).GetContextAsync();
+
+        Assert.That(context.UserId, Is.EqualTo(TargetingIds.For(MemberKey)));
+        Assert.That(auth.Schemes, Is.EqualTo(new[] { MemberScheme }));
+        Assert.That(looked, Has.Count.EqualTo(1));
+    }
+
+    [Test]
+    public async Task A_token_without_a_member_key_such_as_a_backoffice_token_is_anonymous()
+    {
+        (IHttpContextAccessor http, _, List<ClaimsPrincipal> looked) = TokenRequest(Token(false), MemberAuthorizationOn());
+
+        Assert.That((await Accessor(http).GetContextAsync()).UserId, Is.Null);
+        Assert.That(looked, Is.Empty);
+    }
+
+    [Test]
+    public async Task A_token_that_fails_to_authenticate_is_anonymous()
+    {
+        (IHttpContextAccessor http, _, _) = TokenRequest(AuthenticateResult.Fail("expired"), MemberAuthorizationOn());
+
+        Assert.That((await Accessor(http).GetContextAsync()).UserId, Is.Null);
+    }
+
+    [Test]
+    public async Task Tokens_are_ignored_when_the_delivery_api_member_authorization_is_off()
+    {
+        (IHttpContextAccessor http, FakeAuthentication auth, _) = TokenRequest(Token(true), new DeliveryApiSettings());
+
+        Assert.That((await Accessor(http).GetContextAsync()).UserId, Is.Null);
+        Assert.That(auth.Schemes, Is.Empty);
+    }
+
+    [Test]
+    public async Task A_request_with_no_authorization_header_never_asks_the_token_scheme()
+    {
+        (IHttpContextAccessor http, FakeAuthentication auth, _) = TokenRequest(Token(true), MemberAuthorizationOn(), bearer: false);
+
+        Assert.That((await Accessor(http).GetContextAsync()).UserId, Is.Null);
+        Assert.That(auth.Schemes, Is.Empty);
+    }
+
+    [Test]
+    public async Task A_token_that_throws_is_anonymous_with_a_warning()
+    {
+        (IHttpContextAccessor http, _, _) = TokenRequest(Token(true), MemberAuthorizationOn());
+        http.HttpContext!.RequestServices = new ServiceCollection()
+            .AddSingleton<IAuthenticationService>(new ThrowingAuthentication())
+            .AddSingleton<IOptionsMonitor<DeliveryApiSettings>>(new StaticOptions<DeliveryApiSettings>(MemberAuthorizationOn()))
+            .AddSingleton(Stub.Of<IMemberManager>((name, _) => name == "GetCurrentMemberAsync" ? Task.FromResult<MemberIdentityUser?>(null) : null))
+            .BuildServiceProvider();
+        var logger = new CollectingLogger<MemberTargetingContextAccessor>();
+
+        Assert.That((await Accessor(http, logger).GetContextAsync()).UserId, Is.Null);
+        Assert.That(logger.Entries.Single().Level, Is.EqualTo(LogLevel.Warning));
+    }
+
+    private sealed class ThrowingAuthentication : IAuthenticationService
+    {
+        public Task<AuthenticateResult> AuthenticateAsync(HttpContext context, string? scheme) => throw new InvalidOperationException("No such scheme.");
+
+        public Task ChallengeAsync(HttpContext context, string? scheme, AuthenticationProperties? properties) => Task.CompletedTask;
+
+        public Task ForbidAsync(HttpContext context, string? scheme, AuthenticationProperties? properties) => Task.CompletedTask;
+
+        public Task SignInAsync(HttpContext context, string? scheme, ClaimsPrincipal principal, AuthenticationProperties? properties) => Task.CompletedTask;
+
+        public Task SignOutAsync(HttpContext context, string? scheme, AuthenticationProperties? properties) => Task.CompletedTask;
     }
 
     private static MemberTargetingContextAccessor Accessor(IHttpContextAccessor http, params IFeatureFlagGroupProvider[] providers) =>

@@ -115,6 +115,7 @@ reports every error and warning with the same words.
 | <a id="a-group-provider-fails"></a>**Warning:** a group provider fails to list its groups | The editor offers none of that provider's groups. It is given five seconds to answer. Check what the provider depends on. |
 | <a id="a-flag-is-declared-twice"></a>**Warning:** a flag is declared both in code and by the flag source | The flag source's declaration is used. Remove one of the two. |
 | <a id="a-root-condition-names-a-deleted-root"></a>**Warning:** a Root condition names a deleted root | Choose another root for the named flags, or remove the condition. |
+| <a id="headless-is-on-but-no-flag-is-public"></a>**Warning:** the headless endpoint is on but no flag is public | `Headless:Enabled` is true, so [the headless endpoint](headless.md) answers, but it has nothing to say. Mark flags public. |
 | <a id="undeclared-flags"></a>**Info:** undeclared flags are waiting to be removed | Settings are saved for flags nobody declares any more. Remove them from the list's Undeclared flags filter. |
 | <a id="overrides-are-read-only"></a>**Info:** overrides are read-only | `Overrides` is `ReadOnly`, so the backoffice can't change flags. That's expected if your flag source is in charge. |
 | <a id="flags-with-a-custom-state"></a>**Info:** flags are in a custom state | The backoffice can't edit them; change them where they are declared. |

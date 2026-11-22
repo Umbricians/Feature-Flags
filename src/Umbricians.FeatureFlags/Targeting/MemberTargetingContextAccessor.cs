@@ -1,7 +1,11 @@
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Microsoft.Net.Http.Headers;
 using Microsoft.FeatureManagement.FeatureFilters;
+using Umbraco.Cms.Core.Configuration.Models;
 using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Core.Security;
 using Umbraco.Cms.Core.Services;
@@ -12,7 +16,7 @@ namespace Umbricians.FeatureFlags.Targeting;
 /// <summary>
 /// Tells Microsoft.FeatureManagement's targeting who the signed-in member is: their key as the user id, and as groups
 /// the key and name of each of their member groups plus the groups every <see cref="IFeatureFlagGroupProvider"/> puts
-/// them in. A visitor who isn't signed in has no user id and no groups. Worked out once per request.
+/// them in. The member is the one signed in with the member cookie or with a Delivery API member token. A visitor who isn't signed in has no user id and no groups. Worked out once per request.
 /// </summary>
 /// <remarks>
 /// A site that identifies people another way registers its own <see cref="ITargetingContextAccessor"/>, which wins.
@@ -20,6 +24,12 @@ namespace Umbricians.FeatureFlags.Targeting;
 internal sealed class MemberTargetingContextAccessor : ITargetingContextAccessor
 {
     private static readonly object ItemKey = new();
+
+    /// <summary>The scheme the Delivery API reads member tokens with, which is OpenIddict's validation.</summary>
+    private const string MemberTokenScheme = "OpenIddict.Validation.AspNetCore";
+
+    /// <summary>The claim the Delivery API puts a member's key in when it makes a token.</summary>
+    private const string MemberKeyClaim = "umbraco-member-key";
 
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly IEnumerable<IFeatureFlagGroupProvider> _groupProviders;
@@ -67,8 +77,13 @@ internal sealed class MemberTargetingContextAccessor : ITargetingContextAccessor
     private async Task<TargetingContext> ForCurrentMemberAsync(IServiceProvider services, CancellationToken cancellationToken)
     {
         IMemberManager? memberManager = services.GetService<IMemberManager>();
-        MemberIdentityUser? member = memberManager is null ? null : await memberManager.GetCurrentMemberAsync();
-        if (memberManager is null || member is null)
+        if (memberManager is null)
+        {
+            return Anonymous();
+        }
+
+        MemberIdentityUser? member = await memberManager.GetCurrentMemberAsync() ?? await MemberFromTokenAsync(memberManager, services);
+        if (member is null)
         {
             return Anonymous();
         }
@@ -102,6 +117,27 @@ internal sealed class MemberTargetingContextAccessor : ITargetingContextAccessor
         }
 
         return new TargetingContext { UserId = TargetingIds.For(member.Key), Groups = groups.Distinct().ToArray() };
+    }
+
+    /// <summary>
+    /// The member a Delivery API member token names. Umbraco's member manager reads only the member cookie, so when
+    /// the Delivery API's member authorization is on this authenticates the token's scheme itself, and takes only a
+    /// principal with the member key claim: backoffice tokens pass the same scheme and must not count as members.
+    /// </summary>
+    private async Task<MemberIdentityUser?> MemberFromTokenAsync(IMemberManager memberManager, IServiceProvider services)
+    {
+        HttpContext? httpContext = _httpContextAccessor.HttpContext;
+        if (httpContext is null
+            || !httpContext.Request.Headers.ContainsKey(HeaderNames.Authorization)
+            || services.GetService<IOptionsMonitor<DeliveryApiSettings>>()?.CurrentValue.MemberAuthorizationIsEnabled() != true)
+        {
+            return null;
+        }
+
+        AuthenticateResult result = await httpContext.AuthenticateAsync(MemberTokenScheme);
+        return result is { Succeeded: true, Principal: { } principal } && principal.HasClaim(claim => claim.Type == MemberKeyClaim)
+            ? await memberManager.GetUserAsync(principal)
+            : null;
     }
 
     private static TargetingContext Anonymous() => new() { UserId = null, Groups = [] };

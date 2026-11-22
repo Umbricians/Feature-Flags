@@ -22,10 +22,22 @@ namespace Umbricians.FeatureFlags.Tests.Security;
 /// <summary>Who may call each Feature Flags endpoint.</summary>
 public class FeatureFlagsAuthorizationTests
 {
+    // The Management API's controllers; the headless endpoint is open and has its own test below.
     private static Type[] Controllers() =>
         typeof(FeatureFlagsControllerFeatureProvider).Assembly.GetTypes()
-            .Where(type => !type.IsAbstract && typeof(ControllerBase).IsAssignableFrom(type))
+            .Where(type => !type.IsAbstract && typeof(FeatureFlagsControllerBase).IsAssignableFrom(type))
             .ToArray();
+
+    [Test]
+    public void The_headless_endpoint_asks_for_no_sign_in_and_is_not_a_backoffice_controller()
+    {
+        Type controller = typeof(DeliveryFlagsController);
+
+        Assert.That(controller.IsAssignableTo(typeof(FeatureFlagsControllerBase)), Is.False);
+        Assert.That(controller.GetCustomAttributes<AuthorizeAttribute>(inherit: true), Is.Empty);
+        Assert.That(controller.GetCustomAttributes<FeatureFlagsPermissionAttribute>(inherit: true), Is.Empty);
+        Assert.That(controller.GetMethods().SelectMany(method => method.GetCustomAttributes<AuthorizeAttribute>()), Is.Empty);
+    }
 
     private static MethodInfo[] Actions(Type controller) =>
         controller.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)

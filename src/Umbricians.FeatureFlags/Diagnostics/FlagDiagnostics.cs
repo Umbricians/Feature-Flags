@@ -67,6 +67,7 @@ internal sealed class FlagDiagnostics(
     public const string GroupProviderFailed = "a-group-provider-fails";
     public const string DeclaredTwice = "a-flag-is-declared-twice";
     public const string DeletedRoot = "a-root-condition-names-a-deleted-root";
+    public const string HeadlessNothingPublic = "headless-is-on-but-no-flag-is-public";
     public const string Undeclared = "undeclared-flags";
     public const string ReadOnly = "overrides-are-read-only";
     public const string Custom = "flags-with-a-custom-state";
@@ -177,6 +178,14 @@ internal sealed class FlagDiagnostics(
         }
 
         IReadOnlyList<FeatureFlag>? flags = await Guard(results, "the flags", () => catalog.GetAllAsync(cancellationToken));
+        if (options.CurrentValue.Headless.Enabled && flags is not null && !flags.Any(flag => flag is { IsDeclared: true, IsPublic: true }))
+        {
+            results.Add(Warning(HeadlessNothingPublic,
+                "The headless endpoint is switched on (Headless:Enabled) but no flag is public, so it always answers with an empty list. "
+                + "Mark flags public with public: true in Declare(...) or appsettings, or with MakePublic(...).",
+                []));
+        }
+
         int undeclared = flags?.Count(flag => !flag.IsDeclared) ?? 0;
         if (undeclared > 0)
         {

@@ -31,6 +31,8 @@ the members it is on for.
   knows it.
 - **[Notifications](docs/notifications.md)**: react to, or refuse, a change to a flag's override; audit and
   permission examples.
+- **[Headless front ends](docs/headless.md)**: tell a front end that Umbraco doesn't render which public flags are on
+  for its request.
 
 ## Installation
 
