@@ -13,7 +13,7 @@ public class FlagResolutionTests
     public async Task An_override_applies_to_a_declared_flag()
     {
         var site = new TestSite(DeclaredOff);
-        site.Store.With("F", new FlagSettings(true, null));
+        site.Store.With("F", FlagSettings.ForAudience(true, null));
 
         ResolvedFlag? flag = await Resolution(site).FindAsync("F");
 
@@ -30,7 +30,7 @@ public class FlagResolutionTests
             { "Umbricians": { "FeatureFlags": { "Overrides": "ReadOnly" } },
               "feature_management": { "feature_flags": [ { "id": "F", "enabled": false } ] } }
             """);
-        site.Store.With("F", new FlagSettings(true, null));
+        site.Store.With("F", FlagSettings.ForAudience(true, null));
 
         ResolvedFlag flag = (await Resolution(site).FindAsync("F"))!;
         ResolvedFlag listed = (await Resolution(site).GetAllAsync(default)).Flags.Single();
@@ -63,10 +63,10 @@ public class FlagResolutionTests
         ResolvedFlag flag = (await Resolution(site).FindAsync("F"))!;
         DeclaredFlag listed = (await Resolution(site).GetDeclaredAsync(default)).Flags.Single();
 
-        Assert.That(flag.Declared, Has.Property(nameof(DeclaredFlag.DeclaredIn)).EqualTo(FlagDeclaredIn.Configuration)
+        Assert.That(flag.Declared, Has.Property(nameof(DeclaredFlag.DeclaredIn)).EqualTo(FeatureFlagDeclaredIn.Configuration)
             .And.Property(nameof(DeclaredFlag.DeclaredTwice)).True);
         Assert.That(flag.Definition!.Status, Is.EqualTo(FeatureStatus.Disabled));
-        Assert.That(listed, Has.Property(nameof(DeclaredFlag.DeclaredIn)).EqualTo(FlagDeclaredIn.Configuration)
+        Assert.That(listed, Has.Property(nameof(DeclaredFlag.DeclaredIn)).EqualTo(FeatureFlagDeclaredIn.Configuration)
             .And.Property(nameof(DeclaredFlag.DeclaredTwice)).True);
     }
 
@@ -78,7 +78,7 @@ public class FlagResolutionTests
 
         ResolvedFlag flag = (await Resolution(site).FindAsync("DarkMode"))!;
 
-        Assert.That(flag.Declared, Has.Property(nameof(DeclaredFlag.DeclaredIn)).EqualTo(FlagDeclaredIn.Code)
+        Assert.That(flag.Declared, Has.Property(nameof(DeclaredFlag.DeclaredIn)).EqualTo(FeatureFlagDeclaredIn.Code)
             .And.Property(nameof(DeclaredFlag.DeclaredTwice)).False);
         Assert.That(await Resolution(site).FindAsync("Nobody"), Is.Null);
     }
@@ -87,7 +87,7 @@ public class FlagResolutionTests
     public async Task An_override_saved_under_another_spelling_applies_without_changing_the_cached_definition()
     {
         var site = new TestSite("""{ "feature_management": { "feature_flags": [ { "id": "Checkout.NewFlow", "enabled": false } ] } }""");
-        site.Store.WithJson("checkout.newflow", FlagDefinitions.ToJson("checkout.newflow", new FlagSettings(true, null)));
+        site.Store.WithJson("checkout.newflow", FlagDefinitions.ToJson("checkout.newflow", FlagSettings.ForAudience(true, null)));
 
         ResolvedFlag flag = (await Resolution(site).FindAsync("Checkout.NewFlow"))!;
         ResolvedFlag listed = (await Resolution(site).GetAllAsync(default)).Flags.Single();
@@ -146,12 +146,12 @@ public class FlagResolutionTests
 
         Assert.That(all.ListingError, Is.Not.Null);
         Assert.That(flags.Keys, Is.EquivalentTo(new[] { "A", "B", "C", "Broken", "OnlyCode", "Nobody" }));
-        Assert.That(flags["B"].Declared, Has.Property(nameof(DeclaredFlag.DeclaredIn)).EqualTo(FlagDeclaredIn.FlagSource)
+        Assert.That(flags["B"].Declared, Has.Property(nameof(DeclaredFlag.DeclaredIn)).EqualTo(FeatureFlagDeclaredIn.FlagSource)
             .And.Property(nameof(DeclaredFlag.DeclaredTwice)).True);
         Assert.That(flags["C"], Has.Property(nameof(ResolvedFlag.IsDeclared)).True.And.Property(nameof(ResolvedFlag.OverrideApplies)).True);
         Assert.That(flags["Broken"].Declared!.ReadError, Is.Not.Null);
         Assert.That(flags["Broken"], Has.Property(nameof(ResolvedFlag.Definition)).Null.And.Property(nameof(ResolvedFlag.OverrideApplies)).False);
-        Assert.That(flags["OnlyCode"].Declared!.DeclaredIn, Is.EqualTo(FlagDeclaredIn.Code));
+        Assert.That(flags["OnlyCode"].Declared!.DeclaredIn, Is.EqualTo(FeatureFlagDeclaredIn.Code));
         Assert.That(flags["Nobody"].IsDeclared, Is.False);
     }
 
@@ -178,7 +178,7 @@ public class FlagResolutionTests
     public async Task Microsoft_lists_each_declared_flag_with_what_applies_now()
     {
         var site = new TestSite(DeclaredOff);
-        site.Store.With("F", new FlagSettings(true, null)).With("Promo.Removed", FlagSettings.Off);
+        site.Store.With("F", FlagSettings.ForAudience(true, null)).With("Promo.Removed", FlagSettings.Off);
 
         var listed = new List<FeatureDefinition>();
         await foreach (FeatureDefinition definition in site.Provider.GetRequiredService<IFeatureDefinitionProvider>().GetAllFeatureDefinitionsAsync())

@@ -18,10 +18,68 @@ For each request that checks a flag, Feature Flags works out once:
   put them in.
 
 A visitor who isn't signed in as a member has no user id and no groups, so they are only included when a flag is on
-for everyone. Backoffice users aren't members: being signed in to the backoffice doesn't put anyone in an audience.
+for everyone: Feature Flags registers its own targeting filters in place of Microsoft's (the one flags use and the one
+code uses when it passes its own targeting context), under the same `Microsoft.Targeting` name. They are Microsoft's
+evaluation, except that a visitor with no user id is in no percentage: not "everyone else", and not a group below 100%.
+Listed members, groups at 100% (a site's own accessor may supply groups but no id) and exclusions work as in Microsoft's.
+A site that registers Microsoft's targeting (`WithTargeting<T>()`) before Umbraco is added keeps its accessor and has
+Microsoft's filter replaced; one that registers it after gets an error in the log at startup, since two filters with the
+same name make checking an audience flag throw. Backoffice users aren't members: being signed in to the backoffice doesn't put anyone in an audience.
 
 If working out the member fails, the error is logged and the visitor is treated as not signed in, so a flag is never
 on by mistake.
+
+## Percentages and exclusions
+
+An audience can include more than named people:
+
+- **A percentage of everyone else.** "…and 25% of everyone else" includes that share of signed-in members who aren't
+  already in the audience.
+- **A percentage of a group.** "50% of this group" includes half of the group's members. A group is in full at 100%.
+- **Exclusions.** "Except these members or groups" are off for the flag even when they are in a chosen group or in a
+  percentage. Exclusions win.
+
+Percentages are Microsoft's, and they are sticky: Microsoft hashes each member's id together with the flag's name, so
+a member who is in a 25% audience stays in it, and the same share of members is in on every server. Raising the
+percentage only adds members; nobody who had the feature loses it. Changing the flag's name reshuffles who is in.
+
+Percentages count **members only**: signed-in members have an id to hash. A visitor who isn't signed in has none.
+Microsoft would treat all of them alike, in or out together, so Feature Flags never includes them: a visitor with no user
+id is off whatever the percentages and groups. Feature Flags sets no cookie to give visitors ids.
+
+To roll a flag out to visitors who aren't Umbraco members, give them ids with your own `ITargetingContextAccessor`
+(see [Identifying people another way](#identifying-people-another-way)). For example, with a visitor id kept in a
+cookie your site already sets:
+
+```csharp
+using Microsoft.FeatureManagement.FeatureFilters;
+
+public class VisitorIdTargetingContextAccessor(IHttpContextAccessor http) : ITargetingContextAccessor
+{
+    public ValueTask<TargetingContext> GetContextAsync()
+    {
+        string? id = http.HttpContext?.Request.Cookies["visitor-id"];
+        return new(new TargetingContext { UserId = id, Groups = [] });
+    }
+}
+```
+
+Percentages then apply to those ids. Register the accessor as shown below.
+
+In appsettings, the same settings are `DefaultRolloutPercentage`, each group's `RolloutPercentage` and
+`Exclusion`. Percentages are whole numbers from 0 to 100; the backoffice refuses a flag saved with anything else. A
+group listed without a `RolloutPercentage` includes nobody, as Microsoft reads it.
+
+```json
+"Audience": {
+  "Users": [],
+  "Groups": [{ "Name": "Beta testers", "RolloutPercentage": 50 }],
+  "DefaultRolloutPercentage": 10,
+  "Exclusion": { "Users": [], "Groups": ["Staff"] }
+}
+```
+
+When a member or member group is deleted, Feature Flags removes it from exclusions as well as from the audience.
 
 ## Audiences in appsettings
 

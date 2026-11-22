@@ -1,3 +1,4 @@
+using Microsoft.FeatureManagement;
 using Umbricians.FeatureFlags.Extensions;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
@@ -23,6 +24,10 @@ app.UseUmbraco()
     {
         u.UseBackOfficeEndpoints();
         u.UseWebsiteEndpoints();
+
+        // Says whether a flag is on for the request, so the tests can check conditions that look at the request.
+        u.EndpointRouteBuilder.MapGet("/test-flags/{name}", async (string name, IFeatureManager features) =>
+            await features.IsEnabledAsync(name) ? "on" : "off");
     });
 
 await app.RunAsync();

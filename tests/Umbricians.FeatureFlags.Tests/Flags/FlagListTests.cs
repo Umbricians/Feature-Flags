@@ -11,7 +11,7 @@ public class FlagListTests
             { "id": "Checkout.NewFlow", "enabled": false, "description": "The redesigned checkout.", "tags": [ "beta" ] },
             { "id": "Checkout.GiftCards", "enabled": true, "section": "Payments" },
             { "id": "Search.Suggestions", "enabled": true, "tags": [ "Alpha", "beta" ] },
-            { "id": "Sale", "enabled": true, "conditions": { "client_filters": [ { "name": "Microsoft.TimeWindow", "parameters": { "Start": "Mon, 01 Jan 2024 00:00:00 GMT" } } ] } } ] } }
+            { "id": "Sale", "enabled": true, "conditions": { "client_filters": [ { "name": "Microsoft.Percentage", "parameters": { "Start": "Mon, 01 Jan 2024 00:00:00 GMT" } } ] } } ] } }
         """;
 
     [Test]

@@ -26,7 +26,7 @@ public class FlagEvaluationTests
     public async Task An_override_on_for_everyone_switches_the_flag_on()
     {
         var site = new TestSite(DeclaredOff);
-        site.Store.With("Checkout.NewFlow", new FlagSettings(true, null));
+        site.Store.With("Checkout.NewFlow", FlagSettings.ForAudience(true, null));
 
         Assert.That(await site.IsOnAsync("Checkout.NewFlow"), Is.True);
     }
@@ -35,7 +35,7 @@ public class FlagEvaluationTests
     public async Task An_override_for_chosen_members_is_on_only_for_them()
     {
         var site = new TestSite(DeclaredOff);
-        site.Store.With("Checkout.NewFlow", new FlagSettings(true, new FlagAudience([Member], [])));
+        site.Store.With("Checkout.NewFlow", FlagSettings.ForAudience(true, new FlagAudience([Member], [])));
 
         site.Visitor.SignIn(Member);
         bool forMember = await site.IsOnAsync("Checkout.NewFlow");
@@ -51,7 +51,7 @@ public class FlagEvaluationTests
     public async Task An_override_for_a_group_is_on_for_its_members()
     {
         var site = new TestSite(DeclaredOff);
-        site.Store.With("Checkout.NewFlow", new FlagSettings(true, new FlagAudience([], [BetaTesters])));
+        site.Store.With("Checkout.NewFlow", FlagSettings.ForAudience(true, new FlagAudience([], [BetaTesters])));
 
         site.Visitor.SignIn(OtherMember, "Beta testers", BetaTesters);
 
@@ -62,7 +62,7 @@ public class FlagEvaluationTests
     public async Task A_flag_switched_off_stays_off_for_the_audience_it_keeps()
     {
         var site = new TestSite(DeclaredOff);
-        site.Store.With("Checkout.NewFlow", new FlagSettings(false, new FlagAudience([Member], [BetaTesters])));
+        site.Store.With("Checkout.NewFlow", FlagSettings.ForAudience(false, new FlagAudience([Member], [BetaTesters])));
 
         site.Visitor.SignIn(Member, BetaTesters);
 
@@ -73,7 +73,7 @@ public class FlagEvaluationTests
     public async Task An_empty_audience_includes_nobody()
     {
         var site = new TestSite(DeclaredOff);
-        site.Store.With("Checkout.NewFlow", new FlagSettings(true, FlagAudience.Empty));
+        site.Store.With("Checkout.NewFlow", FlagSettings.ForAudience(true, FlagAudience.Empty));
 
         site.Visitor.SignIn(Member, BetaTesters);
         bool forMember = await site.IsOnAsync("Checkout.NewFlow");
@@ -87,7 +87,7 @@ public class FlagEvaluationTests
     public async Task An_override_for_a_flag_nobody_declares_has_no_effect()
     {
         var site = new TestSite(DeclaredOff);
-        site.Store.With("Promo.Removed", new FlagSettings(true, null));
+        site.Store.With("Promo.Removed", FlagSettings.ForAudience(true, null));
 
         Assert.That(await site.IsOnAsync("Promo.Removed"), Is.False);
     }
@@ -99,7 +99,7 @@ public class FlagEvaluationTests
             { "Umbricians": { "FeatureFlags": { "Overrides": "ReadOnly" } },
               "feature_management": { "feature_flags": [ { "id": "Checkout.NewFlow", "enabled": false } ] } }
             """);
-        site.Store.With("Checkout.NewFlow", new FlagSettings(true, null));
+        site.Store.With("Checkout.NewFlow", FlagSettings.ForAudience(true, null));
 
         Assert.That(await site.IsOnAsync("Checkout.NewFlow"), Is.False);
     }
@@ -149,7 +149,7 @@ public class FlagEvaluationTests
     public async Task An_override_whose_json_can_not_be_read_falls_back_to_the_default()
     {
         var site = new TestSite("""{ "feature_management": { "feature_flags": [ { "id": "Search", "enabled": true }, { "id": "Other", "enabled": false } ] } }""");
-        site.Store.WithJson("Search", "not json").With("Other", new FlagSettings(true, null));
+        site.Store.WithJson("Search", "not json").With("Other", FlagSettings.ForAudience(true, null));
 
         Assert.That((await site.IsOnAsync("Search"), await site.IsOnAsync("Other")), Is.EqualTo((true, true)));
     }
@@ -162,7 +162,7 @@ public class FlagEvaluationTests
         await site.IsOnAsync("Checkout.NewFlow");
         await site.IsOnAsync("Checkout.NewFlow");
         int readsBefore = site.Store.Reads;
-        site.Store.With("Checkout.NewFlow", new FlagSettings(true, null));
+        site.Store.With("Checkout.NewFlow", FlagSettings.ForAudience(true, null));
         site.Refresh();
         bool after = await site.IsOnAsync("Checkout.NewFlow");
 
@@ -175,7 +175,7 @@ public class FlagEvaluationTests
         var site = new TestSite(DeclaredOff);
         Assert.That(await site.IsOnAsync("Checkout.NewFlow"), Is.False);
 
-        site.Store.With("Checkout.NewFlow", new FlagSettings(true, null));
+        site.Store.With("Checkout.NewFlow", FlagSettings.ForAudience(true, null));
         site.Store.Hold = new TaskCompletionSource();
         OverrideCache cache = site.Provider.GetRequiredService<OverrideCache>();
         cache.Reload();
@@ -212,7 +212,7 @@ public class FlagEvaluationTests
             services.AddSingleton(new CodeFlagDeclaration(FlagDefinitions.Simple("DarkMode", false), FlagDetails.None));
             services.AddSingleton(new CodeFlagDeclaration(FlagDefinitions.Simple("Checkout.NewFlow", true), FlagDetails.None));
         });
-        site.Store.With("DarkMode", new FlagSettings(true, null));
+        site.Store.With("DarkMode", FlagSettings.ForAudience(true, null));
 
         var names = new List<string>();
         await foreach (FeatureDefinition definition in site.Provider.GetRequiredService<IFeatureDefinitionProvider>().GetAllFeatureDefinitionsAsync())

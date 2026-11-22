@@ -50,7 +50,7 @@ public class FeatureManagementRegistrationTests
         bool overridden = await site.IsOnAsync("FromTheSite");
 
         Assert.That((declared, overridden), Is.EqualTo((true, false)));
-        Assert.That(site.Provider.GetRequiredService<FlagSource>().DeclaredIn, Is.EqualTo(FlagDeclaredIn.FlagSource));
+        Assert.That(site.Provider.GetRequiredService<FlagSource>().DeclaredIn, Is.EqualTo(FeatureFlagDeclaredIn.FlagSource));
     }
 
     [Test]
@@ -58,7 +58,7 @@ public class FeatureManagementRegistrationTests
     {
         var site = new TestSite();
 
-        Assert.That(site.Provider.GetRequiredService<FlagSource>().DeclaredIn, Is.EqualTo(FlagDeclaredIn.Configuration));
+        Assert.That(site.Provider.GetRequiredService<FlagSource>().DeclaredIn, Is.EqualTo(FeatureFlagDeclaredIn.Configuration));
     }
 
     [Test]
@@ -77,11 +77,12 @@ public class FeatureManagementRegistrationTests
     }
 
     [Test]
-    public void Adds_the_targeting_filter_once()
+    public void Replaces_Microsofts_targeting_filter_with_its_own_so_the_name_is_used_once()
     {
         var site = new TestSite(before: services => services.AddFeatureManagement().WithTargeting<FixedTargetingContextAccessor>());
 
-        Assert.That(site.Services.Count(s => s.ImplementationType == typeof(TargetingFilter)), Is.EqualTo(1));
+        Assert.That(site.Services.Count(s => s.ImplementationType == typeof(TargetingFilter)), Is.Zero);
+        Assert.That(site.Services.Count(s => s.ImplementationType == typeof(SignedInTargetingFilter)), Is.EqualTo(1));
     }
 
     private sealed class SiteFlagSource(string name) : IFeatureDefinitionProvider

@@ -32,3 +32,6 @@ tests/**/umbraco/mediacache/
 tests/**/wwwroot/media/
 tests/**/appsettings-schema*.json
 tests/**/umbraco-package-schema.json
+
+# Coverage output
+TestResults/

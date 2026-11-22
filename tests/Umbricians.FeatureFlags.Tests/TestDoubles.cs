@@ -5,6 +5,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.FeatureManagement;
 using Microsoft.FeatureManagement.FeatureFilters;
+using Umbraco.Cms.Core.Events;
+using Umbraco.Cms.Core.Notifications;
 using Umbricians.FeatureFlags.Composers;
 using Umbricians.FeatureFlags.Flags;
 using Umbricians.FeatureFlags.Groups;
@@ -19,6 +21,9 @@ internal sealed class InMemoryOverrideStore : IFeatureFlagOverrideStore
 
     public bool Fail { get; set; }
 
+    /// <summary>When set, says "store" for a save or delete and "read" for a read, so a test can see the order things happen in.</summary>
+    public List<string>? Log { get; set; }
+
     public int Reads => _reads;
 
     /// <summary>While set, reads wait until it completes, like a slow database.</summary>
@@ -29,6 +34,7 @@ internal sealed class InMemoryOverrideStore : IFeatureFlagOverrideStore
     public async Task<IReadOnlyCollection<FeatureFlagOverride>> GetAllAsync(CancellationToken cancellationToken)
     {
         Interlocked.Increment(ref _reads);
+        Log?.Add("read");
         if (Hold is { } hold)
         {
             await hold.Task;
@@ -44,12 +50,14 @@ internal sealed class InMemoryOverrideStore : IFeatureFlagOverrideStore
 
     public Task SaveAsync(FeatureFlagOverride featureFlagOverride, CancellationToken cancellationToken)
     {
+        Log?.Add("store");
         _overrides[featureFlagOverride.FlagName] = featureFlagOverride;
         return Task.CompletedTask;
     }
 
     public Task DeleteAsync(string flagName, CancellationToken cancellationToken)
     {
+        Log?.Add("store");
         _overrides.Remove(flagName);
         return Task.CompletedTask;
     }
@@ -64,6 +72,80 @@ internal sealed class InMemoryOverrideStore : IFeatureFlagOverrideStore
     }
 
     public IReadOnlyCollection<FeatureFlagOverride> All => _overrides.Values;
+}
+
+/// <summary>
+/// Publishes notifications to handlers a test adds with <see cref="On{T}"/>, and remembers each one, so a test can say
+/// what was published and what handlers did with it.
+/// </summary>
+internal sealed class RecordingEventAggregator : IEventAggregator
+{
+    private readonly List<(Type Type, Action<INotification> Handle)> _handlers = [];
+
+    /// <summary>Every notification published, in order.</summary>
+    public List<INotification> Published { get; } = [];
+
+    /// <summary>When set, gets the name of each notification published, in the same list the stores uses.</summary>
+    public List<string>? Log { get; set; }
+
+    public RecordingEventAggregator On<T>(Action<T> handle) where T : INotification
+    {
+        _handlers.Add((typeof(T), notification => handle((T)notification)));
+        return this;
+    }
+
+    public IEnumerable<T> Of<T>() where T : INotification => Published.OfType<T>();
+
+    public void Publish<TNotification>(TNotification notification) where TNotification : INotification => Record(notification);
+
+    void IEventAggregator.Publish<TNotification, TNotificationHandler>(IEnumerable<TNotification> notifications)
+    {
+        foreach (TNotification notification in notifications)
+        {
+            Record(notification);
+        }
+    }
+
+    public Task PublishAsync<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
+        where TNotification : INotification
+    {
+        Record(notification);
+        return Task.CompletedTask;
+    }
+
+    Task IEventAggregator.PublishAsync<TNotification, TNotificationHandler>(IEnumerable<TNotification> notifications, CancellationToken cancellationToken)
+    {
+        foreach (TNotification notification in notifications)
+        {
+            Record(notification);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    public bool PublishCancelable<TCancelableNotification>(TCancelableNotification notification)
+        where TCancelableNotification : ICancelableNotification
+    {
+        Record(notification);
+        return notification.Cancel;
+    }
+
+    public Task<bool> PublishCancelableAsync<TCancelableNotification>(TCancelableNotification notification)
+        where TCancelableNotification : ICancelableNotification
+    {
+        Record(notification);
+        return Task.FromResult(notification.Cancel);
+    }
+
+    private void Record(INotification notification)
+    {
+        Published.Add(notification);
+        Log?.Add(notification.GetType().Name);
+        foreach ((Type type, Action<INotification> handle) in _handlers.Where(h => h.Type.IsInstanceOfType(notification)).ToArray())
+        {
+            handle(notification);
+        }
+    }
 }
 
 /// <summary>Keeps the site's member groups in a list; a site without Umbraco has none.</summary>
@@ -104,7 +186,13 @@ internal sealed class FixedTargetingContextAccessor : ITargetingContextAccessor
 {
     public TargetingContext Context { get; set; } = new() { Groups = [] };
 
-    public ValueTask<TargetingContext> GetContextAsync() => new(Context);
+    public int Reads { get; private set; }
+
+    public ValueTask<TargetingContext> GetContextAsync()
+    {
+        Reads++;
+        return new(Context);
+    }
 
     public void SignIn(string userId, params string[] groups) => Context = new TargetingContext { UserId = userId, Groups = groups };
 
@@ -125,6 +213,7 @@ internal sealed class TestSite
         services.AddSingleton<IConfiguration>(Configuration);
         services.AddSingleton<IFeatureFlagOverrideStore>(Store);
         services.AddSingleton<IMemberGroups>(MemberGroups);
+        services.AddSingleton<IEventAggregator>(Events);
         services.AddSingleton<ITargetingContextAccessor>(Visitor);
         before?.Invoke(services);
         services.AddFeatureFlags(Configuration);
@@ -138,6 +227,8 @@ internal sealed class TestSite
     public InMemoryOverrideStore Store { get; } = new();
 
     public InMemoryMemberGroups MemberGroups { get; } = new();
+
+    public RecordingEventAggregator Events { get; } = new();
 
     public FixedTargetingContextAccessor Visitor { get; } = new();
 

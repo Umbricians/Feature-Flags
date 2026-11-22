@@ -19,6 +19,7 @@ export class FeatureFlagEditorElement extends UmbLitElement {
   @state() private _dirty = false;
   @state() private _saving = false;
   @state() private _canManage = false;
+  @state() private _blocked = false;
 
   constructor() {
     super();
@@ -30,18 +31,19 @@ export class FeatureFlagEditorElement extends UmbLitElement {
       this.observe(context.notFound, (notFound) => (this._notFound = notFound), "umbriciansNotFound");
       this.observe(context.dirty, (dirty) => (this._dirty = dirty), "umbriciansDirty");
       this.observe(context.saving, (saving) => (this._saving = saving), "umbriciansSaving");
+      this.observe(context.saveBlocker, (blocker) => (this._blocked = blocker !== null), "umbriciansSaveBlocker");
       this.observe(context.canManage, (canManage) => (this._canManage = canManage), "umbriciansCanManage");
     });
   }
 
   override render() {
     const flag = this._flag;
-    const item = flag?.flag;
+    const item = flag;
     const undo = item?.isDeclared === false ? "remove" : "reset";
     const canUndo = !!item && mayDo(item, undo, this._canManage).allowed;
     const canSave = !!item && mayDo(item, "save", this._canManage).allowed;
     return html`<umb-workspace-editor
-      headline=${flag?.flag.name ?? ""}
+      headline=${flag?.name ?? ""}
       .backPath=${flagListPath()}
       ?loading=${this._loading && !flag}
       ?notFound=${this._notFound}>
@@ -60,7 +62,7 @@ export class FeatureFlagEditorElement extends UmbLitElement {
         color="positive"
         label=${this.localize.term("umbriciansFeatureFlags_save")}
         .state=${this._saving ? "waiting" : undefined}
-        ?disabled=${!canSave || !this._dirty || this._saving}
+        ?disabled=${!canSave || !this._dirty || this._blocked || this._saving}
         @click=${() => this.#context?.save()}></uui-button>
     </umb-workspace-editor>`;
   }

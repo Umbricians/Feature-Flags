@@ -16,6 +16,11 @@ public static class Constants
     public const string ApiName = "umbricians-feature-flags";
 
     /// <summary>
+    /// The name of the headless endpoint's Swagger document, which is separate from the Management API's.
+    /// </summary>
+    public const string DeliveryApiName = "umbricians-feature-flags-delivery";
+
+    /// <summary>
     /// The package id, which also names its migration plan.
     /// </summary>
     public const string PackageId = "Umbricians.FeatureFlags";

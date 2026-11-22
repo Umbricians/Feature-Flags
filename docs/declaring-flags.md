@@ -24,7 +24,8 @@ Use Microsoft's `feature_management` schema:
         "enabled": false,
         "description": "One-click payment for returning members.",
         "section": "Checkout",
-        "tags": ["payments", "beta"]
+        "tags": ["payments", "beta"],
+        "public": true
       }
     ]
   }
@@ -66,10 +67,10 @@ public class SiteFlagsComposer : IComposer
 }
 ```
 
-`Declare(name, enabled, description, section, tags)` declares a flag that is off, or on for everyone when `enabled` is
+`Declare(name, enabled, description, section, tags, isPublic)` declares a flag that is off, or on for everyone when `enabled` is
 `true`, until an editor changes it. Leave new flags off.
 
-`Declare(FeatureDefinition, description, section, tags)` takes any Microsoft definition, for flags that need a filter
+`Declare(FeatureDefinition, description, section, tags, isPublic)` takes any Microsoft definition, for flags that need a filter
 or variants. Most of those are easier to write in appsettings.
 
 ## Declared in both places
@@ -86,6 +87,11 @@ Each flag can have:
 | Description | `description` (`Description` in the older schema) | `description` | Under the flag's name, in the list and the editor. |
 | Section | `section` (`Section`) | `section` | The section of the list the flag is in. When there is none, the text before the first `.` in the flag's name; a name without a `.` is in No section. |
 | Tags | `tags` (`Tags`) | `tags` | Under the description; the list can be filtered by tag. |
+| Public | `public` (`Public`) | `isPublic` | Whether the flag may be shown to visitors' browsers. Flags are private unless declared public. |
+
+`MakePublic("Checkout.ExpressPay", "DarkMode")` on the builder marks flags public whichever flag source declares them,
+such as a site's own `IFeatureDefinitionProvider`. Names are compared without regard to case. A flag is public when any
+of these says so, so `MakePublic` wins over a flag that says `"public": false` in configuration. Nothing is exposed to visitors yet; this only records the choice.
 
 Microsoft ignores these fields, so they are harmless. Naming flags `Area.Feature`, such as `Checkout.ExpressPay`,
 puts them in sections with nothing more to write. On a site with many flags, the list's search, filters and paging keep them
@@ -151,6 +157,94 @@ is simply off.
 
 Editors' settings are kept in memory, so checking a flag never reads the database. When an editor saves, every server
 reloads them within seconds.
+
+## Changing flags from code
+
+`IFeatureFlagService` reads flags and changes their overrides, the way the backoffice does but without permission
+checks, since code isn't a backoffice user:
+
+```csharp
+public class Seeder(IFeatureFlagService flags)
+{
+    public async Task SeedAsync()
+    {
+        foreach (string name in new[] { "Checkout.NewFlow", "Search.BetaSearch" })
+        {
+            FeatureFlagResult result = await flags.SwitchAsync(name, on: true);
+            if (!result.IsSaved)
+            {
+                // NotFound, NotAllowed (see result.Reason) or Cancelled (see result.Messages)
+            }
+        }
+    }
+}
+```
+
+The rules are the backoffice's: nothing can be changed when `Overrides` is `ReadOnly`, a flag nobody declares can't be
+saved, and a flag with conditions the backoffice can't edit can't be switched. These come back as a result, not an
+exception. When the call returns, the next check on this server sees the change; other servers see it within
+seconds. To change several flags, call it for each.
+
+Change overrides through the service, not `IFeatureFlagOverrideStore`: writing to the store skips the rules and the
+refresh on other servers. The store is for keeping overrides somewhere other than the Umbraco database.
+
+## Testing with flags
+
+There is no test package; Microsoft's own types are enough.
+
+**Unit tests** mock Microsoft's `IFeatureManager` (or `IVariantFeatureManager`), so the code under test never meets
+Feature Flags:
+
+```csharp
+var features = new Mock<IFeatureManager>();
+features.Setup(f => f.IsEnabledAsync("Checkout.NewFlow")).ReturnsAsync(true);
+var controller = new CheckoutController(features.Object);
+```
+
+**Integration tests** have two ways to put flags in a known state:
+
+- Set `Umbricians:FeatureFlags:Overrides` to `ReadOnly`, so editors' saved settings are ignored, and declare the flags
+  in an in-memory `feature_management` section. This is the simplest, and what to prefer.
+- Or change flags through `IFeatureFlagService`, which goes through the real path, overrides and all.
+
+**As a particular member**, sign in as a test member, or register a fixed `ITargetingContextAccessor`, which replaces
+the package's:
+
+```csharp
+public class TestingAccessor(string userId) : ITargetingContextAccessor
+{
+    public ValueTask<TargetingContext> GetContextAsync() =>
+        ValueTask.FromResult(new TargetingContext { UserId = userId, Groups = [] });
+}
+```
+
+A whole example with `WebApplicationFactory`:
+
+```csharp
+public class CheckoutTests : IClassFixture<WebApplicationFactory<Program>>
+{
+    private readonly HttpClient _client;
+
+    public CheckoutTests(WebApplicationFactory<Program> factory) =>
+        _client = factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Umbricians:FeatureFlags:Overrides"] = "ReadOnly",
+                ["feature_management:feature_flags:0:id"] = "Checkout.NewFlow",
+                ["feature_management:feature_flags:0:enabled"] = "true",
+            }));
+            builder.ConfigureServices(services => services.AddSingleton<ITargetingContextAccessor>(new TestingAccessor("member-1")));
+        }).CreateClient();
+
+    [Test]
+    public async Task The_new_checkout_is_shown_when_the_flag_is_on()
+    {
+        string html = await _client.GetStringAsync("/checkout");
+        Assert.That(html, Does.Contain("New checkout"));
+    }
+}
+```
 
 ## When a flag is no longer needed
 

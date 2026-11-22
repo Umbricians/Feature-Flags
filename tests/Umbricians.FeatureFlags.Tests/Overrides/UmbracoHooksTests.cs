@@ -20,9 +20,9 @@ public class UmbracoHooksTests
     public async Task A_deleted_member_is_removed_from_every_audience()
     {
         var site = new TestSite();
-        site.Store.With("A", new FlagSettings(true, new FlagAudience([TargetingIds.For(Member), "other"], [])))
-            .With("B", new FlagSettings(true, new FlagAudience([TargetingIds.For(Member)], [])));
-        var handler = new MemberDeletedHandler(site.Provider.GetRequiredService<OverrideService>());
+        site.Store.With("A", FlagSettings.ForAudience(true, new FlagAudience([TargetingIds.For(Member), "other"], [])))
+            .With("B", FlagSettings.ForAudience(true, new FlagAudience([TargetingIds.For(Member)], [])));
+        var handler = new MemberDeletedHandler(site.Provider.GetRequiredService<FeatureFlagService>());
 
         await handler.HandleAsync(new MemberDeletedNotification(Entity<IMember>(Member), new EventMessages()), default);
 
@@ -34,8 +34,8 @@ public class UmbracoHooksTests
     public async Task A_deleted_member_group_is_removed_from_every_audience()
     {
         var site = new TestSite();
-        site.Store.With("A", new FlagSettings(true, new FlagAudience([], [TargetingIds.For(Group), "crm:premium"])));
-        var handler = new MemberGroupDeletedHandler(site.Provider.GetRequiredService<OverrideService>());
+        site.Store.With("A", FlagSettings.ForAudience(true, new FlagAudience([], [TargetingIds.For(Group), "crm:premium"])));
+        var handler = new MemberGroupDeletedHandler(site.Provider.GetRequiredService<FeatureFlagService>());
 
         await handler.HandleAsync(new MemberGroupDeletedNotification(Entity<IMemberGroup>(Group), new EventMessages()), default);
 
@@ -46,7 +46,7 @@ public class UmbracoHooksTests
     public void Starting_the_site_reads_the_overrides_in_the_background()
     {
         var site = new TestSite();
-        site.Store.With("Checkout.NewFlow", new FlagSettings(true, null));
+        site.Store.With("Checkout.NewFlow", FlagSettings.ForAudience(true, null));
         var warmup = new OverrideCacheWarmup(site.Provider.GetRequiredService<OverrideCache>());
 
         warmup.Handle(new UmbracoApplicationStartedNotification(false));
