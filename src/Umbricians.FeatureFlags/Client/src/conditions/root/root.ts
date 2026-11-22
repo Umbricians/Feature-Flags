@@ -20,7 +20,7 @@ export function readRoots(value: Record<string, unknown>): Array<string> {
 
 const same = (left: string, right: string) => left.toLowerCase() === right.toLowerCase();
 
-/** The parameters with one root chosen or not, keeping what was already there. */
+/** The parameters with one root chosen or not, keeping what was already there, other parameters included. */
 export function withRoot(value: Record<string, unknown>, key: string, chosen: boolean): Record<string, unknown> {
   const current = readRoots(value);
   const roots = chosen
@@ -28,14 +28,19 @@ export function withRoot(value: Record<string, unknown>, key: string, chosen: bo
       ? current
       : [...current, key]
     : current.filter((item) => !same(item, key));
-  return { Roots: roots };
+  const others = Object.fromEntries(Object.entries(value).filter(([name]) => name.toLowerCase() !== "roots"));
+  return { ...others, Roots: roots };
 }
 
 /**
  * Every root the site has, with the chosen ones marked, then the chosen keys no root has any more as deleted sites,
- * so an editor can see and remove them.
+ * so an editor can see and remove them. While the roots are not known (`all` is null: loading, or failed to load),
+ * nothing is called deleted: the chosen keys are listed as they are.
  */
-export function rootRows(chosen: ReadonlyArray<string>, all: ReadonlyArray<SiteRoot>): Array<RootRow> {
+export function rootRows(chosen: ReadonlyArray<string>, all: ReadonlyArray<SiteRoot> | null): Array<RootRow> {
+  if (all === null) {
+    return chosen.map((key): RootRow => ({ key, name: null, domains: [], deleted: false, selected: true }));
+  }
   const rows = all.map(
     (root): RootRow => ({ key: root.key, name: root.name ?? null, domains: root.domains, deleted: false, selected: chosen.some((key) => same(key, root.key)) }),
   );

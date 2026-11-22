@@ -141,6 +141,7 @@ export default {
     windowOrder: "It must start before it ends.",
     onOnlyOnSites: "On only for requests in the sites you choose.",
     noRoots: "There are no sites yet: a site is a top-level page in the Content tree.",
+    loading: "Loading the sites...",
     rootsFailed: "The sites couldn't be loaded.",
     deletedSite: "a deleted site",
     definition: "Definition",

@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Umbraco.Cms.Core;
 using Umbraco.Cms.Core.Models;
+using Umbraco.Cms.Core.PublishedCache;
 using Umbraco.Cms.Core.Services;
 using Umbraco.Cms.Core.Services.Navigation;
 
@@ -25,10 +26,19 @@ internal interface ISiteRoots
 /// <summary>Umbraco's content tree and domains; none when the services aren't registered.</summary>
 internal sealed class UmbracoSiteRoots(IServiceProvider services) : ISiteRoots
 {
+    // Roots come from the navigation tree, in memory, and the name from the content cache, so asking for many flags' roots
+    // never reads the database. Only a root that isn't published has no cached name, and the content service gives it.
     public SiteRoot? Find(Guid key)
     {
-        IContent? content = services.GetService<IContentService>()?.GetById(key);
-        return content is { Trashed: false, Level: 1 } ? new SiteRoot(content.Key, content.Name ?? string.Empty) : null;
+        var navigation = services.GetService<IDocumentNavigationQueryService>();
+        if (navigation is null || !navigation.TryGetRootKeys(out IEnumerable<Guid> roots) || !roots.Contains(key))
+        {
+            return null;
+        }
+
+        string? name = services.GetService<IPublishedContentCache>()?.GetById(true, key)?.Name
+            ?? services.GetService<IContentService>()?.GetById(key)?.Name;
+        return new SiteRoot(key, name ?? string.Empty);
     }
 
     public Task<IReadOnlyList<SiteRoot>> GetAllAsync(CancellationToken cancellationToken)

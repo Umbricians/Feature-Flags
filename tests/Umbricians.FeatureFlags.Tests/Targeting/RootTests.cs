@@ -22,6 +22,10 @@ public class RootTests
 
         public Guid? Domain { get; set; }
 
+        public bool Routed { get; set; } = true;
+
+        public bool IsRouted() => Routed;
+
         public List<string> Asked { get; } = [];
 
         public Guid? OfFoundContent()
@@ -143,6 +147,22 @@ public class RootTests
 
         locator.Domain = Uk;
         Assert.That(root.Current(), Is.Null);
+    }
+
+    [Test]
+    public void An_answer_worked_out_before_routing_is_not_kept()
+    {
+        (RequestRoot root, FakeLocator locator, _) = Request();
+        locator.Routed = false;
+        locator.Domain = Uk;
+        Assert.That(root.Current(), Is.EqualTo(Uk));
+
+        locator.Routed = true;
+        locator.Content = Us;
+        Assert.That(root.Current(), Is.EqualTo(Us));
+
+        locator.Content = null;
+        Assert.That(root.Current(), Is.EqualTo(Us), "kept once routed");
     }
 
     [Test]

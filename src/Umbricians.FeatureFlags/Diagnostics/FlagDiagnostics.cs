@@ -228,7 +228,9 @@ internal sealed class FlagDiagnostics(
 
     private FilterProblems CheckFilters()
     {
-        IFeatureFilterMetadata[] filters = services.GetServices<IFeatureFilterMetadata>().ToArray();
+        // In a scope of its own: with scoped feature management the filters are scoped, which the root provider can't give.
+        using IServiceScope scope = services.CreateScope();
+        IFeatureFilterMetadata[] filters = scope.ServiceProvider.GetServices<IFeatureFilterMetadata>().ToArray();
 
         string[] duplicated = filters
             .GroupBy(filter => filter.GetType())

@@ -20,7 +20,8 @@ export class RootConditionElement extends UmbLitElement implements UmbriciansFea
   @property({ type: Boolean, reflect: true })
   readonly = false;
 
-  @state() private _roots: Array<SiteRoot> = [];
+  /** Null until the roots have loaded, and for good if they fail to: then no chosen root is called deleted. */
+  @state() private _roots: Array<SiteRoot> | null = null;
   @state() private _failed = false;
 
   override connectedCallback() {
@@ -40,17 +41,18 @@ export class RootConditionElement extends UmbLitElement implements UmbriciansFea
     const rows = rootRows(readRoots(this.value), this._roots);
     return html`<p class="summary">${this.localize.term("umbriciansFeatureFlags_onOnlyOnSites")}</p>
       ${this._failed ? html`<p class="problem">${this.localize.term("umbriciansFeatureFlags_rootsFailed")}</p>` : nothing}
-      ${rows.length === 0 && !this._failed ? html`<p>${this.localize.term("umbriciansFeatureFlags_noRoots")}</p>` : nothing}
+      ${this._roots === null && !this._failed ? html`<p>${this.localize.term("umbriciansFeatureFlags_loading")}</p>` : nothing}
+      ${rows.length === 0 && this._roots !== null ? html`<p>${this.localize.term("umbriciansFeatureFlags_noRoots")}</p>` : nothing}
       ${rows.map((row) => this.#renderRow(row))}`;
   }
 
   #renderRow(row: RootRow) {
-    const name = row.name ?? this.localize.term("umbriciansFeatureFlags_deletedSite");
+    const name = row.name ?? (row.deleted ? this.localize.term("umbriciansFeatureFlags_deletedSite") : row.key);
     return html`<div class="row">
       <uui-checkbox
         label=${name}
         ?checked=${row.selected}
-        ?disabled=${this.readonly || row.deleted}
+        ?disabled=${this.readonly || row.deleted || this._roots === null}
         @change=${(e: Event) => {
           e.stopPropagation();
           this.#choose(row.key, (e.target as HTMLInputElement).checked);

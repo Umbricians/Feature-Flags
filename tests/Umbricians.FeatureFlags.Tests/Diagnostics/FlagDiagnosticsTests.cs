@@ -309,4 +309,16 @@ public class FlagDiagnosticsTests
         Assert.That(logged, Is.EqualTo(shown));
         Assert.That(logged.Select(entry => entry.Item1), Does.Contain(LogLevel.Error).And.Contain(LogLevel.Warning));
     }
+
+    [Test]
+    public async Task Scoped_feature_management_is_checked_without_resolving_scoped_filters_from_the_root()
+    {
+        var site = new TestSite(before: services => services.AddScopedFeatureManagement());
+        await using ServiceProvider validating = site.Services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
+        var logger = new CollectingLogger<StartupChecks>();
+
+        await new StartupChecks(validating, logger).HandleAsync(new UmbracoApplicationStartedNotification(false), default);
+
+        Assert.That(logger.Entries, Is.Empty);
+    }
 }

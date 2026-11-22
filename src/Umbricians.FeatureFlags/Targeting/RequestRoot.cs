@@ -24,12 +24,18 @@ internal interface IRootLocator
 
     /// <summary>The root of the domain that matches the request's address.</summary>
     Guid? FromDomain(Uri address);
+
+    /// <summary>
+    /// Whether the request's answer can no longer change: Umbraco has routed it, or there is no Umbraco request to wait for.
+    /// A flag checked in middleware, before routing, can't yet know the content's root.
+    /// </summary>
+    bool IsRouted();
 }
 
 /// <summary>
 /// Which <see cref="Flags.RootCondition">root</see> the current request is in: the root of the content the request found;
 /// else the one the <c>Start-Item</c> header names; else the one whose domain matches the request's host and path; else
-/// none. Worked out once for each request.
+/// none. Worked out once for each request, once Umbraco has routed it.
 /// </summary>
 internal sealed class RequestRoot(IHttpContextAccessor http, IRootLocator locator)
 {
@@ -54,7 +60,13 @@ internal sealed class RequestRoot(IHttpContextAccessor http, IRootLocator locato
         }
 
         Guid? key = Find(context);
-        context.Items[ItemsKey] = new Found(key);
+
+        // An answer worked out before Umbraco routed the request may change once the content is found, so it isn't kept.
+        if (locator.IsRouted())
+        {
+            context.Items[ItemsKey] = new Found(key);
+        }
+
         return key;
     }
 
@@ -120,8 +132,19 @@ internal sealed class UmbracoRootLocator(IServiceProvider services) : IRootLocat
             : roots.Where(root => urls.GetUrlSegment(root, culture, false).InvariantEquals(header)).Select(root => (Guid?)root).FirstOrDefault();
     }
 
+    public bool IsRouted() =>
+        services.GetService<IUmbracoContextAccessor>() is not { } accessor
+        || !accessor.TryGetUmbracoContext(out IUmbracoContext? context)
+        || context.PublishedRequest is not null;
+
     public Guid? FromDomain(Uri address)
     {
+        // Umbraco's own cleaned address, so case and path are normalised the way its domain matching expects.
+        if (services.GetService<IUmbracoContextAccessor>() is { } accessor && accessor.TryGetUmbracoContext(out IUmbracoContext? umbraco))
+        {
+            address = umbraco.CleanedUmbracoUrl;
+        }
+
         var domains = services.GetService<IDomainCache>();
         var ids = services.GetService<IIdKeyMap>();
         if (domains is null || ids is null)

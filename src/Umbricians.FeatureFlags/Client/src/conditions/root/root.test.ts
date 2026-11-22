@@ -32,3 +32,12 @@ test("a chosen key no root has any more is a deleted site with no name, which ca
   assert.deepEqual([deleted?.key, deleted?.name, deleted?.deleted, deleted?.selected], ["gone", null, true, true]);
   assert.deepEqual(withRoot({ Roots: ["bbb", "gone"] }, "gone", false), { Roots: ["bbb"] });
 });
+
+test("while the roots are unknown, no chosen key is called deleted", () => {
+  const rows = rootRows(["aaa"], null);
+  assert.deepEqual(rows.map((row) => [row.key, row.deleted, row.selected]), [["aaa", false, true]]);
+});
+
+test("choosing a root keeps the condition's other parameters and replaces Roots in any case", () => {
+  assert.deepEqual(withRoot({ roots: ["aaa"], Other: 1 }, "bbb", true), { Other: 1, Roots: ["aaa", "bbb"] });
+});
