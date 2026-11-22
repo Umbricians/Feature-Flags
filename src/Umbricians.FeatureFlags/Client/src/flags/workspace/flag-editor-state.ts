@@ -117,6 +117,8 @@ export function saveBlocker(state: FlagEditorState, editorNames: ReadonlyArray<s
   if (state.conditions.some(isEmptyAudience)) return { kind: "nobody" };
   for (const condition of state.conditions) {
     if (isTimeWindow(condition.name)) {
+      // A repeating window can't be edited here, and the server allows it with no start or end.
+      if (Object.keys(condition.parameters).some((key) => key.toLowerCase() === "recurrence")) continue;
       const [problem] = windowProblems(condition.parameters);
       if (problem) return { kind: "timeWindow", problem };
     } else if (isRoot(condition.name) && readRoots(condition.parameters).length === 0) {

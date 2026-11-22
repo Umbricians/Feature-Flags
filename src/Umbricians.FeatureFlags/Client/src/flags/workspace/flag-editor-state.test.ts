@@ -287,3 +287,7 @@ test("an incomplete time window or Root condition doesn't block a flag that is o
   assert.equal(saveBlocker(setMode(window, "off"), editors), null);
   assert.equal(saveBlocker(setMode(window, "everyone"), editors), null);
 });
+
+test("a repeating time window with no start or end is not blocked, since the server allows it", () => {
+  assert.equal(saveBlocker(withCondition("Microsoft.TimeWindow", { Recurrence: { Pattern: {} } }), ["Microsoft.TimeWindow"]), null);
+});
