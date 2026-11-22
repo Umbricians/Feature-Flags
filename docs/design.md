@@ -98,6 +98,12 @@ first `.` in its name, so `Checkout.ExpressPay` is in "Checkout" with nothing to
 Feature Flags can't read details from, such as a site's own provider, are put in sections by name alone. Reading details
 for flags in Azure App Configuration, which keeps tags of its own, comes after 1.0.
 
+Microsoft's configuration provider also drops the filters of a flag configured with `"enabled": false`, so Feature
+Flags reads the filters of a disabled flag from the `feature_management:feature_flags` list itself; switching it on
+then keeps them. For any other flag source (its own provider, Azure App Configuration) the filters of a disabled flag
+can't be known, so such a flag shows as off with no conditions, and switching it on saves "on for everyone". Declare
+it enabled, with its conditions, if it matters.
+
 Code declarations take a full Microsoft `FeatureDefinition` as well as the short form, so code can declare anything
 configuration can.
 

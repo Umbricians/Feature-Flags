@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using Microsoft.Extensions.Configuration;
 using Microsoft.FeatureManagement;
 
@@ -103,6 +104,23 @@ internal sealed class ConfigurationFlagDetails(IConfiguration configuration)
                 yield return flag.Key;
             }
         }
+    }
+
+    /// <summary>
+    /// A flag's JSON as configuration holds it in the <c>feature_management:feature_flags</c> list, with every value as
+    /// text; null when it isn't declared there. For reading what Microsoft's provider drops from a flag that is switched off.
+    /// </summary>
+    public JsonObject? Raw(string name)
+    {
+        foreach (IConfigurationSection flag in configuration.GetSection("feature_management:feature_flags").GetChildren())
+        {
+            if (string.Equals(flag["id"], name, StringComparison.OrdinalIgnoreCase))
+            {
+                return FlagDefinitions.ConfigurationToJson(flag) as JsonObject;
+            }
+        }
+
+        return null;
     }
 
     public FlagDetails Find(string name)

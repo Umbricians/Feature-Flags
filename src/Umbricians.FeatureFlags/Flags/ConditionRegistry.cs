@@ -124,6 +124,9 @@ internal sealed class ConditionRegistry
         return parts.Count == 0 ? null : string.Join("; ", parts);
     }
 
+    // Microsoft's IsMatchingName: a name with a dot must match exactly (Find has already tried that), and one without
+    // matches the last segment of the registered name, so "Culture" finds "Contoso.Culture" but "Product.Culture" does
+    // not find "Contoso.Product.Culture".
     private static bool Matches(string registered, string filterName) =>
-        registered.EndsWith("." + filterName, StringComparison.OrdinalIgnoreCase);
+        !filterName.Contains('.') && registered.EndsWith("." + filterName, StringComparison.OrdinalIgnoreCase);
 }

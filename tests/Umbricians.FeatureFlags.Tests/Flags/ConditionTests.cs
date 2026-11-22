@@ -260,6 +260,82 @@ public class ConditionTests
         Assert.That(registry.Find(filterName)?.Name, Is.EqualTo(expected));
     }
 
+    private sealed class ProductCultureCondition : IFeatureFlagCondition
+    {
+        public string Name => "Contoso.Product.Culture";
+
+        public string DisplayName => "Product culture";
+
+        public IEnumerable<string> Validate(JsonObject parameters) => [];
+
+        public string Describe(JsonObject parameters) => "";
+    }
+
+    [TestCase("Culture", true)]
+    [TestCase("culture", true)]
+    [TestCase("Product.Culture", false)]
+    [TestCase("Contoso.Product.Culture", true)]
+    [TestCase("contoso.product.culture", true)]
+    public void A_name_with_a_dot_must_match_exactly_and_one_without_matches_the_last_segment(string filterName, bool found)
+    {
+        var registry = new ConditionRegistry([new ProductCultureCondition()]);
+
+        Assert.That(registry.Find(filterName) is not null, Is.EqualTo(found));
+    }
+
+    [Test]
+    public async Task Targeting_with_a_percentage_is_custom_because_it_can_not_be_saved_or_switched()
+    {
+        TestSite site = Site();
+        var targeting = new FlagCondition("Microsoft.Targeting", new JsonObject
+        {
+            ["Audience"] = new JsonObject { ["Users"] = new JsonArray(), ["Groups"] = new JsonArray(), ["DefaultRolloutPercentage"] = 50 },
+        });
+        site.Store.With("Aud", new FlagSettings(true, [targeting]));
+
+        FeatureFlag flag = await FlagAsync(site, "Aud");
+
+        Assert.That(flag.State, Is.EqualTo(FeatureFlagState.Custom));
+        Assert.That(flag.Actions.Save.Allowed, Is.False);
+    }
+
+    private const string DisabledWithConditions = """
+        { "feature_management": { "feature_flags": [
+            { "id": "Dormant", "enabled": false, "conditions": { "requirement_type": "All", "client_filters": [
+                { "name": "Contoso.Culture", "parameters": { "Cultures": [ "fr" ] } },
+                { "name": "Microsoft.Targeting", "parameters": { "Audience": { "Users": [ "m1" ], "DefaultRolloutPercentage": 0 } } } ] } },
+            { "id": "Plain", "enabled": false, "conditions": { "client_filters": [ { "name": "AlwaysOn" } ] } } ] } }
+        """;
+
+    [Test]
+    public async Task A_default_configured_off_keeps_its_conditions_so_switching_it_on_does_not_lose_them()
+    {
+        var site = new TestSite(DisabledWithConditions, before: services => services.AddSingleton<IFeatureFlagCondition, CultureCondition>());
+
+        FeatureFlag flag = await FlagAsync(site, "Dormant");
+
+        Assert.That(flag.State, Is.EqualTo(FeatureFlagState.Off));
+        Assert.That(flag.DefaultSettings!.Conditions.Select(condition => condition.Name), Is.EqualTo(new[] { "Contoso.Culture", "Microsoft.Targeting" }));
+        Assert.That(flag.DefaultSettings.Match, Is.EqualTo(ConditionMatch.All));
+
+        Assert.That((await Service(site).SwitchAsync("Dormant", true)).IsSaved, Is.True);
+
+        FeatureFlag after = await FlagAsync(site, "Dormant");
+        Assert.That(after.State, Is.EqualTo(FeatureFlagState.Conditions));
+        Assert.That(after.Settings!.Conditions.Select(condition => condition.Name), Is.EqualTo(new[] { "Contoso.Culture", "Microsoft.Targeting" }));
+        Assert.That(after.Settings.Match, Is.EqualTo(ConditionMatch.All));
+    }
+
+    [Test]
+    public async Task A_default_configured_off_with_only_an_always_on_filter_has_no_conditions()
+    {
+        var site = new TestSite(DisabledWithConditions);
+
+        FeatureFlag flag = await FlagAsync(site, "Plain");
+
+        Assert.That(flag.DefaultSettings, Is.EqualTo(FlagSettings.Off));
+    }
+
     /// <summary>A filter that is on when its name matched.</summary>
     [FilterAlias("Contoso.Culture")]
     private sealed class CultureFilter : IFeatureFilter

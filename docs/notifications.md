@@ -60,6 +60,10 @@ is stored with the scope, like any other Umbraco write. It is seen by flag check
 is published, once the scope completes. If the scope is rolled back, neither happens. The Saving and Resetting
 notifications are published at once, so a handler can still cancel.
 
+A handler of the Saved or Reset notification that changes another flag inside a scope of its own must complete that
+scope (`scope.Complete()`). Umbraco tells the notification the outer scope's outcome, not the handler's scope's, so a
+scope the handler leaves uncompleted rolls its change back but still publishes the Saved notification for it.
+
 ## Member clean-up
 
 When Umbraco deletes a member or member group, Feature Flags takes it out of every audience. Each flag changed gets a

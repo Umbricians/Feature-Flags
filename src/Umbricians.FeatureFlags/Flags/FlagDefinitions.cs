@@ -51,7 +51,7 @@ internal static class FlagDefinitions
 
         return new FlagSettings(
             enabled,
-            filters.Select(filter => new FlagCondition(filter.Name ?? "", ToJson(filter.Parameters) as JsonObject ?? new JsonObject())).ToArray(),
+            filters.Select(filter => new FlagCondition(filter.Name ?? "", ConfigurationToJson(filter.Parameters) as JsonObject ?? new JsonObject())).ToArray(),
             definition.RequirementType == RequirementType.All ? ConditionMatch.All : ConditionMatch.Any);
     }
 
@@ -102,6 +102,10 @@ internal static class FlagDefinitions
 
         return new FlagSettings(enabled, conditions, match);
     }
+
+    /// <summary>The settings without a lone <c>AlwaysOn</c> filter, which only says what no conditions say.</summary>
+    internal static FlagSettings WithoutAlwaysOn(FlagSettings settings) =>
+        settings.Conditions.Count == 1 && IsAlwaysOn(settings.Conditions[0].Name) ? settings with { Conditions = [] } : settings;
 
     /// <summary>A flag's settings as Microsoft's <c>feature_management</c> JSON, for storing as an override.</summary>
     public static string ToJson(string flagName, FlagSettings settings)
@@ -209,7 +213,7 @@ internal static class FlagDefinitions
     /// Configuration as JSON: a section with numbered children is an array, one with named children an object, and a
     /// value is a number or true or false when it reads as one, since configuration holds everything as text.
     /// </summary>
-    private static JsonNode? ToJson(IConfiguration? configuration)
+    internal static JsonNode? ConfigurationToJson(IConfiguration? configuration)
     {
         if (configuration is null)
         {
@@ -224,13 +228,13 @@ internal static class FlagDefinitions
 
         if (children.Select((child, index) => child.Key == index.ToString(System.Globalization.CultureInfo.InvariantCulture)).All(isIndex => isIndex))
         {
-            return new JsonArray(children.Select(child => ToJson(child)).ToArray());
+            return new JsonArray(children.Select(child => ConfigurationToJson(child)).ToArray());
         }
 
         var result = new JsonObject();
         foreach (IConfigurationSection child in children)
         {
-            result[child.Key] = ToJson(child);
+            result[child.Key] = ConfigurationToJson(child);
         }
 
         return result;

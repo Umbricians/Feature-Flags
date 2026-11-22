@@ -234,9 +234,12 @@ internal sealed class FeatureFlagService : IFeatureFlagService
     /// </summary>
     private async Task AfterStoreAsync(Func<Task> publish)
     {
-        // Only an open scope defers: Umbraco keeps the scope context alive while the scope exits and runs the callbacks
-        // enlisted in it, and ignores anything enlisted from inside them. A change made from a Saved handler, or by member
-        // clean-up, after the scope has been popped has already been committed, so it is read and published straight away.
+        // Only an open scope defers. Umbraco runs the callbacks enlisted in the scope context when the outermost scope
+        // exits, and passes each the outer scope's completed flag, looping until nothing more is enlisted. A change made
+        // from a Saved or Reset handler that opens a scope of its own therefore enlists into the context that is exiting,
+        // and its callback is told the OUTER scope completed, whether or not the handler's own scope does. So a handler
+        // must complete any scope it opens, or it gets a notification for a write that was rolled back; the docs say so.
+        // (Umbraco's public API doesn't say whether an inner scope completed, so this can't tell the difference.)
         if (_scopeAccessor?.AmbientScope is not null && _scopes?.Context is { } context)
         {
             context.Enlist($"Umbricians.FeatureFlags.{Guid.NewGuid()}", completed =>

@@ -99,6 +99,15 @@ internal sealed class FlagCatalog
         FeatureDefinition defaultDefinition = declared.Default!;
         SavedOverride? entry = flag.Override;
         FlagSettings? defaultSettings = FlagDefinitions.ToSettings(defaultDefinition, out string? defaultReason);
+        if (declared.DeclaredIn == FeatureFlagDeclaredIn.Configuration && defaultDefinition.Status == FeatureStatus.Disabled
+            && _configurationDetails.Raw(declared.Name) is { } raw
+            && FlagDefinitions.ReadOverride(raw.ToJsonString(), out string? rawReason) is { } rawSettings)
+        {
+            // Microsoft's provider drops the filters of a flag configured with "enabled": false, so read them from the
+            // configuration itself; otherwise switching it on would save "on for everyone" and lose them.
+            defaultSettings = FlagDefinitions.WithoutAlwaysOn(rawSettings);
+            defaultReason = rawReason;
+        }
 
         FlagSettings? overrideSettings = entry?.Settings;
         string? overrideReason = entry?.NotEditableReason;
@@ -197,14 +206,17 @@ internal sealed class FlagCatalog
             actions,
             settings is null ? null : _conditions.Summarize(settings));
 
-    // A flag with conditions nobody registered shows as custom: the backoffice can't know what they mean.
+    // A flag with conditions nobody registered, or that the backoffice can't edit (a targeting condition with percentages
+    // or exclusions), shows as custom: save and switch are refused for it, so it can't be called editable conditions.
     private FeatureFlagState Display(FlagSettings settings) =>
         settings.State switch
         {
             FlagState.Off => FeatureFlagState.Off,
             FlagState.Everyone => FeatureFlagState.Everyone,
             FlagState.Audience => FeatureFlagState.Audience,
-            _ => _conditions.AllRegistered(settings) ? FeatureFlagState.Conditions : FeatureFlagState.Custom,
+            _ => _conditions.AllRegistered(settings) && _conditions.NotEditableReason(settings) is null
+                ? FeatureFlagState.Conditions
+                : FeatureFlagState.Custom,
         };
 
     private FeatureFlagState Display(FlagSettings? settings, FeatureDefinition definition)
