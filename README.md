@@ -124,6 +124,7 @@ Everything is optional. Override only what you need in `appsettings.json`:
 | Setting | Default | |
 | --- | --- | --- |
 | `Overrides` | `Enabled` | `Enabled`: editors' settings in the backoffice win over each flag's default. `ReadOnly`: the backoffice shows flags but can't change them, and settings saved earlier are ignored, so the site's flag source, such as appsettings or Azure App Configuration, stays in charge. |
+| `Headless:Enabled` | `false` | `true` serves public flags to headless front ends; see [Headless](docs/headless.md). |
 
 Flags themselves are configured in Microsoft's `feature_management` section, not here.
 

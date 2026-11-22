@@ -44,8 +44,9 @@ a member who is in a 25% audience stays in it, and the same share of members is 
 percentage only adds members; nobody who had the feature loses it. Changing the flag's name reshuffles who is in.
 
 Percentages count **members only**: signed-in members have an id to hash. A visitor who isn't signed in has none.
-Microsoft would treat all of them alike, in or out together, so Feature Flags never includes them: a visitor with no user
-id is off whatever the percentages and groups. Feature Flags sets no cookie to give visitors ids.
+Microsoft would treat all of them alike, in or out together, so Feature Flags never counts them: a visitor with no user id
+is left out of every percentage, of everyone else or of a group below 100%. Listed members and groups at 100% still
+apply. Feature Flags sets no cookie to give visitors ids.
 
 To roll a flag out to visitors who aren't Umbraco members, give them ids with your own `ITargetingContextAccessor`
 (see [Identifying people another way](#identifying-people-another-way)). For example, with a visitor id kept in a
