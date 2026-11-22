@@ -36,6 +36,16 @@ internal sealed class ManageFlagsController : FeatureFlagsControllerBase
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Save([FromQuery] string name, [FromBody] SaveFlagRequestModel request, CancellationToken cancellationToken)
     {
+        // This body only says who the flag is for, so saving it would drop conditions the body can't carry.
+        if ((await _overrides.GetAsync(name, cancellationToken))?.State == FeatureFlagState.Conditions)
+        {
+            return Conflict(new ProblemDetails
+            {
+                Title = "Flag can't be changed here",
+                Detail = "It is on with conditions, which the backoffice can switch on and off but can't edit yet.",
+            });
+        }
+
         FlagAudience? audience = request.Audience is null
             ? null
             : new FlagAudience(request.Audience.Members, request.Audience.Groups);
@@ -60,13 +70,25 @@ internal sealed class ManageFlagsController : FeatureFlagsControllerBase
 
     private Guid? CurrentUser() => _security.BackOfficeSecurity?.CurrentUser?.Key;
 
-    private IActionResult Respond(string name, FeatureFlagResult result) => result.Status switch
+    internal IActionResult Respond(string name, FeatureFlagResult result) => result.Status switch
     {
         FeatureFlagResultStatus.Saved => Ok(),
         FeatureFlagResultStatus.NotFound => NotFound(new ProblemDetails { Title = "Flag not found", Detail = $"No flag source declares '{name}'." }),
         FeatureFlagResultStatus.Cancelled => Conflict(Cancelled(result.Messages)),
-        _ => Conflict(new ProblemDetails { Title = "Flag can't be changed here", Detail = result.Reason }),
+        _ => Conflict(NotAllowed(result)),
     };
+
+    /// <summary>The rules refused the change: the reason is the detail, and any problems with conditions are listed in <c>problems</c> as well.</summary>
+    private static ProblemDetails NotAllowed(FeatureFlagResult result)
+    {
+        var problem = new ProblemDetails { Title = "Flag can't be changed here", Detail = result.Reason };
+        if (result.Problems.Count > 0)
+        {
+            problem.Extensions["problems"] = result.Problems;
+        }
+
+        return problem;
+    }
 
     /// <summary>A handler cancelled the change: its messages are the detail, and listed in <c>messages</c> as well.</summary>
     private static ProblemDetails Cancelled(IReadOnlyList<string> messages)

@@ -10,7 +10,7 @@ namespace Umbricians.FeatureFlags.Overrides;
 /// </summary>
 /// <remarks>
 /// The backoffice's rules apply (settings from the backoffice may be switched off, a flag nobody declares can't be
-/// saved, a custom flag can't be switched), but there are no permission checks: code isn't a backoffice user. Problems
+/// saved, a custom flag can't be switched, conditions validated), but there are no permission checks: code isn't a backoffice user. Problems
 /// come back as a <see cref="FeatureFlagResult"/>; exceptions are for real failures such as the database being down.
 /// To change several flags, call it once for each. Inside an Umbraco scope (<c>ICoreScopeProvider.CreateCoreScope</c>) the
 /// change is stored with the scope, so it is seen, and the Saved or Reset notification published, once the scope completes;
@@ -56,7 +56,10 @@ public enum FeatureFlagResultStatus
     /// <summary>Nobody declares the flag, so there is nothing to change.</summary>
     NotFound,
 
-    /// <summary>The rules don't allow the change; <see cref="FeatureFlagResult.Reason"/> says why.</summary>
+    /// <summary>
+    /// The rules don't allow the change; <see cref="FeatureFlagResult.Reason"/> says why. When conditions' parameters
+    /// are invalid, or a condition isn't registered, <see cref="FeatureFlagResult.Problems"/> lists each problem.
+    /// </summary>
     NotAllowed,
 
     /// <summary>A handler cancelled the change; <see cref="FeatureFlagResult.Messages"/> are what it said.</summary>
@@ -71,6 +74,12 @@ public sealed record FeatureFlagResult(FeatureFlagResultStatus Status, string? R
     /// <summary>Whether the change was made.</summary>
     public bool IsSaved => Status == FeatureFlagResultStatus.Saved;
 
+    /// <summary>
+    /// What is wrong with the conditions saved, one problem for each, from <see cref="IFeatureFlagCondition.Validate"/>;
+    /// none for any other result. <see cref="Reason"/> has them all in one sentence.
+    /// </summary>
+    public IReadOnlyList<string> Problems { get; init; } = [];
+
     /// <summary>What the handlers that cancelled the change said; none for any other result.</summary>
     public IReadOnlyList<string> Messages { get; init; } = [];
 
@@ -79,6 +88,8 @@ public sealed record FeatureFlagResult(FeatureFlagResultStatus Status, string? R
     internal static FeatureFlagResult NotFound { get; } = new(FeatureFlagResultStatus.NotFound);
 
     internal static FeatureFlagResult NotAllowed(string? reason) => new(FeatureFlagResultStatus.NotAllowed, reason);
+
+    internal static FeatureFlagResult NotAllowed(string reason, IReadOnlyList<string> problems) => new(FeatureFlagResultStatus.NotAllowed, reason) { Problems = problems };
 
     internal static FeatureFlagResult Cancelled(IReadOnlyList<string> messages) => new(FeatureFlagResultStatus.Cancelled) { Messages = messages };
 }

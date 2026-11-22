@@ -77,4 +77,17 @@ public sealed class FeatureFlagsBuilder
         _services.TryAddEnumerable(ServiceDescriptor.Singleton<IFeatureFlagGroupProvider, TProvider>());
         return this;
     }
+
+    /// <summary>
+    /// Registers the C# half of a condition of the site's own, so editors' saves are validated, the list can summarise it,
+    /// and flags that use it count as having conditions the backoffice knows rather than custom ones. Register the
+    /// Microsoft filter that evaluates it the usual Microsoft way too. Call it once for each condition. See
+    /// <c>docs/conditions.md</c>.
+    /// </summary>
+    public FeatureFlagsBuilder AddCondition<TCondition>()
+        where TCondition : class, IFeatureFlagCondition
+    {
+        _services.TryAddEnumerable(ServiceDescriptor.Singleton<IFeatureFlagCondition, TCondition>());
+        return this;
+    }
 }

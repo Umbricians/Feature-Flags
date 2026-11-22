@@ -21,6 +21,7 @@ namespace Umbricians.FeatureFlags.Flags;
 /// <param name="Override">Its override: who saved it and when, with the definition as stored; null when it has none.</param>
 /// <param name="DiffersFromDefault">Whether its override says something different from its default.</param>
 /// <param name="Actions">What may be done with it, each with the reason when not.</param>
+/// <param name="Summary">What its conditions amount to in one line, from each registered condition's description, joined with "; "; null when it has none to describe.</param>
 public sealed record FeatureFlag(
     string Name,
     bool IsDeclared,
@@ -36,7 +37,8 @@ public sealed record FeatureFlag(
     FlagSettings? DefaultSettings,
     FeatureFlagOverride? Override,
     bool DiffersFromDefault,
-    FeatureFlagActions Actions);
+    FeatureFlagActions Actions,
+    string? Summary = null);
 
 /// <summary>How a flag is evaluated.</summary>
 public enum FeatureFlagState
@@ -50,9 +52,9 @@ public enum FeatureFlagState
     /// <summary>On only for an audience of members and groups.</summary>
     Audience,
 
-    /// <summary>On when conditions other than an audience hold. Shown as <see cref="Custom"/> until the backoffice knows which conditions are registered.</summary>
+    /// <summary>On when conditions hold, all of them registered with <c>AddCondition</c> or the package's own, and more than just an audience.</summary>
     Conditions,
 
-    /// <summary>Something the backoffice can't edit, such as a time window nobody registered an editor for, or variants.</summary>
+    /// <summary>Something the backoffice can't edit, such as a filter nobody registered a condition for, or variants.</summary>
     Custom,
 }

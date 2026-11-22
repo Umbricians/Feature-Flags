@@ -16,14 +16,17 @@ internal sealed class FlagCatalog
     private readonly ConfigurationFlagDetails _configurationDetails;
     private readonly PublicFlags _public;
     private readonly IOptionsMonitor<FeatureFlagsOptions> _options;
+    private readonly ConditionRegistry _conditions;
 
     public FlagCatalog(
         FlagResolution resolution,
         CodeFlags code,
         ConfigurationFlagDetails configurationDetails,
         PublicFlags publicFlags,
-        IOptionsMonitor<FeatureFlagsOptions> options)
+        IOptionsMonitor<FeatureFlagsOptions> options,
+        ConditionRegistry conditions)
     {
+        _conditions = conditions;
         _resolution = resolution;
         _code = code;
         _configurationDetails = configurationDetails;
@@ -90,7 +93,7 @@ internal sealed class FlagCatalog
             FeatureFlagAction.Refuse(DeclaredReason));
     }
 
-    private static FeatureFlag Describe(ResolvedFlag flag, FlagDetails details, bool readOnly)
+    private FeatureFlag Describe(ResolvedFlag flag, FlagDetails details, bool readOnly)
     {
         DeclaredFlag declared = flag.Declared!;
         FeatureDefinition defaultDefinition = declared.Default!;
@@ -105,7 +108,8 @@ internal sealed class FlagCatalog
             ? Display(overrideSettings, flag.Definition!)
             : Display(defaultSettings, defaultDefinition);
 
-        string? notEditableReason = entry is not null ? overrideReason : defaultReason;
+        string? notEditableReason = (entry is not null ? overrideReason : defaultReason)
+            ?? (settings is null ? null : _conditions.NotEditableReason(settings));
 
         bool differs = entry is not null
             && (overrideSettings is null || defaultSettings is null || !overrideSettings.SameAs(defaultSettings));
@@ -125,7 +129,7 @@ internal sealed class FlagCatalog
             ActionsFor(readOnly, isDeclared: true, settings, notEditableReason, hasOverride: entry is not null));
     }
 
-    private static FeatureFlag Unreadable(DeclaredFlag declared, FlagDetails details, SavedOverride? entry, Exception exception, bool readOnly)
+    private FeatureFlag Unreadable(DeclaredFlag declared, FlagDetails details, SavedOverride? entry, Exception exception, bool readOnly)
     {
         string reason = $"Its definition can't be read, so checking it fails: {(exception.InnerException ?? exception).Message}";
         return Build(
@@ -143,7 +147,7 @@ internal sealed class FlagCatalog
             ActionsFor(readOnly, isDeclared: true, settings: null, reason, hasOverride: entry is not null));
     }
 
-    private static FeatureFlag Undeclared(SavedOverride entry, bool readOnly)
+    private FeatureFlag Undeclared(SavedOverride entry, bool readOnly)
     {
         FlagSettings? settings = entry.Settings;
         FeatureFlagState state = settings is null ? FeatureFlagState.Custom : Display(settings);
@@ -162,7 +166,7 @@ internal sealed class FlagCatalog
             ActionsFor(readOnly, isDeclared: false, settings, notEditableReason: null, hasOverride: true));
     }
 
-    private static FeatureFlag Build(
+    private FeatureFlag Build(
         string name,
         bool isDeclared,
         FeatureFlagDeclaredIn declaredIn,
@@ -190,21 +194,22 @@ internal sealed class FlagCatalog
             defaultSettings?.Copy(),
             featureFlagOverride,
             differsFromDefault,
-            actions);
+            actions,
+            settings is null ? null : _conditions.Summarize(settings));
 
-    // Conditions the backoffice can't edit show as custom until it knows which conditions are registered.
-    private static FeatureFlagState Display(FlagSettings settings) =>
+    // A flag with conditions nobody registered shows as custom: the backoffice can't know what they mean.
+    private FeatureFlagState Display(FlagSettings settings) =>
         settings.State switch
         {
             FlagState.Off => FeatureFlagState.Off,
             FlagState.Everyone => FeatureFlagState.Everyone,
             FlagState.Audience => FeatureFlagState.Audience,
-            _ => FeatureFlagState.Custom,
+            _ => _conditions.AllRegistered(settings) ? FeatureFlagState.Conditions : FeatureFlagState.Custom,
         };
 
-    private static FeatureFlagState Display(FlagSettings? settings, FeatureDefinition definition)
+    private FeatureFlagState Display(FlagSettings? settings, FeatureDefinition definition)
     {
-        if (settings is not null && settings.State != FlagState.Conditions)
+        if (settings is not null)
         {
             return Display(settings);
         }

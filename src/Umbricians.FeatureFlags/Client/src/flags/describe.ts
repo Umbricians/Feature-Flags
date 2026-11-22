@@ -24,6 +24,8 @@ export function stateLabel(localize: UmbLocalizationController, state: FeatureFl
       return localize.term("umbriciansFeatureFlags_stateEveryone");
     case "audience":
       return localize.term("umbriciansFeatureFlags_stateAudience");
+    case "conditions":
+      return localize.term("umbriciansFeatureFlags_stateConditions");
     default:
       return localize.term("umbriciansFeatureFlags_stateCustom");
   }

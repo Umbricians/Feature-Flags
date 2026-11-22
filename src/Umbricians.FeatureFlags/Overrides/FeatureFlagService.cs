@@ -23,6 +23,7 @@ internal sealed class FeatureFlagService : IFeatureFlagService
     private readonly AudienceGroups _groups;
     private readonly IEventAggregator _events;
     private readonly ICoreScopeProvider? _scopes;
+    private readonly ConditionRegistry _conditions;
 
     public FeatureFlagService(
         IFeatureFlagOverrideStore store,
@@ -31,6 +32,7 @@ internal sealed class FeatureFlagService : IFeatureFlagService
         TimeProvider time,
         AudienceGroups groups,
         IEventAggregator events,
+        ConditionRegistry conditions,
         DistributedCache? distributedCache = null,
         ICoreScopeProvider? scopes = null)
     {
@@ -40,6 +42,7 @@ internal sealed class FeatureFlagService : IFeatureFlagService
         _time = time;
         _groups = groups;
         _events = events;
+        _conditions = conditions;
         _distributedCache = distributedCache;
         _scopes = scopes;
     }
@@ -85,15 +88,22 @@ internal sealed class FeatureFlagService : IFeatureFlagService
             return FeatureFlagResult.NotAllowed(flag.Actions.Switch.Reason);
         }
 
-        return await SaveFlagAsync(flag, flag.Settings! with { Enabled = enabled }, cause, userKey, cancellationToken);
+        return await SaveFlagAsync(flag, flag.Settings! with { Enabled = enabled }, cause, userKey, cancellationToken, validate: false);
     }
 
-    /// <summary>Saves settings for a flag that has been found and is declared, if the rules allow it.</summary>
-    private async Task<FeatureFlagResult> SaveFlagAsync(FeatureFlag flag, FlagSettings settings, FeatureFlagChangeCause cause, Guid? userKey, CancellationToken cancellationToken)
+    /// <summary>Saves settings for a flag that has been found and is declared, if the rules allow it and the conditions are valid.</summary>
+    private async Task<FeatureFlagResult> SaveFlagAsync(FeatureFlag flag, FlagSettings settings, FeatureFlagChangeCause cause, Guid? userKey, CancellationToken cancellationToken, bool validate = true)
     {
         if (!flag.Actions.Save.Allowed)
         {
             return FeatureFlagResult.NotAllowed(flag.Actions.Save.Reason);
+        }
+
+        // Switching keeps conditions as they are, so it doesn't re-check them: a stale parameter mustn't stop an editor switching a flag off.
+        IReadOnlyList<string> problems = validate ? _conditions.Validate(settings) : [];
+        if (problems.Count > 0)
+        {
+            return FeatureFlagResult.NotAllowed(string.Join(" ", problems), problems);
         }
 
         FlagSettings normalized = settings.Audience is null

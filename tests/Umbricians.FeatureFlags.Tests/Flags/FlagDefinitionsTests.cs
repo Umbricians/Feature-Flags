@@ -36,25 +36,13 @@ public class FlagDefinitionsTests
         Assert.That(reason, Does.Contain("can't be read"));
     }
 
-    [TestCase("""{ "id": "F", "enabled": true, "conditions": { "client_filters": [ { "name": "Microsoft.TimeWindow", "parameters": { "Start": "Mon, 01 Jan 2024 00:00:00 GMT" } } ] } }""", "Microsoft.TimeWindow")]
-    [TestCase("""{ "id": "F", "enabled": true, "conditions": { "client_filters": [ { "name": "Microsoft.Targeting", "parameters": { "Audience": { "DefaultRolloutPercentage": 20 } } } ] } }""", "percentage of everyone")]
-    [TestCase("""{ "id": "F", "enabled": true, "conditions": { "client_filters": [ { "name": "Microsoft.Targeting", "parameters": { "Audience": { "Groups": [ { "Name": "g", "RolloutPercentage": 50 } ] } } } ] } }""", "percentage of a group")]
-    [TestCase("""{ "id": "F", "enabled": true, "conditions": { "client_filters": [ { "name": "Microsoft.Targeting", "parameters": { "Audience": { "Users": ["a"], "Exclusion": { "Users": ["b"] } } } } ] } }""", "excludes")]
     [TestCase("""{ "id": "F", "enabled": true, "variants": [ { "name": "Big" } ], "allocation": { "default_when_enabled": "Big" } }""", "variants")]
     public async Task Leaves_what_it_can_not_edit_read_only(string json, string because)
     {
         FlagSettings? settings = FlagDefinitions.ToSettings(await ParseAsync(json), out string? reason);
 
         Assert.That(reason, Does.Contain(because));
-        if (because == "variants")
-        {
-            Assert.That(settings, Is.Null);
-            return;
-        }
-
-        // Everything else is still read as conditions, so it can be shown and kept, but it has no audience to edit.
-        Assert.That(settings!.Conditions, Has.Count.EqualTo(1));
-        Assert.That(settings.Audience, Is.Null);
+        Assert.That(settings, Is.Null);
     }
 
     [Test]
@@ -83,7 +71,7 @@ public class FlagDefinitionsTests
         Assert.That(read!.Match, Is.EqualTo(match));
         Assert.That(read.Conditions.Select(c => c.Name), Is.EqualTo(new[] { "Microsoft.TimeWindow", "Microsoft.Targeting" }));
         Assert.That(read.SameAs(written), Is.True);
-        Assert.That(reason, Does.Contain("several filters"));
+        Assert.That(reason, Is.Null);
     }
 
     [Test]

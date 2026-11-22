@@ -1,5 +1,5 @@
-/** How a flag is evaluated. `custom` is something the backoffice can't edit, such as a time window. */
-export type FlagState = "off" | "everyone" | "audience" | "custom";
+/** How a flag is evaluated. `conditions` is on with conditions registered by the package or a developer; `custom` is something the backoffice can't edit, such as a filter nobody registered. */
+export type FlagState = "off" | "everyone" | "audience" | "conditions" | "custom";
 
 export type FlagDeclaredIn = "configuration" | "flagSource" | "code";
 

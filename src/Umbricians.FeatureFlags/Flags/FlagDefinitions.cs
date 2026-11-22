@@ -23,9 +23,9 @@ internal static class FlagDefinitions
     private const string VariantsReason = "It has variants, which the backoffice can't edit yet.";
 
     /// <summary>
-    /// The settings a definition amounts to, with every filter read as a condition. The reason is set when the backoffice
-    /// can't edit them: anything but no conditions or one targeting filter with members and groups. Null settings, with
-    /// the reason, for variants.
+    /// The settings a definition amounts to, with every filter read as a condition. Null settings, with the reason the
+    /// backoffice can't edit it, for variants. Whether the conditions can be edited depends on which are registered, which
+    /// <see cref="ConditionRegistry"/> says.
     /// </summary>
     public static FlagSettings? ToSettings(FeatureDefinition definition, out string? notEditableReason)
     {
@@ -49,18 +49,16 @@ internal static class FlagDefinitions
             return new FlagSettings(enabled, []);
         }
 
-        var settings = new FlagSettings(
+        return new FlagSettings(
             enabled,
             filters.Select(filter => new FlagCondition(filter.Name ?? "", ToJson(filter.Parameters) as JsonObject ?? new JsonObject())).ToArray(),
             definition.RequirementType == RequirementType.All ? ConditionMatch.All : ConditionMatch.Any);
-        notEditableReason = NotEditableReason(settings);
-        return settings;
     }
 
     /// <summary>
     /// The settings stored override JSON amounts to, read from the JSON itself: Microsoft drops the conditions of a
     /// flag that isn't enabled, which would lose the audience an editor switched off. Every filter is kept as stored.
-    /// Null, with the reason, for JSON that has variants or can't be read.
+    /// Null, with the reason the backoffice can't edit it, for JSON that has variants or can't be read.
     /// </summary>
     public static FlagSettings? ReadOverride(string json, out string? notEditableReason)
     {
@@ -102,9 +100,7 @@ internal static class FlagDefinitions
                 ? ConditionMatch.All
                 : ConditionMatch.Any;
 
-        var settings = new FlagSettings(enabled, conditions, match);
-        notEditableReason = NotEditableReason(settings);
-        return settings;
+        return new FlagSettings(enabled, conditions, match);
     }
 
     /// <summary>A flag's settings as Microsoft's <c>feature_management</c> JSON, for storing as an override.</summary>
@@ -205,32 +201,6 @@ internal static class FlagDefinitions
     private static bool IsAlwaysOn(string? name) =>
         string.Equals(name, AlwaysOnFilter, StringComparison.OrdinalIgnoreCase)
         || string.Equals(name, OnFilter, StringComparison.OrdinalIgnoreCase);
-
-    /// <summary>
-    /// Why the backoffice can't edit these settings, or null when it can: no conditions, or one targeting condition with
-    /// only members and groups.
-    /// </summary>
-    private static string? NotEditableReason(FlagSettings settings)
-    {
-        if (settings.Conditions.Count == 0)
-        {
-            return null;
-        }
-
-        if (settings.Conditions.Count > 1)
-        {
-            return "It combines several filters, which the backoffice can't edit yet.";
-        }
-
-        FlagCondition condition = settings.Conditions[0];
-        if (!FlagSettings.IsTargeting(condition.Name))
-        {
-            return $"It uses the '{condition.Name}' filter, which the backoffice can't edit yet.";
-        }
-
-        FlagAudience.TryRead(condition.Parameters, out string? reason);
-        return reason;
-    }
 
     private static JsonNode? Property(JsonObject? parent, string name) =>
         parent?.FirstOrDefault(property => string.Equals(property.Key, name, StringComparison.OrdinalIgnoreCase)).Value;

@@ -47,6 +47,8 @@ internal static class ServiceCollectionExtensions
         services.TryAddSingleton<ITargetingContextAccessor, MemberTargetingContextAccessor>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IFeatureFilterMetadata, TargetingFilter>());
 
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IFeatureFlagCondition, AudienceCondition>());
+        services.TryAddSingleton<ConditionRegistry>();
         services.TryAddSingleton<CodeFlags>();
         services.TryAddSingleton<PublicFlags>();
         services.TryAddSingleton(provider => new ConfigurationFlagDetails(provider.GetRequiredService<IConfiguration>()));

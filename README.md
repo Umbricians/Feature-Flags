@@ -27,6 +27,8 @@ the members it is on for.
 - **[Audiences](docs/audiences.md)**: how members and member groups are matched, group providers, and identifying
   people another way.
 - **[Using the backoffice](docs/backoffice.md)**: the guide for editors.
+- **[Conditions](docs/conditions.md)**: what a condition is, and registering a rule of your own so the backoffice
+  knows it.
 - **[Notifications](docs/notifications.md)**: react to, or refuse, a change to a flag's override; audit and
   permission examples.
 
@@ -137,6 +139,7 @@ builder.AddFeatureFlags(flags => flags
 | --- | --- |
 | `IFeatureFlagGroupProvider` | Put members in groups by a rule of the site's own, such as "premium in the CRM". Editors pick its groups beside member groups. See [Audiences](docs/audiences.md#group-providers). |
 | `ITargetingContextAccessor` (Microsoft's) | Identify people some other way than Umbraco members. Register your own and it replaces the package's. |
+| `IFeatureFlagCondition` | Tell the backoffice about a feature filter of your own: validate its parameters and summarise it for the list. Register with `AddCondition<T>()`. See [Conditions](docs/conditions.md). |
 | `IFeatureFlagService` | Read flags and change their overrides from code, with the backoffice's rules and no permission checks. Change overrides through this; see [Changing flags from code](docs/declaring-flags.md#changing-flags-from-code). |
 | `IFeatureFlagOverrideStore` | Keep editors' settings somewhere other than the Umbraco database. Register your own and it replaces the package's. Only for where they are kept: change them through `IFeatureFlagService`, because writing to the store skips the rules and the refresh on other servers. |
 | `IFeatureDefinitionProvider` (Microsoft's) | Use your own flag source. Register it before Umbraco is added and Feature Flags puts editors' settings in front of it. |

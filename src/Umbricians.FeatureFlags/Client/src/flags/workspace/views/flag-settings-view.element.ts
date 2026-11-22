@@ -55,7 +55,9 @@ export class FeatureFlagSettingsViewElement extends UmbLitElement {
             </uui-box>`
           : nothing}
         <uui-box headline=${this.localize.term("umbriciansFeatureFlags_columnState")}>
-          ${flag.flag.state === "custom" && !flag.flag.actions.save.allowed
+          ${flag.flag.state === "conditions"
+            ? html`<p>${this.localize.term("umbriciansFeatureFlags_conditionsState")}</p>`
+            : flag.flag.state === "custom" && !flag.flag.actions.save.allowed
             ? html`<p>${this.localize.term("umbriciansFeatureFlags_customState")}</p>`
             : html`<uui-radio-group
                   .value=${this._mode}

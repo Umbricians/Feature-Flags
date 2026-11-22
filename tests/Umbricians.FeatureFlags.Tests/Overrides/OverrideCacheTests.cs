@@ -43,7 +43,7 @@ public class OverrideCacheTests
     }
 
     [Test]
-    public async Task An_override_the_backoffice_can_not_edit_has_a_definition_and_conditions_but_a_reason()
+    public async Task An_override_with_a_filter_has_a_definition_and_conditions()
     {
         var site = new TestSite();
         site.Store.WithJson("F", """{ "id": "F", "enabled": true, "conditions": { "client_filters": [ { "name": "Microsoft.TimeWindow", "parameters": { "Start": "Mon, 01 Jan 2024 00:00:00 GMT" } } ] } }""");
@@ -52,7 +52,7 @@ public class OverrideCacheTests
 
         Assert.That(saved.Definition, Is.Not.Null);
         Assert.That(saved.Settings!.Conditions.Single().Name, Is.EqualTo("Microsoft.TimeWindow"));
-        Assert.That(saved.NotEditableReason, Does.Contain("Microsoft.TimeWindow"));
+        Assert.That(saved.NotEditableReason, Is.Null);
     }
 
     [Test]
