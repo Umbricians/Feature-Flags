@@ -5,7 +5,7 @@
 [![NuGet](https://img.shields.io/nuget/v/Umbricians.FeatureFlags?label=NuGet)](https://www.nuget.org/packages/Umbricians.FeatureFlags)
 [![Build](https://github.com/Umbricians/Feature-Flags/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/Umbricians/Feature-Flags/actions/workflows/build.yml)
 
-Switch the site's feature flags on and off from the Umbraco backoffice, for everyone or only for chosen members and member groups, built on Microsoft.FeatureManagement. (Umbraco 17.8.0+)
+Switch the site's feature flags on and off from the Umbraco backoffice, for everyone or only for chosen members and member groups, built on Microsoft.FeatureManagement. (Umbraco 17.8.2+)
 
 Developers declare flags in appsettings or code and check them with
 [Microsoft.FeatureManagement](https://learn.microsoft.com/azure/azure-app-configuration/feature-management-dotnet-reference),
@@ -167,7 +167,7 @@ token, examples, the endpoints, the status codes and what is promised.
 
 ```
 src/Umbricians.FeatureFlags                     the package (Razor class library + Client/ TypeScript)
-demo/Umbricians.FeatureFlags.Demo               Umbraco 17.8.0 site on SQLite that references the package
+demo/Umbricians.FeatureFlags.Demo               Umbraco 17.8.2 site on SQLite that references the package
 tests/Umbricians.FeatureFlags.Tests             NUnit tests, run with `dotnet test`
 tests/Umbricians.FeatureFlags.IntegrationTests  NUnit tests on a real Umbraco and SQL Server; see CONTRIBUTING.md
 tests/Umbricians.FeatureFlags.TestSite          the Umbraco site the integration tests start

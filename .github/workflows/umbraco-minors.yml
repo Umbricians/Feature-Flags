@@ -77,7 +77,7 @@ jobs:
           npm run typecheck
           npm test
 
-      # The tests pin Microsoft.Data.SqlClient to what Umbraco 17.8.0 brings; a newer Umbraco may bring a newer one, and a
+      # The tests pin Microsoft.Data.SqlClient to what Umbraco 17.8.2 brings; a newer Umbraco may bring a newer one, and a
       # pin below it fails restore (NU1605). The newest stable is never below what Umbraco brings.
       - name: Find the SqlClient version
         id: sqlclient

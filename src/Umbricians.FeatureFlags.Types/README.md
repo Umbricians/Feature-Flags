@@ -8,4 +8,4 @@ Types only: there is no runtime code. There are no constants to import: write th
 literal aliases (such as `FeatureFlagEntityType`) where you want a typo to fail to compile. See
 [Extending the backoffice](https://github.com/Umbricians/Feature-Flags/blob/develop/docs/backoffice.md#extending-the-backoffice).
 
-The surface is promised within one Umbraco major version; this package's peer dependency is `@umbraco-cms/backoffice` `^17.0.0`.
+The surface is promised within one Umbraco major version; this package's peer dependency is `@umbraco-cms/backoffice` `^17.8.2`.

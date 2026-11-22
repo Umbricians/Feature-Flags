@@ -25,12 +25,12 @@
   ],
   "sideEffects": false,
   "peerDependencies": {
-    "@umbraco-cms/backoffice": "^17.0.0"
+    "@umbraco-cms/backoffice": "^17.8.2"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",
-    "@umbraco-cms/backoffice": "17.8.0",
-    "typescript": "^5.9.3"
+    "@umbraco-cms/backoffice": "17.8.2",
+    "typescript": "^7.0.2"
   },
   "scripts": {
     "typecheck": "tsc --noEmit && node test/check-declarations.mjs",
