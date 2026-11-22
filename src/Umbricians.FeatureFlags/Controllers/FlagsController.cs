@@ -76,7 +76,7 @@ internal sealed class FlagsController : FeatureFlagsControllerBase
     {
         FlagListResult result = await _list.PageAsync(new FlagListRequest(skip, take, filter, state, show, marks, section, tag, orderBy), cancellationToken);
         return result.Problem is { } problem
-            ? BadRequest(new ProblemDetails { Title = problem.Title, Detail = problem.Detail })
+            ? BadRequest(new ProblemDetails { Type = ProblemTypes.Error, Title = problem.Title, Detail = problem.Detail })
             : Ok(new PagedViewModel<FlagResponseModel> { Total = result.Total, Items = await _responses.ListAsync(result.Items, cancellationToken) });
     }
 
@@ -105,7 +105,7 @@ internal sealed class FlagsController : FeatureFlagsControllerBase
     {
         FeatureFlag? flag = await _flags.GetAsync(name, cancellationToken);
         return flag is null
-            ? NotFound(new ProblemDetails { Title = "Flag not found", Detail = $"No flag source declares '{name}', and it has no saved setting." })
+            ? NotFound(new ProblemDetails { Type = ProblemTypes.Error, Title = "Flag not found", Detail = $"No flag source declares '{name}', and it has no saved setting." })
             : Ok(await _responses.FlagAsync(flag, cancellationToken));
     }
 
@@ -151,7 +151,7 @@ internal sealed class FlagsController : FeatureFlagsControllerBase
         {
             if (!Guid.TryParse(text, out Guid key))
             {
-                return BadRequest(new ProblemDetails { Title = "Invalid keys", Detail = $"'{text}' isn't a key." });
+                return BadRequest(new ProblemDetails { Type = ProblemTypes.Error, Title = "Invalid keys", Detail = $"'{text}' isn't a key." });
             }
 
             asked.Add(key);

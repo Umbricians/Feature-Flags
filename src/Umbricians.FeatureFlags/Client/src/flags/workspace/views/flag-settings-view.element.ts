@@ -68,19 +68,19 @@ export class FeatureFlagSettingsViewElement extends UmbLitElement {
               ${save.reason ?? this.localize.term("umbriciansFeatureFlags_needManage")}
             </uui-box>`
           : nothing}
-        <uui-box headline=${this.localize.term("umbriciansFeatureFlags_columnState")}>
-          ${isCustom(flag)
-            ? html`<p>${this.localize.term("umbriciansFeatureFlags_customState")}</p>`
-            : html`<uui-radio-group
-                  .value=${this._mode}
-                  ?disabled=${readOnly}
-                  @change=${(e: UUIRadioGroupEvent) => this.#context?.setMode(e.target.value as FlagEditorMode)}>
-                  ${(["off", "everyone", "conditions"] as const).map(
-                    (mode) => html`<uui-radio value=${mode} label=${stateLabel(this.localize, mode)}></uui-radio>`,
-                  )}
-                </uui-radio-group>
-                <p class="hint state-help">${this.localize.term(helpTerms[this._mode])}</p>`}
-        </uui-box>
+        ${isCustom(flag)
+          ? nothing
+          : html`<uui-box headline=${this.localize.term("umbriciansFeatureFlags_columnState")}>
+              <uui-radio-group
+                .value=${this._mode}
+                ?disabled=${readOnly}
+                @change=${(e: UUIRadioGroupEvent) => this.#context?.setMode(e.target.value as FlagEditorMode)}>
+                ${(["off", "everyone", "conditions"] as const).map(
+                  (mode) => html`<uui-radio value=${mode} label=${stateLabel(this.localize, mode)}></uui-radio>`,
+                )}
+              </uui-radio-group>
+              <p class="hint state-help">${this.localize.term(helpTerms[this._mode])}</p>
+            </uui-box>`}
         ${this._mode === "conditions" && !isCustom(flag) ? this.#renderConditions(flag, readOnly) : nothing}
       </div>
       <div class="side">${this.#renderInfo(flag)}</div>
@@ -94,7 +94,6 @@ export class FeatureFlagSettingsViewElement extends UmbLitElement {
       ${withoutEditor && flag.summary
         ? html`<p class="hint">${this.localize.term("umbriciansFeatureFlags_currently", flag.summary)}</p>`
         : nothing}
-      ${conditions.length === 0 ? html`<p class="hint">${this.localize.term("umbriciansFeatureFlags_noConditions")}</p>` : nothing}
       ${repeat(
         conditions,
         // Two conditions may share a name, so a condition is told apart by where it is as well.
@@ -178,7 +177,7 @@ export class FeatureFlagSettingsViewElement extends UmbLitElement {
         look="placeholder"
         popovertarget="add-condition"
         label=${this.localize.term("umbriciansFeatureFlags_addCondition")}></uui-button>
-      <uui-popover-container id="add-condition" placement="bottom-start">
+      <uui-popover-container id="add-condition" placement="top-start">
         <umb-popover-layout>
           ${this._addable.length === 0
             ? html`<p class="hint menu-empty">${this.localize.term("umbriciansFeatureFlags_noMoreConditions")}</p>`
@@ -191,9 +190,24 @@ export class FeatureFlagSettingsViewElement extends UmbLitElement {
   }
 
   #blockerText(blocker: SaveBlocker) {
-    return blocker.kind === "noEditor"
-      ? this.localize.term("umbriciansFeatureFlags_cannotSaveNoEditor", blocker.names.join(", "))
-      : this.localize.term("umbriciansFeatureFlags_cannotSaveNoConditions");
+    switch (blocker.kind) {
+      case "noEditor":
+        return this.localize.term("umbriciansFeatureFlags_cannotSaveNoEditor", blocker.names.join(", "));
+      case "nobody":
+        return this.localize.term("umbriciansFeatureFlags_cannotSaveNobody");
+      case "noSites":
+        return this.localize.term("umbriciansFeatureFlags_cannotSaveNoSites");
+      case "timeWindow":
+        return this.localize.term(
+          blocker.problem === "neither"
+            ? "umbriciansFeatureFlags_cannotSaveWindowNeither"
+            : blocker.problem === "startNotBeforeEnd"
+              ? "umbriciansFeatureFlags_cannotSaveWindowOrder"
+              : "umbriciansFeatureFlags_cannotSaveWindowUnreadable",
+        );
+      default:
+        return this.localize.term("umbriciansFeatureFlags_cannotSaveNoConditions");
+    }
   }
 
   #renderInfo(flag: FeatureFlag) {

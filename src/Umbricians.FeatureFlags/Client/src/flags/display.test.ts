@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { FlagActions } from "../api/types.ts";
-import { ALL_SECTIONS, audienceParts, excludedParts, joinList, mayDo, quickAction, sectionFromOption, sectionOption, sections, shortName } from "./display.ts";
+import { ALL_SECTIONS, audienceParts, conditionsOnSwitchOn, listNote, excludedParts, joinList, mayDo, quickAction, sectionFromOption, sectionOption, sections, shortName } from "./display.ts";
 
 test("the section is taken off the front of the name", () => {
   assert.equal(shortName({ name: "Checkout.NewFlow", section: "Checkout" }), "NewFlow");
@@ -86,4 +86,36 @@ test("\"all sections\" is its own option and means no section filter", () => {
   assert.equal(sectionFromOption(ALL_SECTIONS), null);
   assert.equal(sectionFromOption(""), "");
   assert.equal(sectionFromOption("Checkout"), "Checkout");
+});
+
+test("switching on a flag that keeps conditions describes them, and one without says nothing of conditions", () => {
+  const settings = (conditions: Array<{ name: string; parameters: Record<string, unknown> }>) => ({ enabled: false, conditions, match: "any" as const });
+  const window = [{ name: "Microsoft.TimeWindow", parameters: {} }];
+  assert.equal(conditionsOnSwitchOn({ settings: settings(window), summary: "From 1 Dec" }), "From 1 Dec");
+  assert.equal(conditionsOnSwitchOn({ settings: settings(window), summary: null }), "");
+  assert.equal(conditionsOnSwitchOn({ settings: settings([]), summary: null }), null);
+  assert.equal(conditionsOnSwitchOn({ settings: null, summary: null }), null);
+});
+
+const note = (state: "off" | "everyone" | "audience" | "conditions" | "custom", audience: boolean, summary: string | null, conditions = 1) => ({
+  state,
+  audience: audience ? { members: 1, memberGroups: 0, groups: 0, defaultPercentage: 0, excludedMembers: 0, excludedGroups: 0 } : null,
+  summary,
+  settings: { enabled: state !== "off", conditions: Array.from({ length: conditions }, () => ({ name: "X", parameters: {} })), match: "any" as const },
+});
+
+test("the list notes a conditions flag by its summary, so a time window shows", () => {
+  assert.deepEqual(listNote(note("conditions", false, "From 1 Dec")), { kind: "summary", text: "From 1 Dec" });
+  assert.deepEqual(listNote(note("conditions", true, "1 member; From 1 Dec")), { kind: "summary", text: "1 member; From 1 Dec" });
+});
+
+test("the list notes an audience flag by its audience, and a flag that is off by what it keeps", () => {
+  assert.deepEqual(listNote(note("audience", true, "1 member")), { kind: "audience" });
+  assert.deepEqual(listNote(note("off", true, "1 member")), { kind: "audience" });
+  assert.deepEqual(listNote(note("off", false, "From 1 Dec")), { kind: "summary", text: "From 1 Dec" });
+});
+
+test("the list has no note for a flag with nothing to say", () => {
+  assert.equal(listNote(note("everyone", false, null, 0)), null);
+  assert.equal(listNote(note("conditions", false, null)), null);
 });

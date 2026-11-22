@@ -68,7 +68,7 @@ CRM". It names the groups it offers, so editors can pick them, and says which of
 ## Member
 
 A person signed in to the site's front end through Umbraco members. Who flags are evaluated for. A visitor who
-isn't signed in is anonymous and is in no audience.
+isn't signed in is anonymous: in no audience, and never counted by a percentage.
 
 ## Override
 
@@ -78,7 +78,7 @@ Each site has its own overrides. Removed by resetting.
 ## Public flag
 
 A flag a developer has said a front end may ask about. Flags are private unless declared public, because their
-names can reveal features not yet released. Editors can see whether a flag is public but not change it.
+names can reveal features not yet released. The [headless endpoint](docs/headless.md) serves only public flags. Editors can see whether a flag is public but not change it.
 
 ## Reset
 
@@ -87,7 +87,7 @@ Removing a flag's override, so the flag goes back to its default.
 ## Root
 
 A top-level node in the Content tree and the domains assigned to it, such as the UK shop, on an install that runs
-several. A flag can be limited to chosen roots. Not the [site](#site): one site can have many roots. _Avoid_: site
+several. A flag can be limited to chosen roots, which are stored by the root's key. Not the [site](#site): one site can have many roots. _Avoid_: site
 (for a root), website, except in the backoffice's labels for editors, such as "Only on these sites".
 
 ## Section

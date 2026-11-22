@@ -41,6 +41,20 @@ public class FlagDiagnosticsTests
         public Task<IEnumerable<string>> GetGroupIdsForMemberAsync(FeatureFlagMember member, CancellationToken cancellationToken) => Task.FromResult<IEnumerable<string>>([]);
     }
 
+    private sealed class WatchedGroups : IFeatureFlagGroupProvider
+    {
+        public CancellationToken Seen { get; private set; }
+
+        public async Task<IEnumerable<FeatureFlagGroup>> GetGroupsAsync(CancellationToken cancellationToken)
+        {
+            Seen = cancellationToken;
+            await Task.Delay(Timeout.Infinite, CancellationToken.None);
+            return [];
+        }
+
+        public Task<IEnumerable<string>> GetGroupIdsForMemberAsync(FeatureFlagMember member, CancellationToken cancellationToken) => Task.FromResult<IEnumerable<string>>([]);
+    }
+
     private static async Task<IReadOnlyList<DiagnosticResult>> Run(TestSite site) =>
         await site.Provider.GetRequiredService<FlagDiagnostics>().RunAsync(default);
 
@@ -431,5 +445,16 @@ public class FlagDiagnosticsTests
 
         Assert.That(failing, Has.Count.EqualTo(1));
         Assert.That(watch.ElapsedMilliseconds, Is.LessThan(1000));
+    }
+
+    [Test]
+    public async Task A_group_provider_that_times_out_has_its_token_cancelled()
+    {
+        var watched = new WatchedGroups();
+        var site = new TestSite(before: services => services.AddSingleton<IFeatureFlagGroupProvider>(watched));
+
+        await site.Provider.GetRequiredService<AudienceGroups>().FindFailingProvidersAsync(TimeSpan.FromMilliseconds(50), default);
+
+        Assert.That(watched.Seen.IsCancellationRequested, Is.True);
     }
 }

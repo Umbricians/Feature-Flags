@@ -170,8 +170,9 @@ week to find a break early.
 ### The npm package
 
 `@umbricians/feature-flags` has the types only, with `@umbraco-cms/backoffice` `^17.0.0` as a peer dependency.
-It has no runtime code, so a `declare const` in it has no value when your code runs: write the string, or build a
-token from it. The types make a misspelt string fail to compile.
+It has no runtime code, so there are no constants to import: write the strings, or build a token from them. Where you
+want a misspelt string to fail to compile, type it with the package's string literal aliases, such as
+`FeatureFlagEntityType` (`"umbricians-feature-flags-flag"`).
 
 ```ts
 import type { FeatureFlag, UmbriciansFeatureFlagWorkspaceContext } from "@umbricians/feature-flags";
@@ -236,6 +237,22 @@ Register an ordinary Umbraco entity action for the flag entity type. It receives
   api: () => import("./show-usage.action.js"),
   meta: { icon: "icon-search", label: "Show usage" },
 }
+```
+
+Its api extends Umbraco's `UmbEntityActionBase`; `this.args.unique` is the flag's name:
+
+```ts
+// show-usage.action.ts
+import { UmbEntityActionBase } from "@umbraco-cms/backoffice/entity-action";
+import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
+
+export class ShowUsageAction extends UmbEntityActionBase<never> {
+  override async execute() {
+    const notifications = await this.getContext(UMB_NOTIFICATION_CONTEXT);
+    notifications?.peek("positive", { data: { headline: "Flag usage", message: this.args.unique! } });
+  }
+}
+export { ShowUsageAction as api };
 ```
 
 It appears in the actions menu in the flag's workspace header and on that flag's row or card in the list. Feature Flags

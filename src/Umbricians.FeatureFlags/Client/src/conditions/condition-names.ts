@@ -20,6 +20,13 @@ export function findByName<T>(items: ReadonlyArray<T>, nameOf: (item: T) => stri
   return items.find((item) => nameOf(item).toLowerCase() === used.toLowerCase()) ?? items.find((item) => namesMatch(nameOf(item), used));
 }
 
+/** The name of Microsoft's time window condition. */
+export const TIME_WINDOW_CONDITION = "Microsoft.TimeWindow";
+
+export function isTimeWindow(name: string): boolean {
+  return namesMatch(TIME_WINDOW_CONDITION, name);
+}
+
 export function isRoot(name: string): boolean {
   return namesMatch(ROOT_CONDITION, name);
 }

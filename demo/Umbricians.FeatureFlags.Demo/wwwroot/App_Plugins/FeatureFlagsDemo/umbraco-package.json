@@ -1,0 +1,14 @@
+{
+  "$schema": "../../../umbraco-package-schema.json",
+  "id": "Umbricians.FeatureFlags.Demo",
+  "name": "Feature Flags demo: developer extension",
+  "version": "1.0.0",
+  "extensions": [
+    {
+      "name": "Feature Flags Demo Bundle",
+      "alias": "FeatureFlagsDemo.Bundle",
+      "type": "bundle",
+      "js": "/App_Plugins/FeatureFlagsDemo/manifests.js"
+    }
+  ]
+}

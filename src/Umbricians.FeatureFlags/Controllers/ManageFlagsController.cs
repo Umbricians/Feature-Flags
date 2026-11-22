@@ -42,12 +42,12 @@ internal sealed class ManageFlagsController : FeatureFlagsControllerBase
     {
         if (!ApiNames.TryParseMatch(request.Match, out ConditionMatch match))
         {
-            return BadRequest(new ProblemDetails { Title = "Invalid match", Detail = "match must be 'any' or 'all'." });
+            return BadRequest(new ProblemDetails { Type = ProblemTypes.Error, Title = "Invalid match", Detail = "match must be 'any' or 'all'." });
         }
 
         if (request.Conditions.Any(condition => condition is null))
         {
-            return BadRequest(new ProblemDetails { Title = "Invalid conditions", Detail = "Every condition must be an object with a name and parameters, not null." });
+            return BadRequest(new ProblemDetails { Type = ProblemTypes.Error, Title = "Invalid conditions", Detail = "Every condition must be an object with a name and parameters, not null." });
         }
 
         var settings = new FlagSettings(
@@ -88,7 +88,7 @@ internal sealed class ManageFlagsController : FeatureFlagsControllerBase
                     ? Ok(await _responses.FlagAsync(flag, cancellationToken))
                     : Ok();
             case FeatureFlagResultStatus.NotFound:
-                return NotFound(new ProblemDetails { Title = "Flag not found", Detail = $"No flag source declares '{name}'." });
+                return NotFound(new ProblemDetails { Type = ProblemTypes.Error, Title = "Flag not found", Detail = $"No flag source declares '{name}'." });
             case FeatureFlagResultStatus.Cancelled:
                 return Conflict(Cancelled(result.Messages));
             default:
@@ -99,7 +99,7 @@ internal sealed class ManageFlagsController : FeatureFlagsControllerBase
     /// <summary>The rules refused the change: the reason is the detail, and any problems with conditions are listed in <c>problems</c> as well.</summary>
     private static ProblemDetails NotAllowed(FeatureFlagResult result)
     {
-        var problem = new ProblemDetails { Title = "Flag can't be changed here", Detail = result.Reason };
+        var problem = new ProblemDetails { Type = ProblemTypes.Error, Title = "Flag can't be changed here", Detail = result.Reason };
         if (result.Problems.Count > 0)
         {
             problem.Extensions["problems"] = result.Problems;
@@ -113,6 +113,7 @@ internal sealed class ManageFlagsController : FeatureFlagsControllerBase
     {
         var problem = new ProblemDetails
         {
+            Type = ProblemTypes.Error,
             Title = "Flag can't be changed here",
             Detail = messages.Count > 0 ? string.Join(" ", messages) : "A handler of the Feature Flags notifications cancelled the change.",
         };

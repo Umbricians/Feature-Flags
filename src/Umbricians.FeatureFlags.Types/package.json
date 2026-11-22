@@ -33,7 +33,7 @@
     "typescript": "^5.9.3"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && node test/check-declarations.mjs",
     "test": "node --test --experimental-strip-types --import ../Umbricians.FeatureFlags/Client/test/resolve-ts.mjs \"test/*.test.ts\"",
     "pack:check": "npm pack --dry-run"
   }

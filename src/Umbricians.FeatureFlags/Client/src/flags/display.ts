@@ -77,6 +77,26 @@ export function quickAction(
   return { ...mayDo(item, kind, canManage), kind };
 }
 
+/**
+ * What switching a flag on brings back, for the list's confirmation: its saved conditions, in one line, when it has any
+ * (a flag that is off keeps them), otherwise null. An empty string means it has conditions but nothing to describe them.
+ */
+export function conditionsOnSwitchOn(item: Pick<FeatureFlag, "settings" | "summary">): string | null {
+  return (item.settings?.conditions.length ?? 0) > 0 ? (item.summary ?? "") : null;
+}
+
+/**
+ * What the list says under a flag's state: its conditions' summary when it is on with conditions (the audience alone
+ * would leave out a time window), otherwise its audience in words, and for a flag that is off with conditions but no
+ * audience, the summary of what it keeps. Null when there is nothing to say.
+ */
+export function listNote(item: Pick<FeatureFlag, "state" | "audience" | "summary" | "settings">): { kind: "audience" } | { kind: "summary"; text: string } | null {
+  if (item.state === "conditions" && item.summary) return { kind: "summary", text: item.summary };
+  if (item.audience) return { kind: "audience" };
+  if (item.state === "off" && item.summary && (item.settings?.conditions.length ?? 0) > 0) return { kind: "summary", text: item.summary };
+  return null;
+}
+
 /** The tag colour for a state. */
 export function stateColor(state: FlagState): "default" | "positive" | "warning" {
   return state === "everyone" ? "positive" : state === "custom" ? "warning" : "default";

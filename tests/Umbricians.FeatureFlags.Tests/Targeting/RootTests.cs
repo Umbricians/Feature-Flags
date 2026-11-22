@@ -315,4 +315,14 @@ public class RootTests
     {
         Assert.That(LocatorFor(new DefaultHttpContext()).IsRouted(), Is.False);
     }
+
+    [Test]
+    public void A_virtual_page_is_not_routed_until_its_published_request_is_filled_in()
+    {
+        var http = new DefaultHttpContext();
+        var metadata = new Microsoft.AspNetCore.Http.EndpointMetadataCollection(new Umbraco.Cms.Web.Common.Filters.UmbracoVirtualPageFilterAttribute());
+        http.SetEndpoint(new Microsoft.AspNetCore.Http.Endpoint(_ => Task.CompletedTask, metadata, "virtual"));
+
+        Assert.That(LocatorFor(http).IsRouted(), Is.False);
+    }
 }

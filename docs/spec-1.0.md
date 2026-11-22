@@ -39,7 +39,9 @@ public enum ConditionMatch { Any, All }
 ```
 
 - The audience is the built-in `Microsoft.Targeting` condition. `settings.Audience` reads it and
-  `FlagSettings.ForAudience(audience)` builds it. `FlagAudience` is public.
+  `FlagSettings.ForAudience(bool enabled, FlagAudience? audience)` builds it (a null audience means everyone).
+  `FlagSettings.Off` is off with no conditions, and `FlagAudience.Empty` is an audience that includes nobody.
+  `FlagAudience` is public.
 - **State:** *off*; *on for everyone* (no conditions); *on for an audience* (only the audience); *on with conditions*
   (any other registered conditions); *custom* (a condition nobody registered, or variants: shown, never changed).
 - With two or more conditions, editors choose **Any** or **All**. The default is Any, as Microsoft's. When an editor
@@ -87,9 +89,12 @@ targeting audience:
 - "…and N% of everyone else", and "N% of this group" for each chosen group;
 - "except these members or groups".
 
-Percentages are Microsoft's, sticky for each id, and include **members only**: the editor and the docs say so. The
-package sets no cookie for visitors; the docs show how a developer gives visitors ids with their own
-`ITargetingContextAccessor`.
+Percentages are Microsoft's, sticky for each id, and include **members only**: the editor and the docs say so. To make
+that true, the package replaces Microsoft's targeting filter under the same name (`SignedInTargetingFilter`): a visitor
+who isn't signed in has no id and is never counted by "N% of everyone else" or by a group below 100%. Listed members,
+groups at 100% and exclusions work as in Microsoft's. The package sets no cookie for visitors; the docs show how a
+developer gives visitors ids with their own `ITargetingContextAccessor`. The backoffice won't save an audience that
+names no member or group and gives no percentage, since it would be on for nobody.
 
 ### Time window (`Microsoft.TimeWindow`)
 
@@ -135,7 +140,7 @@ public interface IFeatureFlagService
 
 - **`FeatureFlag`**, the public read model, is what the backoffice sees: the name; whether, where and whether twice
   it is declared; section, description, tags and whether it is [public](#headless); its state and default; its
-  override (settings, who, when); whether that differs from the default; and its actions (switch, save, reset,
+  override (as stored, who, when), with its settings in `Settings`; whether that differs from the default; and its actions (switch, save, reset,
   remove), each allowed or not, with a reason. Undeclared flags are included. There's no filtering or paging;
   developers use LINQ.
 - **Rules** are the backoffice's (read-only mode, undeclared flags can't be saved, custom flags can't be switched,
@@ -186,6 +191,11 @@ From [The Management API as a public contract](https://github.com/Umbricians/Fea
 - **Shapes mirror the C# types.** The save body is `{ enabled, conditions: [{ name, parameters }], match }`, and a
   flag is `FeatureFlag`. The `{ enabled, audience }` body is dropped. The [npm types package](#publishing) describes
   the same shapes.
+- **Reading:** `GET flags`, `GET flags/summary`, `GET flag`, `GET provider-groups`, `GET conditions` (the registered
+  conditions, as `{ name, displayName }`) and `GET roots` (the sites a Root condition can name, as
+  `{ key, name, domains, deleted }`).
+- **Problems:** when a save is refused because conditions are invalid or unregistered, the 409's problem details carry
+  a `problems` list with each problem, beside the joined `detail`.
 - **Last save wins.** No `ETag` or `If-Match` in 1.0; they can be added later without breaking anything.
 - **No bulk endpoint:** scripts call `PUT flag` once per flag.
 - **Versioning:** the `v1` in the path follows the package's major version. A breaking change ships in 2.0 as
@@ -199,7 +209,7 @@ From [Telling a headless front end which flags are on](https://github.com/Umbric
   until a developer switches it on** with `Umbricians:FeatureFlags:Headless:Enabled: true` in appsettings, beside
   `Overrides`, so it can differ by environment; and it follows the Delivery API's access settings:
   when the Delivery API isn't public, it needs the same `Api-Key`.
-- **Only public flags.** A developer marks a flag public with `public: true` in `Declare(...)`, `"public": true`
+- **Only public flags.** A developer marks a flag public with `isPublic: true` in `Declare(...)`, `"public": true`
   beside `section` and `tags` in appsettings, or, for a flag from any flag source (a site's own provider, Azure App
   Configuration), by naming it with `flags.MakePublic("Checkout.ExpressPay", …)` in `AddFeatureFlags`. Flags are
   private by default. The flag list shows which flags are
@@ -207,7 +217,8 @@ From [Telling a headless front end which flags are on](https://github.com/Umbric
 - **Returns** every public flag and whether it's on for this request, for example
   `{ "Checkout.ExpressPay": true, "Search.Beta": false }`. No audiences, conditions or variants.
 - **Who the member is:** the package's member lookup recognises members signed in with the Delivery API's member
-  tokens as well as the member cookie, for every request, not only this endpoint.
+  tokens as well as the member cookie. A token is recognised on this endpoint and other `/umbraco/` paths; on site
+  pages the member cookie counts.
 - **Root:** the `Start-Item` header, as in the [Root condition](#root-only-on-these-sites).
 - **Caching:** always `Cache-Control: private, no-store`.
 - Flags aren't added to Delivery API content responses, which are cached and the same for everyone.
@@ -263,6 +274,9 @@ dashboard agree.
 | Undeclared flags are waiting to be removed | Info, with a count |
 | Overrides are read-only | Info |
 | Flags whose state is custom | Info, with a count |
+| Two filters share a name, so Microsoft can't tell them apart | Error |
+| The headless endpoint is on but no flag is public | Warning |
+| A check couldn't run | Warning |
 | Everything is fine | Success |
 
 - Errors and warnings name the flags. Info results only count them, because the dashboard is open to users who may
@@ -289,11 +303,12 @@ need agreeing in review.
 
 | Area | Promised |
 | --- | --- |
-| C# | `IFeatureFlagService`, `FeatureFlag`, `FeatureFlagResult`, `FlagSettings`, `FlagCondition`, `ConditionMatch`, `FlagAudience`, `IFeatureFlagCondition`, the four notifications and the cause, `IFeatureFlagOverrideStore` |
-| C# (*proposed*) | `IFeatureFlagGroupProvider`, `AddFeatureFlags` and its builder, the settings under `Umbricians:FeatureFlags` |
+| C# | `IFeatureFlagService`, `FeatureFlag` with `FeatureFlagState`, `FeatureFlagDeclaredIn` and `FeatureFlagActions`/`FeatureFlagAction`, `FeatureFlagResult` with `FeatureFlagResultStatus`, `FlagSettings`, `FlagCondition`, `ConditionMatch`, `FlagAudience`, `IFeatureFlagCondition`, the four notifications with `FeatureFlagChangeCause`, `FeatureFlagsCacheRefresherNotification`, `IFeatureFlagOverrideStore` with `FeatureFlagOverride`, `Constants.Permissions` |
+| C# (*proposed*) | `IFeatureFlagGroupProvider` with `FeatureFlagGroup` and `FeatureFlagMember`, `AddFeatureFlags` and its builder, the settings under `Umbricians:FeatureFlags` (`FeatureFlagsOptions`, `FeatureFlagsOverrides`, `FeatureFlagsHeadless`) |
+| Not promised | types that are public only so Umbraco can find them: the composer and the migration plan and its steps; the other members of `Constants` |
 | Behaviour | a save is seen by the next check on the same server; notifications fire as above |
 | Management API | every `v1` endpoint, field, query parameter and status code. Adding endpoints, fields or parameters doesn't break it. Not human-readable text, and not the order of items except where `orderBy` sets it. |
-| Headless (*proposed*) | the endpoint, its response shape, the `public` declaration, `MakePublic` and the `Headless:Enabled` setting |
+| Headless (*proposed*) | the endpoint, its response shape, the `public` declaration (`isPublic:` in C#), `MakePublic` and the `Headless:Enabled` setting |
 | Backoffice | the list under [Backoffice extension surface](#backoffice-extension-surface) |
 
 ## Not in 1.0

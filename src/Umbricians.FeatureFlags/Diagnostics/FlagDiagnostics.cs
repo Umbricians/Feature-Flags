@@ -86,7 +86,7 @@ internal sealed class FlagDiagnostics(
             OverrideCache.Snapshot read = await overrides.GetAsync(cancellationToken);
 
             // While a retry runs in the background the cache keeps its old error; read afresh, so a problem that has been fixed isn't reported.
-            return read.ReadError is null ? read : await ReloadedAsync(read);
+            return read.ReadError is null ? read : await ReloadedAsync(cancellationToken);
         });
         if (snapshot?.ReadError is { } readError)
         {
@@ -220,10 +220,10 @@ internal sealed class FlagDiagnostics(
         return results;
     }
 
-    private async Task<OverrideCache.Snapshot> ReloadedAsync(OverrideCache.Snapshot stale)
+    private async Task<OverrideCache.Snapshot> ReloadedAsync(CancellationToken cancellationToken)
     {
-        await overrides.ReloadAsync();
-        return await overrides.GetAsync();
+        await overrides.ReloadAsync().WaitAsync(cancellationToken);
+        return await overrides.GetAsync(cancellationToken);
     }
 
     private static string Count(int count) => count == 1 ? "1 flag is" : $"{count} flags are";

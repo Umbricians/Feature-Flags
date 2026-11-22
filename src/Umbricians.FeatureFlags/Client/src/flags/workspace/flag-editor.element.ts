@@ -3,6 +3,7 @@ import { UmbLitElement } from "@umbraco-cms/backoffice/lit-element";
 import type { FeatureFlag } from "../../api/feature-flags.resource.js";
 import { mayDo } from "../display.js";
 import { flagListPath } from "../paths.js";
+import { observeFlagEntityActions } from "../entity-actions.js";
 import { FEATURE_FLAG_WORKSPACE_CONTEXT } from "./flag-workspace.context-token.js";
 
 /**
@@ -20,9 +21,11 @@ export class FeatureFlagEditorElement extends UmbLitElement {
   @state() private _saving = false;
   @state() private _canManage = false;
   @state() private _blocked = false;
+  @state() private _hasEntityActions = false;
 
   constructor() {
     super();
+    observeFlagEntityActions(this, (any) => (this._hasEntityActions = any));
     this.consumeContext(FEATURE_FLAG_WORKSPACE_CONTEXT, (context) => {
       this.#context = context;
       if (!context) return;
@@ -47,8 +50,8 @@ export class FeatureFlagEditorElement extends UmbLitElement {
       .backPath=${flagListPath()}
       ?loading=${this._loading && !flag}
       ?notFound=${this._notFound}>
-      <!-- The entity actions developers registered for the flag entity type. -->
-      <umb-workspace-entity-action-menu slot="action-menu"></umb-workspace-entity-action-menu>
+      <!-- The entity actions developers registered for the flag entity type; no menu when there are none. -->
+      ${this._hasEntityActions ? html`<umb-workspace-entity-action-menu slot="action-menu"></umb-workspace-entity-action-menu>` : nothing}
       ${this._dirty
         ? html`<uui-tag slot="actions" color="warning" look="secondary">${this.localize.term("umbriciansFeatureFlags_unsaved")}</uui-tag>`
         : nothing}

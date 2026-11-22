@@ -21,7 +21,7 @@ internal enum AudienceGroupKind
 }
 
 /// <summary>A group id from an audience, with what it is and, when the site knows it, its name.</summary>
-internal sealed record AudienceGroup(string Id, AudienceGroupKind Kind, string? Name);
+internal sealed record AudienceGroup(string Id, AudienceGroupKind Kind, string? Name, Guid? MemberGroupKey = null);
 
 /// <summary>
 /// Reads, once per request, what every group is: the site's member groups and the groups every group provider offers.
@@ -63,7 +63,18 @@ internal sealed class AudienceGroups(IMemberGroups memberGroups, IEnumerable<IFe
             {
                 using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 limit.CancelAfter(timeout);
-                await Task.Run(() => provider.GetGroupsAsync(limit.Token), CancellationToken.None).WaitAsync(timeout, cancellationToken);
+                Task call = Task.Run(() => provider.GetGroupsAsync(limit.Token), CancellationToken.None);
+                try
+                {
+                    await call.WaitAsync(timeout, cancellationToken);
+                }
+                finally
+                {
+                    // Tell a call still hanging to stop, and read what it throws later so nothing goes unobserved.
+                    limit.Cancel();
+                    _ = call.ContinueWith(task => _ = task.Exception, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
+                }
+
                 return null;
             }
             catch (Exception exception) when (!cancellationToken.IsCancellationRequested || exception is not OperationCanceledException)
@@ -102,8 +113,9 @@ internal sealed class GroupDirectory(IReadOnlyList<FeatureFlagGroup> providerGro
         }
 
         // Targeting compares group names as they are, so a name matches only exactly.
-        return memberGroups.Any(group => string.Equals(group.Name, id, StringComparison.Ordinal))
-            ? new AudienceGroup(id, AudienceGroupKind.NamedMemberGroup, id)
+        // The member group's key comes along, so the backoffice can show a named group as the member group it is.
+        return memberGroups.FirstOrDefault(group => string.Equals(group.Name, id, StringComparison.Ordinal)) is { } byName
+            ? new AudienceGroup(id, AudienceGroupKind.NamedMemberGroup, id, byName.Key)
             : new AudienceGroup(id, AudienceGroupKind.Unknown, null);
     }
 

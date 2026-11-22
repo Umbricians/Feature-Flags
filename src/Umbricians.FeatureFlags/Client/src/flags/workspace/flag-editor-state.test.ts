@@ -167,8 +167,19 @@ test("a condition with no editor blocks saving unless the flag goes on for every
 });
 
 test("editors are found the way Microsoft finds filters: ignoring case and by short name", () => {
-  const loaded = loadEditor(flag({ conditions: [{ name: "targeting", parameters: {} }, { name: "CULTURE", parameters: {} }] }));
+  const loaded = loadEditor(flag({ conditions: [{ name: "targeting", parameters: { Audience: { Users: ["m1"] } } }, { name: "CULTURE", parameters: {} }] }));
   assert.equal(saveBlocker(setMatch(loaded, "all"), editors), null);
+});
+
+test("an audience that names nobody is blocked, unless it gives a percentage of everyone", () => {
+  const nobody = setMode(loadEditor(flag({ enabled: false })), "conditions");
+  const added = addCondition(nobody, "Microsoft.Targeting");
+  assert.deepEqual(saveBlocker(added, ["Microsoft.Targeting"]), { kind: "nobody" });
+  const ten = setConditionParameters(added, 0, { Audience: { DefaultRolloutPercentage: 10 } });
+  assert.equal(saveBlocker(ten, ["Microsoft.Targeting"]), null);
+  const member = setConditionParameters(added, 0, { Audience: { Users: ["m1"] } });
+  assert.equal(saveBlocker(member, ["Microsoft.Targeting"]), null);
+  assert.equal(saveBlocker(setMode(added, "off"), ["Microsoft.Targeting"]), null);
 });
 
 test("on with conditions and none added is blocked", () => {
@@ -245,4 +256,38 @@ test("adding Root beside the audience switches to All, and the saved flag keeps 
     savePayload(state).conditions.map((condition) => condition.name),
     ["Microsoft.Targeting", "Umbricians.Root"],
   );
+});
+
+const withCondition = (name: string, parameters: Record<string, unknown>) =>
+  setConditionParameters(addCondition(setMode(loadEditor(flag({ enabled: false })), "conditions"), name), 0, parameters);
+
+test("a time window with no start or end is blocked until one is chosen", () => {
+  const editors = ["Microsoft.TimeWindow"];
+  assert.deepEqual(saveBlocker(withCondition("Microsoft.TimeWindow", {}), editors), { kind: "timeWindow", problem: "neither" });
+  assert.equal(saveBlocker(withCondition("Microsoft.TimeWindow", { Start: "2026-12-01T09:00:00Z" }), editors), null);
+  assert.equal(saveBlocker(withCondition("Microsoft.TimeWindow", { End: "2026-12-01T09:00:00Z" }), editors), null);
+});
+
+test("a time window that ends before it starts, or holds an unreadable time, is blocked", () => {
+  const editors = ["Microsoft.TimeWindow"];
+  const backwards = { Start: "2026-12-02T09:00:00Z", End: "2026-12-01T09:00:00Z" };
+  assert.deepEqual(saveBlocker(withCondition("Microsoft.TimeWindow", backwards), editors), { kind: "timeWindow", problem: "startNotBeforeEnd" });
+  assert.deepEqual(saveBlocker(withCondition("Microsoft.TimeWindow", { Start: "soon" }), editors), { kind: "timeWindow", problem: "unreadableStart" });
+});
+
+test("a Root condition that names no site is blocked until one is chosen", () => {
+  const editors = ["Umbricians.Root"];
+  assert.deepEqual(saveBlocker(withCondition("Umbricians.Root", { Roots: [] }), editors), { kind: "noSites" });
+  assert.equal(saveBlocker(withCondition("Umbricians.Root", { Roots: ["abc"] }), editors), null);
+});
+
+test("an incomplete time window or Root condition doesn't block a flag that is off or on for everyone", () => {
+  const editors = ["Microsoft.TimeWindow", "Umbricians.Root"];
+  const window = withCondition("Microsoft.TimeWindow", {});
+  assert.equal(saveBlocker(setMode(window, "off"), editors), null);
+  assert.equal(saveBlocker(setMode(window, "everyone"), editors), null);
+});
+
+test("a repeating time window with no start or end is not blocked, since the server allows it", () => {
+  assert.equal(saveBlocker(withCondition("Microsoft.TimeWindow", { Recurrence: { Pattern: {} } }), ["Microsoft.TimeWindow"]), null);
 });
