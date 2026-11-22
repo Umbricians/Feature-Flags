@@ -5,11 +5,12 @@ import { UmbLocalizationController } from "@umbraco-cms/backoffice/localization-
 import { UmbArrayState, UmbBooleanState, UmbObjectState } from "@umbraco-cms/backoffice/observable-api";
 import { umbExtensionsRegistry } from "@umbraco-cms/backoffice/extension-registry";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
-import { umbConfirmModal } from "@umbraco-cms/backoffice/modal";
+import { UMB_DISCARD_CHANGES_MODAL, umbConfirmModal, umbOpenModal } from "@umbraco-cms/backoffice/modal";
 import { UmbViewContext } from "@umbraco-cms/backoffice/view";
 import {
   UMB_WORKSPACE_CONTEXT,
   UmbWorkspaceRouteManager,
+  umbWorkspaceWillNavigateAway,
   type UmbRoutableWorkspaceContext,
 } from "@umbraco-cms/backoffice/workspace";
 import {
@@ -106,6 +107,7 @@ export class FeatureFlagWorkspaceContext extends UmbContextBase implements UmbRo
   readonly canManage = this.#canManage.asObservable();
 
   #name?: string;
+  #allowNavigateAway = false;
   /** Gives the browser tab the flag's name, rather than the name of the Settings tab twice. */
   #view = new UmbViewContext(this, null);
   #localize = new UmbLocalizationController(this);
@@ -126,6 +128,9 @@ export class FeatureFlagWorkspaceContext extends UmbContextBase implements UmbRo
       },
       "umbriciansConditionEditors",
     );
+    // Leaving the editor with unsaved changes asks first, as Umbraco's own workspaces do.
+    window.addEventListener("willchangestate", this.#onWillNavigate);
+    window.addEventListener("beforeunload", this.#onBeforeUnload);
     this.routes.setRoutes([
       {
         path: "edit/:name",
@@ -133,6 +138,35 @@ export class FeatureFlagWorkspaceContext extends UmbContextBase implements UmbRo
         setup: (_component, info) => this.load(decodeName(info.match.params.name)),
       },
     ]);
+  }
+
+  #onWillNavigate = async (event: Event) => {
+    if (this.#allowNavigateAway || !this.#editor.getValue()?.dirty) return true;
+    const url = (event as CustomEvent<{ url: string | URL }>).detail.url;
+    if (!umbWorkspaceWillNavigateAway(this.routes, this.getUnique(), url)) return true;
+    // The modal is asynchronous and the event is not, so stop the navigation now and push it again once discarding is confirmed.
+    event.preventDefault();
+    try {
+      await umbOpenModal(this, UMB_DISCARD_CHANGES_MODAL);
+      this.#allowNavigateAway = true;
+      history.pushState({}, "", url);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  #onBeforeUnload = (event: BeforeUnloadEvent) => {
+    if (this.#editor.getValue()?.dirty) {
+      event.preventDefault();
+      event.returnValue = "";
+    }
+  };
+
+  override destroy() {
+    window.removeEventListener("willchangestate", this.#onWillNavigate);
+    window.removeEventListener("beforeunload", this.#onBeforeUnload);
+    super.destroy();
   }
 
   getEntityType() {
@@ -167,6 +201,8 @@ export class FeatureFlagWorkspaceContext extends UmbContextBase implements UmbRo
       if (!notFound) this.#fail(error);
     } finally {
       this.#loading.setValue(false);
+      // Views that render after a load (such as after a reset) can replace the title, so say it again.
+      this.#view.setTitle(name);
     }
   }
 
