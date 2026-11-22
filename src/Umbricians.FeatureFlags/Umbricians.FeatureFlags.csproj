@@ -20,7 +20,7 @@
     <Description>Switch the site's feature flags on and off from the Umbraco backoffice, for everyone or only for chosen members and member groups, built on Microsoft.FeatureManagement.</Description>
     <Authors>Umbricians</Authors>
     <Version>0.1.0</Version>
-    <PackageTags>umbraco;umbraco-marketplace;feature flags;feature toggles;feature management;members</PackageTags>
+    <PackageTags>umbraco;umbraco-marketplace;umbraco-v17;feature-flags;featureflags;feature-toggles;featuremanagement;targeting;members</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>icon.png</PackageIcon>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
