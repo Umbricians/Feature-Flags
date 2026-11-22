@@ -7,7 +7,7 @@ import { countAudience, emptyAudience, groupsOfKind, hasGroup, memberGroupKeys }
 import { mayDo } from "../../display.js";
 import { changedText, describeAudience, stateLabel } from "../../describe.js";
 import { FEATURE_FLAG_WORKSPACE_CONTEXT } from "../flag-workspace.context-token.js";
-import type { FlagEditorMode } from "../flag-editor-state.js";
+import { hasOtherConditions, type FlagEditorMode } from "../flag-editor-state.js";
 
 const helpTerms: Record<FlagEditorMode, string> = {
   off: "umbriciansFeatureFlags_offHelp",
@@ -45,7 +45,7 @@ export class FeatureFlagSettingsViewElement extends UmbLitElement {
   override render() {
     const flag = this._flag;
     if (!flag) return nothing;
-    const save = mayDo(flag.flag, "save", this._canManage);
+    const save = mayDo(flag, "save", this._canManage);
     const readOnly = !save.allowed;
     return html`<div class="layout">
       <div class="main">
@@ -55,9 +55,9 @@ export class FeatureFlagSettingsViewElement extends UmbLitElement {
             </uui-box>`
           : nothing}
         <uui-box headline=${this.localize.term("umbriciansFeatureFlags_columnState")}>
-          ${flag.flag.state === "conditions"
+          ${hasOtherConditions(flag)
             ? html`<p>${this.localize.term("umbriciansFeatureFlags_conditionsState")}</p>`
-            : flag.flag.state === "custom" && !flag.flag.actions.save.allowed
+            : flag.state === "custom" && !flag.actions.save.allowed
             ? html`<p>${this.localize.term("umbriciansFeatureFlags_customState")}</p>`
             : html`<uui-radio-group
                   .value=${this._mode}
@@ -148,7 +148,7 @@ export class FeatureFlagSettingsViewElement extends UmbLitElement {
   }
 
   #renderInfo(flag: FeatureFlag) {
-    const item = flag.flag;
+    const item = flag;
     const declaredIn = this.localize.term(
       item.declaredIn === "code"
         ? "umbriciansFeatureFlags_declaredInCode"

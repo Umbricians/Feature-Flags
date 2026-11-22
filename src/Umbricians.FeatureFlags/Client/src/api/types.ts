@@ -25,11 +25,27 @@ export interface FlagAudience {
   groups: Array<AudienceGroup>;
 }
 
-/** An audience as it is saved: member keys and every group's id. */
-export interface SaveAudience {
-  members: Array<string>;
-  groups: Array<string>;
+/** Whether a flag with several conditions needs any one of them to hold, or all of them. */
+export type ConditionMatch = "any" | "all";
+
+/** One of Microsoft's filters on a flag: its name, such as `Microsoft.Targeting`, and its parameters as JSON. */
+export interface FlagCondition {
+  name: string;
+  parameters: Record<string, unknown>;
 }
+
+/** A flag's settings: whether it is on, and the conditions that say who or when it is on for. */
+export interface FlagSettings {
+  enabled: boolean;
+  conditions: Array<FlagCondition>;
+  match: ConditionMatch;
+}
+
+/** What a save sends. */
+export type SaveSettings = FlagSettings;
+
+/** The name of the package's audience condition, Microsoft's targeting filter. */
+export const TARGETING_FILTER = "Microsoft.Targeting";
 
 export interface FlagAction {
   allowed: boolean;
@@ -43,33 +59,45 @@ export interface FlagActions {
   remove: FlagAction;
 }
 
-export interface FeatureFlagListItem {
+/** A flag's override as stored. */
+export interface FlagOverride {
+  /** The flag in Microsoft's feature_management JSON. */
+  definition: string;
+  updatedBy: string | null;
+  /** The name of the user who saved it, for display. */
+  updatedByName: string | null;
+  updatedUtc: string;
+}
+
+/** A flag: every field of the C# `FeatureFlag`, then what only the backoffice shows. */
+export interface FeatureFlag {
   name: string;
-  description: string | null;
-  section: string | null;
-  tags: Array<string>;
-  declaredIn: FlagDeclaredIn;
-  declaredTwice: boolean;
   /** False for a saved setting whose flag nobody declares any more. */
   isDeclared: boolean;
+  declaredIn: FlagDeclaredIn;
+  declaredTwice: boolean;
+  section: string | null;
+  description: string | null;
+  tags: Array<string>;
+  isPublic: boolean;
   state: FlagState;
-  /** Whether it is switched on; a flag that is off may keep an audience for later. */
-  enabled: boolean;
-  audience: AudienceCounts | null;
-  hasOverride: boolean;
+  defaultState: FlagState;
+  /** What applies now; null when it uses more than settings can say (state `custom`). */
+  settings: FlagSettings | null;
+  defaultSettings: FlagSettings | null;
+  override: FlagOverride | null;
   differsFromDefault: boolean;
   /** What an editor may do with it, as the catalog decides; each is refused with a reason when not allowed. */
   actions: FlagActions;
-  updatedBy: { key: string; name: string | null } | null;
-  updatedUtc: string | null;
-}
+  /** What its conditions amount to in one line. */
+  summary: string | null;
 
-export interface FeatureFlag {
-  flag: FeatureFlagListItem;
-  defaultState: FlagState;
+  /** Whether it is switched on; a flag that is off may keep conditions for later. */
+  enabled: boolean;
+  /** How many members and groups its audience has, when it has one. */
+  audience: AudienceCounts | null;
+  /** Who it is on for, with what each group is, when its only condition is an audience the backoffice can read. */
   audienceDetail: FlagAudience | null;
-  /** The saved setting in Microsoft's feature_management JSON, when there is one. */
-  overrideDefinition: string | null;
 }
 
 export interface FeatureFlagSummary {

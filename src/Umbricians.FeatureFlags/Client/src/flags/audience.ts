@@ -1,5 +1,6 @@
 // What an audience holds and how the editor changes it. No backoffice imports, so Node can test it.
-import type { AudienceCounts, AudienceGroup, AudienceGroupKind, FlagAudience, ProviderGroup, SaveAudience } from "../api/types.js";
+import { TARGETING_FILTER, type FlagCondition } from "../api/types.js";
+import type { AudienceCounts, AudienceGroup, AudienceGroupKind, FlagAudience, ProviderGroup } from "../api/types.js";
 
 export function emptyAudience(): FlagAudience {
   return { members: [], groups: [] };
@@ -42,9 +43,26 @@ export function withProviderGroup(audience: FlagAudience, group: ProviderGroup, 
   return { ...audience, groups: [...audience.groups, { id: group.id, kind: "providerGroup", name: group.name }] };
 }
 
-/** What the server saves: every group's id, of every kind. */
-export function toSaveAudience(audience: FlagAudience): SaveAudience {
-  return { members: audience.members, groups: audience.groups.map((group) => group.id) };
+/**
+ * The audience as a Microsoft.Targeting condition, in the parameters the server writes: everyone in it, and nobody
+ * else. Every group's id goes in, of every kind.
+ */
+export function toTargetingCondition(audience: FlagAudience): FlagCondition {
+  return {
+    name: TARGETING_FILTER,
+    parameters: {
+      Audience: {
+        Users: audience.members,
+        Groups: audience.groups.map((group) => ({ Name: group.id, RolloutPercentage: 100 })),
+        DefaultRolloutPercentage: 0,
+      },
+    },
+  };
+}
+
+/** Whether a condition is the audience's: Microsoft matches `Targeting` and `Microsoft.Targeting` as the same filter. */
+export function isTargeting(condition: FlagCondition): boolean {
+  return condition.name.toLowerCase() === TARGETING_FILTER.toLowerCase() || condition.name.toLowerCase() === "targeting";
 }
 
 /** How many of each, as the server counts them: named member groups are member groups, and unknown ids count as other groups. */

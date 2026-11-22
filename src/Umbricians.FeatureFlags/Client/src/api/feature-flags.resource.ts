@@ -3,12 +3,11 @@ import { flagsQueryString } from "./query-string.js";
 import { FeatureFlagsRequestError } from "./request-error.js";
 import type {
   FeatureFlag,
-  FeatureFlagListItem,
   FeatureFlagSummary,
   FlagQuery,
   PagedResult,
   ProviderGroup,
-  SaveAudience,
+  SaveSettings,
 } from "./types.js";
 
 export type * from "./types.js";
@@ -42,7 +41,7 @@ async function request<T>(method: "GET" | "PUT" | "DELETE", path: string, body?:
 const nameQuery = (name: string) => `name=${encodeURIComponent(name)}`;
 
 export const fetchFlags = (query: FlagQuery) =>
-  request<PagedResult<FeatureFlagListItem>>("GET", `flags?${flagsQueryString(query)}`);
+  request<PagedResult<FeatureFlag>>("GET", `flags?${flagsQueryString(query)}`);
 
 export const fetchSummary = () => request<FeatureFlagSummary>("GET", "flags/summary");
 
@@ -50,13 +49,13 @@ export const fetchFlag = (name: string) => request<FeatureFlag>("GET", `flag?${n
 
 export const fetchProviderGroups = () => request<Array<ProviderGroup>>("GET", "provider-groups");
 
-/** Saves an editor's settings: on or off, and who for (null for everyone). */
-export const saveFlag = (name: string, enabled: boolean, audience: SaveAudience | null) =>
-  request<void>("PUT", `flag?${nameQuery(name)}`, { enabled, audience });
+/** Saves an editor's settings: on or off, and the conditions that say who or when for. Returns the flag as it is now. */
+export const saveFlag = (name: string, settings: SaveSettings) =>
+  request<FeatureFlag>("PUT", `flag?${nameQuery(name)}`, settings);
 
 /** Switches a flag on or off, keeping who it is for. */
 export const setFlagEnabled = (name: string, enabled: boolean) =>
-  request<void>("PUT", `flag/enabled?${nameQuery(name)}`, { enabled });
+  request<FeatureFlag>("PUT", `flag/enabled?${nameQuery(name)}`, { enabled });
 
 /** Resets a flag to its default, or removes the setting of a flag nobody declares any more. */
-export const resetFlag = (name: string) => request<void>("DELETE", `flag?${nameQuery(name)}`);
+export const resetFlag = (name: string) => request<FeatureFlag | undefined>("DELETE", `flag?${nameQuery(name)}`);

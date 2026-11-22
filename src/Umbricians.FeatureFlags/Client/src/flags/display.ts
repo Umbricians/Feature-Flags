@@ -1,8 +1,8 @@
 // How flags are shown. No backoffice imports, so Node can test it.
-import type { AudienceCounts, FeatureFlagListItem, FlagActions, FlagOrder, FlagState } from "../api/types.js";
+import type { AudienceCounts, FeatureFlag, FlagActions, FlagOrder, FlagState } from "../api/types.js";
 
 /** A flag as a collection item: its unique is its name. */
-export interface FeatureFlagCollectionItem extends FeatureFlagListItem {
+export interface FeatureFlagCollectionItem extends FeatureFlag {
   unique: string;
   entityType: string;
 }
@@ -21,7 +21,7 @@ export function sectionFromOption(value: string): string | null {
 }
 
 /** The name without its section in front, e.g. `NewFlow` for `Checkout.NewFlow` in the Checkout section. */
-export function shortName(item: Pick<FeatureFlagListItem, "name" | "section">): string {
+export function shortName(item: Pick<FeatureFlag, "name" | "section">): string {
   const prefix = item.section ? `${item.section}.` : "";
   return prefix && item.name.toLowerCase().startsWith(prefix.toLowerCase()) && item.name.length > prefix.length
     ? item.name.slice(prefix.length)
@@ -38,7 +38,7 @@ export interface ListSection<T> {
  * Splits a page of flags into its sections, keeping their order. Sorted by last change, they stay in one section,
  * since splitting them would undo that order.
  */
-export function sections<T extends Pick<FeatureFlagListItem, "section">>(items: Array<T>, orderBy: FlagOrder | undefined): Array<ListSection<T>> {
+export function sections<T extends Pick<FeatureFlag, "section">>(items: Array<T>, orderBy: FlagOrder | undefined): Array<ListSection<T>> {
   if (orderBy === "updated") return items.length ? [{ name: null, items }] : [];
   const result: Array<ListSection<T>> = [];
   for (const item of items) {
@@ -61,7 +61,7 @@ export interface Permitted {
 }
 
 /** The catalog's answer, then the user's Change feature flags permission. */
-export function mayDo(item: Pick<FeatureFlagListItem, "actions">, action: FlagActionName, canManage: boolean): Permitted {
+export function mayDo(item: Pick<FeatureFlag, "actions">, action: FlagActionName, canManage: boolean): Permitted {
   const answer = item.actions[action];
   if (!answer.allowed) return { allowed: false, reason: answer.reason, needsManage: false };
   if (!canManage) return { allowed: false, reason: null, needsManage: true };
@@ -70,7 +70,7 @@ export function mayDo(item: Pick<FeatureFlagListItem, "actions">, action: FlagAc
 
 /** The list's quick action: a switch for a declared flag, Remove for an undeclared one. */
 export function quickAction(
-  item: Pick<FeatureFlagListItem, "isDeclared" | "actions">,
+  item: Pick<FeatureFlag, "isDeclared" | "actions">,
   canManage: boolean,
 ): Permitted & { kind: "switch" | "remove" } {
   const kind = item.isDeclared ? "switch" : "remove";

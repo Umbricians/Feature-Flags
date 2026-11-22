@@ -139,9 +139,9 @@ export class FeatureFlagWorkspaceContext extends UmbContextBase implements UmbRo
     const payload = savePayload(editor);
     this.#saving.setValue(true);
     try {
-      await saveFlag(editor.flag.flag.name, payload.enabled, payload.audience);
+      await saveFlag(editor.flag.name, payload);
       this.#notifications?.peek("positive", {
-        data: { message: this.#localize.term("umbriciansFeatureFlags_saved", editor.flag.flag.name) },
+        data: { message: this.#localize.term("umbriciansFeatureFlags_saved", editor.flag.name) },
       });
       await this.load();
     } catch (error) {
@@ -155,20 +155,20 @@ export class FeatureFlagWorkspaceContext extends UmbContextBase implements UmbRo
   async reset() {
     const flag = this.#flag.getValue();
     if (!flag) return;
-    const removing = !flag.flag.isDeclared;
-    if (!mayDo(flag.flag, removing ? "remove" : "reset", this.#canManage.getValue()).allowed) return;
+    const removing = !flag.isDeclared;
+    if (!mayDo(flag, removing ? "remove" : "reset", this.#canManage.getValue()).allowed) return;
     try {
       await umbConfirmModal(
         this,
         removing
           ? {
-              headline: this.#localize.term("umbriciansFeatureFlags_removeHeadline", flag.flag.name),
+              headline: this.#localize.term("umbriciansFeatureFlags_removeHeadline", flag.name),
               content: this.#localize.term("umbriciansFeatureFlags_removeMessage"),
               color: "danger",
               confirmLabel: this.#localize.term("umbriciansFeatureFlags_remove"),
             }
           : {
-              headline: this.#localize.term("umbriciansFeatureFlags_resetHeadline", flag.flag.name),
+              headline: this.#localize.term("umbriciansFeatureFlags_resetHeadline", flag.name),
               content: this.#localize.term("umbriciansFeatureFlags_resetMessage", stateLabel(this.#localize, flag.defaultState)),
               color: "warning",
               confirmLabel: this.#localize.term("umbriciansFeatureFlags_reset"),
@@ -179,10 +179,10 @@ export class FeatureFlagWorkspaceContext extends UmbContextBase implements UmbRo
     }
     this.#saving.setValue(true);
     try {
-      await resetFlag(flag.flag.name);
+      await resetFlag(flag.name);
       this.#notifications?.peek("positive", {
         data: {
-          message: this.#localize.term(removing ? "umbriciansFeatureFlags_removed" : "umbriciansFeatureFlags_resetDone", flag.flag.name),
+          message: this.#localize.term(removing ? "umbriciansFeatureFlags_removed" : "umbriciansFeatureFlags_resetDone", flag.name),
         },
       });
       await this.load();

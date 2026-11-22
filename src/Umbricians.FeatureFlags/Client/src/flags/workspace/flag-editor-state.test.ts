@@ -1,8 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { FeatureFlag, FlagAudience, ProviderGroup } from "../../api/types.ts";
+import type { FeatureFlag, FlagAudience, FlagCondition, ProviderGroup } from "../../api/types.ts";
 import {
   canSave,
+  hasOtherConditions,
   loadEditor,
   removeGroup,
   savePayload,
@@ -14,30 +15,45 @@ import {
 
 const allowed = { allowed: true, reason: null };
 
-function flag(over: { enabled?: boolean; audienceDetail?: FlagAudience | null; actions?: Partial<FeatureFlag["flag"]["actions"]> } = {}): FeatureFlag {
+type Over = {
+  enabled?: boolean;
+  audienceDetail?: FlagAudience | null;
+  actions?: Partial<FeatureFlag["actions"]>;
+  conditions?: Array<FlagCondition>;
+  match?: "any" | "all";
+};
+
+function flag(over: Over = {}): FeatureFlag {
   return {
-    flag: {
-      name: "Checkout.NewFlow",
-      description: null,
-      section: "Checkout",
-      tags: [],
-      declaredIn: "configuration",
-      declaredTwice: false,
-      isDeclared: true,
-      state: "off",
-      enabled: over.enabled ?? true,
-      audience: null,
-      hasOverride: true,
-      differsFromDefault: false,
-      actions: { switch: allowed, save: allowed, reset: allowed, remove: allowed, ...over.actions },
-      updatedBy: null,
-      updatedUtc: null,
-    },
+    name: "Checkout.NewFlow",
+    isDeclared: true,
+    declaredIn: "configuration",
+    declaredTwice: false,
+    section: "Checkout",
+    description: null,
+    tags: [],
+    isPublic: false,
+    state: "off",
     defaultState: "off",
+    settings: { enabled: over.enabled ?? true, conditions: over.conditions ?? [], match: over.match ?? "any" },
+    defaultSettings: null,
+    override: null,
+    differsFromDefault: false,
+    actions: { switch: allowed, save: allowed, reset: allowed, remove: allowed, ...over.actions },
+    summary: null,
+    enabled: over.enabled ?? true,
+    audience: null,
     audienceDetail: over.audienceDetail ?? null,
-    overrideDefinition: null,
   };
 }
+
+const targeting = (members: Array<string>, groups: Array<string>): FlagCondition => ({
+  name: "Microsoft.Targeting",
+  parameters: {
+    Audience: { Users: members, Groups: groups.map((Name) => ({ Name, RolloutPercentage: 100 })), DefaultRolloutPercentage: 0 },
+  },
+});
+const culture: FlagCondition = { name: "Contoso.Culture", parameters: { Cultures: ["fr"] } };
 
 const kept: FlagAudience = {
   members: ["m1", "m2"],
@@ -63,28 +79,47 @@ test("a flag on for everyone opens as everyone, and one with an audience as audi
   assert.equal(loadEditor(flag({ audienceDetail: kept })).mode, "audience");
 });
 
-test("switching a flag off and saving keeps who it was for", () => {
+test("switching a flag off and saving keeps who it was for, as a targeting condition", () => {
   const state = setMode(loadEditor(flag({ audienceDetail: kept })), "off");
   assert.deepEqual(savePayload(state), {
     enabled: false,
-    audience: { members: ["m1", "m2"], groups: ["key-1", "VIPs", "crm:gone"] },
+    conditions: [targeting(["m1", "m2"], ["key-1", "VIPs", "crm:gone"])],
+    match: "any",
   });
-  assert.deepEqual(savePayload(setMode(state, "audience")).audience, savePayload(state).audience);
+  assert.deepEqual(savePayload(setMode(state, "audience")).conditions, savePayload(state).conditions);
+  assert.equal(savePayload(setMode(state, "audience")).enabled, true);
 });
 
-test("switching to everyone saves no audience", () => {
+test("switching to everyone saves no conditions", () => {
   const state = setMode(loadEditor(flag({ audienceDetail: kept })), "everyone");
-  assert.deepEqual(savePayload(state), { enabled: true, audience: null });
+  assert.deepEqual(savePayload(state), { enabled: true, conditions: [], match: "any" });
 });
 
-test("an off flag with nothing kept saves no audience", () => {
-  assert.deepEqual(savePayload(loadEditor(flag({ enabled: false }))), { enabled: false, audience: null });
-  assert.deepEqual(savePayload(setMode(loadEditor(flag()), "off")), { enabled: false, audience: null });
+test("an off flag with nothing kept saves no conditions", () => {
+  assert.deepEqual(savePayload(loadEditor(flag({ enabled: false }))), { enabled: false, conditions: [], match: "any" });
+  assert.deepEqual(savePayload(setMode(loadEditor(flag()), "off")), { enabled: false, conditions: [], match: "any" });
 });
 
 test("an off flag whose audience was emptied saves the empty audience", () => {
   const state = setMembers(removeGroup(removeGroup(removeGroup(loadEditor(flag({ enabled: false, audienceDetail: kept })), "key-1"), "VIPs"), "crm:gone"), []);
-  assert.deepEqual(savePayload(state), { enabled: false, audience: { members: [], groups: [] } });
+  assert.deepEqual(savePayload(state), { enabled: false, conditions: [targeting([], [])], match: "any" });
+});
+
+test("saving keeps every condition it does not edit, and how they match", () => {
+  const window: FlagCondition = { name: "Microsoft.TimeWindow", parameters: { Start: "2026-01-01T00:00:00Z" } };
+  const loaded = loadEditor(flag({ enabled: false, audienceDetail: kept, conditions: [targeting(["m1", "m2"], []), culture, window], match: "all" }));
+
+  const payload = savePayload(setMembers(loaded, ["m9"]));
+
+  assert.deepEqual(payload.conditions, [targeting(["m9"], ["key-1", "VIPs", "crm:gone"]), culture, window]);
+  assert.equal(payload.match, "all");
+  assert.equal(payload.enabled, false);
+});
+
+test("a switched-off flag with conditions of its own is one the editor can't change here", () => {
+  assert.equal(hasOtherConditions(flag({ enabled: false, conditions: [culture] })), true);
+  assert.equal(hasOtherConditions(flag({ enabled: false, audienceDetail: kept, conditions: [targeting(["m1"], [])] })), false);
+  assert.equal(hasOtherConditions(flag()), false);
 });
 
 test("editing marks the editor dirty, and undoing the edit clears it", () => {
@@ -115,7 +150,7 @@ test("picking member groups keeps member groups named in configuration and unkno
     state.audience.groups.map((g) => [g.id, g.kind]),
     [["VIPs", "namedMemberGroup"], ["crm:gone", "unknown"], ["key-2", "memberGroup"]],
   );
-  assert.deepEqual(savePayload(state).audience?.groups, ["VIPs", "crm:gone", "key-2"]);
+  assert.deepEqual(savePayload(state).conditions, [targeting([ "m1", "m2"], ["VIPs", "crm:gone", "key-2"])]);
 });
 
 test("cannot save when the catalog refuses, when the editor can't manage flags, or when nothing changed", () => {

@@ -89,7 +89,7 @@ export class FeatureFlagSwitchElement extends UmbLitElement {
     await this.#run(() => resetFlag(item.name), this.localize.term("umbriciansFeatureFlags_removed", item.name));
   }
 
-  async #run(action: () => Promise<void>, success: string, undo?: () => void) {
+  async #run(action: () => Promise<unknown>, success: string, undo?: () => void) {
     this._busy = true;
     try {
       await action();

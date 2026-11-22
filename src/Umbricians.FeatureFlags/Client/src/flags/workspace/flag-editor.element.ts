@@ -36,12 +36,12 @@ export class FeatureFlagEditorElement extends UmbLitElement {
 
   override render() {
     const flag = this._flag;
-    const item = flag?.flag;
+    const item = flag;
     const undo = item?.isDeclared === false ? "remove" : "reset";
     const canUndo = !!item && mayDo(item, undo, this._canManage).allowed;
     const canSave = !!item && mayDo(item, "save", this._canManage).allowed;
     return html`<umb-workspace-editor
-      headline=${flag?.flag.name ?? ""}
+      headline=${flag?.name ?? ""}
       .backPath=${flagListPath()}
       ?loading=${this._loading && !flag}
       ?notFound=${this._notFound}>

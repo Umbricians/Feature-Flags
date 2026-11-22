@@ -7,7 +7,7 @@ import {
   groupsOfKind,
   hasGroup,
   memberGroupKeys,
-  toSaveAudience,
+  toTargetingCondition,
   withMemberGroupKeys,
   withoutGroup,
   withProviderGroup,
@@ -60,7 +60,16 @@ test("a named member group or an unknown id is removed by its id", () => {
 });
 
 test("a saved audience sends every group's id", () => {
-  assert.deepEqual(toSaveAudience(audience), { members: ["m1"], groups: ["key-1", "VIPs", "crm:premium", "crm:gone"] });
+  assert.deepEqual(toTargetingCondition(audience), {
+    name: "Microsoft.Targeting",
+    parameters: {
+      Audience: {
+        Users: ["m1"],
+        Groups: ["key-1", "VIPs", "crm:premium", "crm:gone"].map((Name) => ({ Name, RolloutPercentage: 100 })),
+        DefaultRolloutPercentage: 0,
+      },
+    },
+  });
 });
 
 test("counts named member groups as member groups and unknown ids as other groups", () => {
