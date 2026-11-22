@@ -8,7 +8,7 @@ import { describeFailure } from "../../api/request-error.js";
 import { FEATURE_FLAGS_PERMISSION_MANAGE } from "../../permissions/constants.js";
 import { observePermission } from "../../permissions/permissions.js";
 import { FEATURE_FLAGS_SUMMARY_CONTEXT } from "../summary.context.js";
-import { quickAction, type FeatureFlagCollectionItem } from "../display.js";
+import { conditionsOnSwitchOn, quickAction, type FeatureFlagCollectionItem } from "../display.js";
 import { describeAudience } from "../describe.js";
 
 /**
@@ -49,14 +49,15 @@ export class FeatureFlagSwitchElement extends UmbLitElement {
     const enabled = toggle.checked;
 
     if (enabled) {
+      // Switching on restores the flag's conditions, so the confirmation says what they amount to, not "everyone".
+      const conditions = conditionsOnSwitchOn(item);
       try {
         await umbConfirmModal(this, {
           headline: this.localize.term("umbriciansFeatureFlags_confirmOnHeadline", item.name),
-          content: this.localize.term(
-            "umbriciansFeatureFlags_confirmOnMessage",
-            describeAudience(this.localize, item.audience),
-            this.#environment,
-          ),
+          content:
+            conditions === null
+              ? this.localize.term("umbriciansFeatureFlags_confirmOnMessage", describeAudience(this.localize, item.audience), this.#environment)
+              : this.localize.term("umbriciansFeatureFlags_confirmOnConditionsMessage", conditions, this.#environment),
           color: "positive",
           confirmLabel: this.localize.term("umbriciansFeatureFlags_turnOn"),
         });

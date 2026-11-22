@@ -84,6 +84,10 @@ export default {
     confirmOnHeadline: (name: string) => `Turn on ${name}?`,
     confirmOnMessage: (who: string, environment: string) =>
       `It will be on for ${who} in ${environment}, as soon as every server picks up the change.`,
+    confirmOnConditionsMessage: (conditions: string, environment: string) =>
+      conditions
+        ? `It will be on in ${environment} only when its conditions hold (${conditions}), as soon as every server picks up the change.`
+        : `It will be on in ${environment} only when its saved conditions hold, as soon as every server picks up the change.`,
     turnedOn: (name: string, environment: string) => `${name} is now on in ${environment}.`,
     turnedOff: (name: string, environment: string) => `${name} is now off in ${environment}.`,
     changeFailed: "The flag wasn't changed",

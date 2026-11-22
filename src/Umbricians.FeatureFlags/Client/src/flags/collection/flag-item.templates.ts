@@ -1,6 +1,6 @@
 import { html, nothing } from "@umbraco-cms/backoffice/external/lit";
 import type { UmbLocalizationController } from "@umbraco-cms/backoffice/localization-api";
-import { shortName, stateColor, type FeatureFlagCollectionItem } from "../display.js";
+import { listNote, shortName, stateColor, type FeatureFlagCollectionItem } from "../display.js";
 import { describeAudience, markers, stateLabel } from "../describe.js";
 import { editFlagPath } from "../paths.js";
 import type { FeatureFlagsCollectionFilter } from "./flags-collection.repository.js";
@@ -19,12 +19,12 @@ export function stateTag(localize: UmbLocalizationController, item: FeatureFlagC
   return html`<uui-tag color=${stateColor(item.state)} look=${item.state === "off" ? "secondary" : "primary"}>${stateLabel(localize, item.state)}</uui-tag>`;
 }
 
-/** Who the flag is on for, in words, or who it keeps while it is off. */
+/** Who the flag is on for, in words (or what its conditions amount to), or what it keeps while it is off. */
 export function audienceNote(localize: UmbLocalizationController, item: FeatureFlagCollectionItem, cssClass = "") {
-  if (!item.audience) return nothing;
-  const audience = describeAudience(localize, item.audience);
-  if (!audience) return nothing;
-  return html`<small class=${cssClass}>${item.state === "off" ? localize.term("umbriciansFeatureFlags_keeps", audience) : audience}</small>`;
+  const note = listNote(item);
+  if (!note) return nothing;
+  const text = note.kind === "summary" ? note.text : describeAudience(localize, item.audience);
+  return html`<small class=${cssClass}>${item.state === "off" ? localize.term("umbriciansFeatureFlags_keeps", text) : text}</small>`;
 }
 
 /** The flag's notes, such as Changed here, as tags. */
