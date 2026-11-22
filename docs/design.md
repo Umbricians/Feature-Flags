@@ -95,8 +95,8 @@ Feature Flags reads them itself, from the declaration in code or from the flag's
 
 Microsoft ignores fields it doesn't know, so these are harmless. A flag with no section takes the text before the
 first `.` in its name, so `Checkout.ExpressPay` is in "Checkout" with nothing to configure. Flags from a source
-Feature Flags can't read details from, such as a site's own provider, are put in sections by name alone. **Open:** how to
-read details for flags in Azure App Configuration, which keeps tags of its own.
+Feature Flags can't read details from, such as a site's own provider, are put in sections by name alone. Reading details
+for flags in Azure App Configuration, which keeps tags of its own, comes after 1.0.
 
 Code declarations take a full Microsoft `FeatureDefinition` as well as the short form, so code can declare anything
 configuration can.
@@ -114,11 +114,11 @@ so the backoffice shows every flag it can read.
   separately, and stays until an editor removes it.
 - **Precedence is a setting.** `Umbricians:FeatureFlags:Overrides` is `Enabled` (the default: overrides win) or
   `ReadOnly` (the backoffice shows flags and their state but can't change them), for teams that want their flag
-  source, such as Azure App Configuration, to stay in charge. **Open:** whether a declaration can also mark a single
-  flag read-only.
+  source, such as Azure App Configuration, to stay in charge. Marking a single flag read-only in its declaration
+  comes after 1.0.
 - **Each environment is separate.** Overrides live in each site's database, so a flag can be on in staging and off
-  in production from the same deploy. They aren't moved between environments. **Open:** whether to support
-  Umbraco Deploy or uSync later.
+  in production from the same deploy. They aren't moved between environments; scripts can copy them through the
+  Management API, and a Deploy or uSync connector would be a package of its own.
 
 Storage is a package migration that adds one table, `umbriciansFeatureFlagsOverride`:
 
@@ -277,11 +277,18 @@ server, across every flag, so paging stays correct on a site with hundreds.
 1. **First release:** declared flags from any flag source and code; overrides with off, on for everyone, and on
    for members, member groups and provider groups; reset; undeclared flags; read-only mode; permissions; cache
    refresh across servers.
-2. **Percentages and exclusions:** the rest of Microsoft's targeting audience.
-3. **Time windows:** on from a date, off at a date, and repeating windows.
-4. **Variants:** A/B options and how they are allocated.
-5. **Later, if asked for:** a history of changes, headless support (telling the front end which flags are on for
-   the current member), Umbraco Deploy or uSync.
+2. **1.0:** what developers can extend and rely on: conditions of their own, editable in the backoffice;
+   percentages and exclusions in the audience; time windows; the Root condition for a site with several roots; a
+   public service and notifications for changing overrides; the Management API as a contract; a health check;
+   flags for headless front ends; and a promised backoffice extension surface. Specified in
+   [spec-1.0.md](spec-1.0.md).
+
+### Later
+
+If asked for: variants; repeating time windows; ids for visitors who aren't signed in; conditions by culture; a
+test package; an ASP.NET Core health check; columns in the flag list; `ETag` / `If-Match` and saving several flags
+at once; a note on a change, and a history screen; a connector for Umbraco Deploy or uSync; reading details from Azure App Configuration; marking a single
+flag read-only in its declaration.
 
 ## Not doing
 
