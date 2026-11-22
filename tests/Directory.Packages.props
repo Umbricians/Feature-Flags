@@ -3,20 +3,20 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <!-- The Umbraco version to build against. The scheduled "Umbraco minors" workflow passes a newer one with -p:UmbracoVersion=. -->
     <UmbracoVersion Condition="'$(UmbracoVersion)' == ''">17.8.0</UmbracoVersion>
-    <!-- Microsoft.Data.SqlClient for the integration tests: the version Umbraco 17.8.0 brings in. A newer Umbraco may bring a
+    <!-- Microsoft.Data.SqlClient for the integration tests: at least the version Umbraco 17.8.0 brings in. A newer Umbraco may bring a
          newer one, which would be a package downgrade (NU1605), so the "Umbraco minors" workflow passes the newest with -p:SqlClientVersion=. -->
-    <SqlClientVersion Condition="'$(SqlClientVersion)' == ''">7.0.2</SqlClientVersion>
+    <SqlClientVersion Condition="'$(SqlClientVersion)' == ''">7.1.2</SqlClientVersion>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.12.0" />
     <PackageVersion Include="NUnit" Version="4.3.2" />
     <PackageVersion Include="NUnit3TestAdapter" Version="6.3.1" />
     <PackageVersion Include="NUnit.Analyzers" Version="4.15.0" />
-    <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.11.0" />
+    <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="11.0.1" />
     <PackageVersion Include="Umbraco.Cms.Persistence.Sqlite" Version="$(UmbracoVersion)" />
     <PackageVersion Include="Umbraco.Cms" Version="$(UmbracoVersion)" />
-    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.15" />
     <PackageVersion Include="Microsoft.Data.SqlClient" Version="$(SqlClientVersion)" />
   </ItemGroup>
 </Project>
