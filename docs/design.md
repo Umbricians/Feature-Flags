@@ -2,8 +2,8 @@
 
 How Feature Flags works, and why. Words in this document are used as [GLOSSARY.md](../GLOSSARY.md) defines them.
 It is for the people building the package: the reasons behind the design, and what comes later. What the package
-does, and how to use it, is in the [README](../README.md) and the other pages in `docs/`. Parts marked **Open** are
-still to decide.
+does, and how to use it, is in the [README](../README.md) and the other pages in `docs/`. Parts that come after 1.0
+are in the [Later](#later) list.
 
 ## What it is
 
@@ -180,23 +180,20 @@ over between environments, and the docs say so. A setting for which member prope
 trap, since editors' picks are saved by key and would silently stop matching if it changed. A site that identifies
 people another way replaces the accessor.
 
-**Open:**
-- **Name clashes.** A group provider's group could have the same name as a member group. Provider groups may need a
-  prefix, or a check at startup. Provider ids win in the editor: an id a provider offers is shown as the provider's
-  group even when a member group has that key.
-- **Percentages for anonymous visitors.** Microsoft's percentage rollout buckets people by user id. With no id,
-  every anonymous visitor probably lands in the same bucket, so a percentage would include all of them or none.
-  Check before percentages ship; a fix would give each visitor a lasting anonymous id, such as a cookie.
+- **Name clashes.** A group provider's group could have the same name as a member group. Provider ids win in the
+  editor: an id a provider offers is shown as the provider's group even when a member group has that key. A prefix
+  for provider groups, or a check at startup, comes later.
+- **Percentages for anonymous visitors.** Microsoft's percentage rollout buckets people by user id, and a visitor
+  who isn't signed in has none, so 1.0's percentages include members only and the editor says so. The package sets
+  no cookie; a site that wants visitors included gives them ids with its own accessor.
 
 ### Group providers
 
 `IFeatureFlagGroupProvider` offers groups editors can pick (`GetGroupsAsync`) and says which of them a member is in
 (`GetGroupIdsForMemberAsync`). It is given a small `FeatureFlagMember` record (key, username, email, member group
 names) rather than Umbraco's member types, so a provider doesn't depend on how Umbraco loads members, and the
-record can grow without breaking providers. Several can be registered.
-
-**Open:** whether group providers are also asked about anonymous visitors (for rules such as country or campaign),
-which would mean passing the request rather than a member.
+record can grow without breaking providers. Several can be registered. They are asked only about members; asking them about visitors who aren't signed in
+(for rules such as country or campaign) comes later.
 
 ## Keeping it fast
 
@@ -227,8 +224,8 @@ order.
 ## Backoffice
 
 Feature Flags is one item in the Settings section's tree, which opens the flag list. It isn't one tree entry per
-flag, because a site may have hundreds; Umbraco handles large lists, such as members, the same way. **Open:**
-whether the tree also shows each section as a child, as a shortcut.
+flag, because a site may have hundreds; Umbraco handles large lists, such as members, the same way. Showing each
+section as a child in the tree, as a shortcut, comes later.
 
 - **Flag list:** every declared flag with its state, a quick switch and its description where it has one;
   search by name and description; filters for state (including *custom*, for flags the backoffice can't edit),
@@ -288,7 +285,8 @@ server, across every flag, so paging stays correct on a site with hundreds.
 If asked for: variants; repeating time windows; ids for visitors who aren't signed in; conditions by culture; a
 test package; an ASP.NET Core health check; columns in the flag list; `ETag` / `If-Match` and saving several flags
 at once; a note on a change, and a history screen; a connector for Umbraco Deploy or uSync; reading details from Azure App Configuration; marking a single
-flag read-only in its declaration.
+flag read-only in its declaration; a prefix or startup check for provider groups named like member groups; asking
+group providers about visitors who aren't signed in; sections as shortcuts in the Settings tree.
 
 ## Not doing
 

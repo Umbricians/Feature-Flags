@@ -341,14 +341,19 @@ A suggested order, to agree when the build is planned. Each step builds on the o
 
 ## To check first
 
-Facts the decisions assume but nobody has checked yet:
+Checked from Umbraco's source and docs before the build; details in [research/1.0-checks.md](research/1.0-checks.md).
+Each is confirmed by a test in the slice that relies on it.
 
-- Whether Umbraco's `IMemberManager.GetCurrentMemberAsync()` sees a member signed in with a Delivery API member
-  token. If not, the member lookup reads the token itself.
-- Whether the package's permission check passes for an Umbraco API user signed in with client credentials.
-- Whether Umbraco's promise of no breaking changes in minor releases covers the backoffice TypeScript the promised
-  surface depends on.
-
+- **Delivery API member tokens: not seen.** `IMemberManager.GetCurrentMemberAsync()` reads only the member cookie.
+  The member lookup falls back, when there's no cookie member and member authorisation is on, to authenticating
+  the `OpenIddict.Validation.AspNetCore` scheme itself, accepting only a principal with the `umbraco-member-key`
+  claim (backoffice tokens pass the same scheme). The headless endpoint gets no `[Authorize]` scheme of its own,
+  so visitors and cookie members still reach it, and stays under `/umbraco/`.
+- **API users: yes.** Client credentials give the same backoffice principal as signing in, and the permission check
+  reads the user's groups, so no change is needed. The API docs say the API user's group needs the permissions.
+- **Umbraco's backoffice TypeScript: not covered** by its promise of no breaking changes in minor releases, which is
+  about the C# API. The backoffice surface is promised within one Umbraco major, the npm package's peer range is one
+  major, and CI builds against new Umbraco minors.
 
 ## Docs to write
 
