@@ -190,6 +190,13 @@ test("editing parameters marks the editor dirty, and undoing the edit clears it"
   assert.equal(loaded.dirty, false, "the loaded state is untouched");
 });
 
+test("reordering the values of a developer's condition is a change, because the server compares them in order", () => {
+  const loaded = loadEditor(flag({ conditions: [{ name: "Contoso.Culture", parameters: { Cultures: ["fr", "de"] } }] }));
+  const reordered = setConditionParameters(loaded, 0, { Cultures: ["de", "fr"] });
+  assert.equal(reordered.dirty, true);
+  assert.equal(setConditionParameters(reordered, 0, { Cultures: ["fr", "de"] }).dirty, false);
+});
+
 test("saving keeps every condition it did not edit, and how they match", () => {
   const loaded = loadEditor(flag({ enabled: false, conditions: [targeting(["m1"], []), culture, window], match: "all" }));
   const payload = savePayload(setConditionParameters(loaded, 0, targeting(["m9"], []).parameters));

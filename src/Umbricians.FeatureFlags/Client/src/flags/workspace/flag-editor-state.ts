@@ -122,15 +122,25 @@ function samePayload(a: SaveSettings, b: SaveSettings): boolean {
     a.enabled === b.enabled &&
     matchOf(a) === matchOf(b) &&
     a.conditions.length === b.conditions.length &&
-    a.conditions.every((condition, at) => condition.name === b.conditions[at].name && canonical(condition.parameters) === canonical(b.conditions[at].parameters))
+    a.conditions.every(
+      (condition, at) =>
+        condition.name === b.conditions[at].name &&
+        canonical(condition.parameters, isTargeting(condition)) === canonical(b.conditions[at].parameters, isTargeting(b.conditions[at])),
+    )
   );
 }
 
-/** JSON with keys sorted, and arrays sorted by their own canonical form, so equal sets of values compare equal. */
-function canonical(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonical).sort().join(",")}]`;
+/**
+ * JSON with keys sorted. Arrays are sorted by their own canonical form only when `sets` says their order means nothing,
+ * as in an audience; the server compares every other condition's arrays in order, so the editor does too.
+ */
+function canonical(value: unknown, sets: boolean): string {
+  if (Array.isArray(value)) {
+    const items = value.map((item) => canonical(item, sets));
+    return `[${(sets ? items.sort() : items).join(",")}]`;
+  }
   if (typeof value === "object" && value !== null) {
-    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonical((value as Record<string, unknown>)[key])}`).join(",")}}`;
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonical((value as Record<string, unknown>)[key], sets)}`).join(",")}}`;
   }
   return JSON.stringify(value);
 }

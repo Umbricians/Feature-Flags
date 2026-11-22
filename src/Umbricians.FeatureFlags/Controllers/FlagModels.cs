@@ -59,7 +59,7 @@ internal sealed class FlagResponseModel
     /// <summary>How many members and groups its audience has, when it has one, even while off.</summary>
     public AudienceCountsModel? Audience { get; init; }
 
-    /// <summary>Who it is on for, with what each group is, when its only condition is an audience the backoffice can read.</summary>
+    /// <summary>Who it is on for, with what each group is, when it has an audience condition the backoffice can read, whatever other conditions it has.</summary>
     public AudienceDetailModel? AudienceDetail { get; init; }
 }
 

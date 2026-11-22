@@ -24,6 +24,7 @@ const helpTerms: Record<FlagEditorMode, string> = {
 export class FeatureFlagSettingsViewElement extends UmbLitElement {
   #context?: typeof FEATURE_FLAG_WORKSPACE_CONTEXT.TYPE;
   // One filter function for each condition name: the extension slot starts over whenever it is given a new one.
+  #events: Array<Record<string, (event: Event) => void>> = [];
   #filters = new Map<string, (manifest: { meta: { name: string } }) => boolean>();
 
   @state() private _flag?: FeatureFlag;
@@ -96,7 +97,8 @@ export class FeatureFlagSettingsViewElement extends UmbLitElement {
       ${conditions.length === 0 ? html`<p class="hint">${this.localize.term("umbriciansFeatureFlags_noConditions")}</p>` : nothing}
       ${repeat(
         conditions,
-        (condition) => condition.name,
+        // Two conditions may share a name, so a condition is told apart by where it is as well.
+        (condition, index) => `${index}:${condition.name}`,
         (condition, index) => this.#renderCondition(condition, index, readOnly),
       )}
       ${conditions.length > 1 ? this.#renderMatch(readOnly) : nothing}
@@ -121,12 +123,27 @@ export class FeatureFlagSettingsViewElement extends UmbLitElement {
             type="umbriciansFeatureFlagsCondition"
             .filter=${this.#filterFor(condition.name)}
             .props=${{ value: condition.parameters, readonly: readOnly }}
-            .events=${{
-              change: (event: Event) =>
-                this.#context?.setConditionParameters(index, (event.target as unknown as { value: Record<string, unknown> }).value),
-            }}></umb-extension-slot>`
+            single
+            .events=${this.#eventsFor(index)}></umb-extension-slot>`
         : html`<p class="warning">${this.localize.term("umbriciansFeatureFlags_noEditor")}</p>`}
     </uui-box>`;
+  }
+
+  /**
+   * The slot's events for the condition at an index. The slot keeps the object it was given and only removes its
+   * listeners when handed another, so each index has one object for good: a new object every render would leave the
+   * old handlers listening.
+   */
+  #eventsFor(index: number) {
+    let events = this.#events[index];
+    if (!events) {
+      events = {
+        change: (event: Event) =>
+          this.#context?.setConditionParameters(index, (event.target as unknown as { value: Record<string, unknown> }).value),
+      };
+      this.#events[index] = events;
+    }
+    return events;
   }
 
   #filterFor(name: string) {
