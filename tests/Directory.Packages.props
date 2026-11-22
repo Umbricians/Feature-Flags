@@ -13,6 +13,6 @@
     <PackageVersion Include="Umbraco.Cms" Version="17.8.0" />
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.10" />
     <!-- The version Umbraco 17.8.0 brings in through NPoco.SqlServer. -->
-    <PackageVersion Include="Microsoft.Data.SqlClient" Version="7.0.2" />
+    <PackageVersion Include="Microsoft.Data.SqlClient" Version="7.1.2" />
   </ItemGroup>
 </Project>
