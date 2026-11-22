@@ -73,7 +73,7 @@ public class FlagApiTests
         new TestEnvironment());
 
     private static ManageFlagsController Manager(TestSite site) => new(
-        site.Provider.GetRequiredService<OverrideService>(),
+        site.Provider.GetRequiredService<FeatureFlagService>(),
         Stub.Of<IBackOfficeSecurityAccessor>((_, _) => null));
 
     private static FlagAudience AnAudience() => new(

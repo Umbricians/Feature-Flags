@@ -5,7 +5,7 @@ using Umbricians.FeatureFlags.Targeting;
 namespace Umbricians.FeatureFlags.Overrides;
 
 /// <summary>Takes deleted members out of every flag's audience.</summary>
-internal sealed class MemberDeletedHandler(OverrideService overrides) : INotificationAsyncHandler<MemberDeletedNotification>
+internal sealed class MemberDeletedHandler(FeatureFlagService overrides) : INotificationAsyncHandler<MemberDeletedNotification>
 {
     public Task HandleAsync(MemberDeletedNotification notification, CancellationToken cancellationToken) =>
         overrides.RemoveFromAudiencesAsync(
@@ -13,7 +13,7 @@ internal sealed class MemberDeletedHandler(OverrideService overrides) : INotific
 }
 
 /// <summary>Takes deleted member groups out of every flag's audience.</summary>
-internal sealed class MemberGroupDeletedHandler(OverrideService overrides) : INotificationAsyncHandler<MemberGroupDeletedNotification>
+internal sealed class MemberGroupDeletedHandler(FeatureFlagService overrides) : INotificationAsyncHandler<MemberGroupDeletedNotification>
 {
     public Task HandleAsync(MemberGroupDeletedNotification notification, CancellationToken cancellationToken) =>
         overrides.RemoveFromAudiencesAsync(

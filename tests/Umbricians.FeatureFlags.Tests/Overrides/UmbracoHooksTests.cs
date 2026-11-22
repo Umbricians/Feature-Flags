@@ -22,7 +22,7 @@ public class UmbracoHooksTests
         var site = new TestSite();
         site.Store.With("A", FlagSettings.ForAudience(true, new FlagAudience([TargetingIds.For(Member), "other"], [])))
             .With("B", FlagSettings.ForAudience(true, new FlagAudience([TargetingIds.For(Member)], [])));
-        var handler = new MemberDeletedHandler(site.Provider.GetRequiredService<OverrideService>());
+        var handler = new MemberDeletedHandler(site.Provider.GetRequiredService<FeatureFlagService>());
 
         await handler.HandleAsync(new MemberDeletedNotification(Entity<IMember>(Member), new EventMessages()), default);
 
@@ -35,7 +35,7 @@ public class UmbracoHooksTests
     {
         var site = new TestSite();
         site.Store.With("A", FlagSettings.ForAudience(true, new FlagAudience([], [TargetingIds.For(Group), "crm:premium"])));
-        var handler = new MemberGroupDeletedHandler(site.Provider.GetRequiredService<OverrideService>());
+        var handler = new MemberGroupDeletedHandler(site.Provider.GetRequiredService<FeatureFlagService>());
 
         await handler.HandleAsync(new MemberGroupDeletedNotification(Entity<IMemberGroup>(Group), new EventMessages()), default);
 

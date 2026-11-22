@@ -5,9 +5,11 @@ using Umbricians.FeatureFlags.Groups;
 namespace Umbricians.FeatureFlags.Overrides;
 
 /// <summary>
-/// Saves and removes editors' overrides, and tells every server to read them again.
+/// Reads flags and saves and removes their overrides, and tells every server to read them again. Calls through
+/// <see cref="IFeatureFlagService"/> have the cause <see cref="FeatureFlagChangeCause.Code"/>; the Management API calls
+/// the methods that take a cause.
 /// </summary>
-internal sealed class OverrideService
+internal sealed class FeatureFlagService : IFeatureFlagService
 {
     private readonly IFeatureFlagOverrideStore _store;
     private readonly FlagCatalog _catalog;
@@ -16,7 +18,7 @@ internal sealed class OverrideService
     private readonly TimeProvider _time;
     private readonly AudienceGroups _groups;
 
-    public OverrideService(
+    public FeatureFlagService(
         IFeatureFlagOverrideStore store,
         FlagCatalog catalog,
         OverrideCache cache,
@@ -32,41 +34,56 @@ internal sealed class OverrideService
         _distributedCache = distributedCache;
     }
 
-    /// <summary>Saves an editor's settings for a flag.</summary>
-    public async Task<OverrideResult> SaveAsync(string flagName, FlagSettings settings, Guid? userKey, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<FeatureFlag>> GetAllAsync(CancellationToken cancellationToken = default) =>
+        await _catalog.GetAllAsync(cancellationToken);
+
+    public Task<FeatureFlag?> GetAsync(string name, CancellationToken cancellationToken = default) =>
+        _catalog.FindAsync(name, cancellationToken);
+
+    public Task<FeatureFlagResult> SaveAsync(string name, FlagSettings settings, Guid? userKey = null, CancellationToken cancellationToken = default) =>
+        SaveAsync(name, settings, FeatureFlagChangeCause.Code, userKey, cancellationToken);
+
+    public Task<FeatureFlagResult> SwitchAsync(string name, bool on, Guid? userKey = null, CancellationToken cancellationToken = default) =>
+        SwitchAsync(name, on, FeatureFlagChangeCause.Code, userKey, cancellationToken);
+
+    public Task<FeatureFlagResult> ResetAsync(string name, Guid? userKey = null, CancellationToken cancellationToken = default) =>
+        ResetAsync(name, FeatureFlagChangeCause.Code, userKey, cancellationToken);
+
+    /// <summary>Saves settings for a flag.</summary>
+    public async Task<FeatureFlagResult> SaveAsync(string flagName, FlagSettings settings, FeatureFlagChangeCause cause, Guid? userKey, CancellationToken cancellationToken)
     {
-        CatalogFlag? flag = await _catalog.FindAsync(flagName, cancellationToken);
+        FeatureFlag? flag = await _catalog.FindAsync(flagName, cancellationToken);
         if (flag is null || !flag.IsDeclared)
         {
-            return OverrideResult.NotFound;
+            return FeatureFlagResult.NotFound;
         }
 
-        return await SaveFlagAsync(flag, settings, userKey, cancellationToken);
+        return await SaveFlagAsync(flag, settings, cause, userKey, cancellationToken);
     }
 
-    /// <summary>Switches a flag on or off, keeping its audience.</summary>
-    public async Task<OverrideResult> SetEnabledAsync(string flagName, bool enabled, Guid? userKey, CancellationToken cancellationToken)
+    /// <summary>Switches a flag on or off, keeping its conditions.</summary>
+    public async Task<FeatureFlagResult> SwitchAsync(string flagName, bool enabled, FeatureFlagChangeCause cause, Guid? userKey, CancellationToken cancellationToken)
     {
-        CatalogFlag? flag = await _catalog.FindAsync(flagName, cancellationToken);
+        FeatureFlag? flag = await _catalog.FindAsync(flagName, cancellationToken);
         if (flag is null || !flag.IsDeclared)
         {
-            return OverrideResult.NotFound;
+            return FeatureFlagResult.NotFound;
         }
 
         if (!flag.Actions.Switch.Allowed)
         {
-            return OverrideResult.ReadOnly(flag.Actions.Switch.Reason);
+            return FeatureFlagResult.NotAllowed(flag.Actions.Switch.Reason);
         }
 
-        return await SaveFlagAsync(flag, flag.Settings! with { Enabled = enabled }, userKey, cancellationToken);
+        return await SaveFlagAsync(flag, flag.Settings! with { Enabled = enabled }, cause, userKey, cancellationToken);
     }
 
-    /// <summary>Saves settings for a flag that has been found and is declared, if the backoffice may change it.</summary>
-    private async Task<OverrideResult> SaveFlagAsync(CatalogFlag flag, FlagSettings settings, Guid? userKey, CancellationToken cancellationToken)
+    /// <summary>Saves settings for a flag that has been found and is declared, if the rules allow it.</summary>
+    private async Task<FeatureFlagResult> SaveFlagAsync(FeatureFlag flag, FlagSettings settings, FeatureFlagChangeCause cause, Guid? userKey, CancellationToken cancellationToken)
     {
         if (!flag.Actions.Save.Allowed)
         {
-            return OverrideResult.ReadOnly(flag.Actions.Save.Reason);
+            return FeatureFlagResult.NotAllowed(flag.Actions.Save.Reason);
         }
 
         FlagSettings normalized = settings.Audience is null
@@ -76,27 +93,27 @@ internal sealed class OverrideService
             new FeatureFlagOverride(flag.Name, FlagDefinitions.ToJson(flag.Name, normalized), userKey, _time.GetUtcNow().UtcDateTime),
             cancellationToken);
         await RefreshAsync();
-        return OverrideResult.Saved;
+        return FeatureFlagResult.Saved;
     }
 
     /// <summary>Removes a flag's override, so it goes back to its default; for an undeclared flag, removes it. Refused when the catalog says so.</summary>
-    public async Task<OverrideResult> ResetAsync(string flagName, CancellationToken cancellationToken)
+    public async Task<FeatureFlagResult> ResetAsync(string flagName, FeatureFlagChangeCause cause, Guid? userKey, CancellationToken cancellationToken)
     {
-        CatalogFlag? flag = await _catalog.FindAsync(flagName, cancellationToken);
+        FeatureFlag? flag = await _catalog.FindAsync(flagName, cancellationToken);
         if (flag is null)
         {
-            return OverrideResult.NotFound;
+            return FeatureFlagResult.NotFound;
         }
 
-        FlagAction action = flag.IsDeclared ? flag.Actions.Reset : flag.Actions.Remove;
+        FeatureFlagAction action = flag.IsDeclared ? flag.Actions.Reset : flag.Actions.Remove;
         if (!action.Allowed)
         {
-            return OverrideResult.ReadOnly(action.Reason);
+            return FeatureFlagResult.NotAllowed(action.Reason);
         }
 
         await _store.DeleteAsync(flag.Name, cancellationToken);
         await RefreshAsync();
-        return OverrideResult.Saved;
+        return FeatureFlagResult.Saved;
     }
 
     /// <summary>
@@ -149,21 +166,4 @@ internal sealed class OverrideService
         _distributedCache?.RefreshAll(FeatureFlagsCacheRefresher.UniqueId);
         return _cache.ReloadAsync();
     }
-}
-
-/// <summary>What happened to a change an editor asked for.</summary>
-internal sealed record OverrideResult(OverrideOutcome Outcome, string? Reason = null)
-{
-    public static OverrideResult Saved { get; } = new(OverrideOutcome.Saved);
-
-    public static OverrideResult NotFound { get; } = new(OverrideOutcome.NotFound);
-
-    public static OverrideResult ReadOnly(string? reason) => new(OverrideOutcome.ReadOnly, reason);
-}
-
-internal enum OverrideOutcome
-{
-    Saved,
-    NotFound,
-    ReadOnly,
 }

@@ -27,7 +27,7 @@ internal sealed record FlagDetails(string? Description, string? Section, IReadOn
 }
 
 /// <summary>Where a declared flag comes from.</summary>
-internal enum FlagDeclaredIn
+public enum FeatureFlagDeclaredIn
 {
     /// <summary>appsettings, environment variables or any other .NET configuration source.</summary>
     Configuration,
@@ -44,8 +44,8 @@ internal sealed class FlagSource(IFeatureDefinitionProvider inner)
 {
     public IFeatureDefinitionProvider Inner { get; } = inner;
 
-    public FlagDeclaredIn DeclaredIn { get; } =
-        inner is ConfigurationFeatureDefinitionProvider ? FlagDeclaredIn.Configuration : FlagDeclaredIn.FlagSource;
+    public FeatureFlagDeclaredIn DeclaredIn { get; } =
+        inner is ConfigurationFeatureDefinitionProvider ? FeatureFlagDeclaredIn.Configuration : FeatureFlagDeclaredIn.FlagSource;
 }
 
 /// <summary>Flags marked public with <c>MakePublic</c>, whichever flag source declares them.</summary>

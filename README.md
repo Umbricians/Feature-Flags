@@ -135,7 +135,8 @@ builder.AddFeatureFlags(flags => flags
 | --- | --- |
 | `IFeatureFlagGroupProvider` | Put members in groups by a rule of the site's own, such as "premium in the CRM". Editors pick its groups beside member groups. See [Audiences](docs/audiences.md#group-providers). |
 | `ITargetingContextAccessor` (Microsoft's) | Identify people some other way than Umbraco members. Register your own and it replaces the package's. |
-| `IFeatureFlagOverrideStore` | Keep editors' settings somewhere other than the Umbraco database. Register your own and it replaces the package's. |
+| `IFeatureFlagService` | Read flags and change their overrides from code, with the backoffice's rules and no permission checks. Change overrides through this; see [Changing flags from code](docs/declaring-flags.md#changing-flags-from-code). |
+| `IFeatureFlagOverrideStore` | Keep editors' settings somewhere other than the Umbraco database. Register your own and it replaces the package's. Only for where they are kept: change them through `IFeatureFlagService`, because writing to the store skips the rules and the refresh on other servers. |
 | `IFeatureDefinitionProvider` (Microsoft's) | Use your own flag source. Register it before Umbraco is added and Feature Flags puts editors' settings in front of it. |
 
 ## API

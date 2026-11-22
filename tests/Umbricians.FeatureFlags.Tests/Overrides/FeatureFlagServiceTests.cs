@@ -6,7 +6,7 @@ using Umbricians.FeatureFlags.Overrides;
 namespace Umbricians.FeatureFlags.Tests.Overrides;
 
 /// <summary>What editors' changes do to flags, through the service the API calls.</summary>
-public class OverrideServiceTests
+public class FeatureFlagServiceTests
 {
     private const string Member = "8C2F4A10-3B6E-4D1A-9F5C-2E7B1D0A6C34";
     private const string Group = "7f3a9c21-4e8b-4d6f-a1c5-0b2e9d4f8a67";
@@ -24,9 +24,9 @@ public class OverrideServiceTests
         var site = new TestSite(Flags);
         await site.IsOnAsync("Checkout.NewFlow");
 
-        OverrideResult result = await Service(site).SaveAsync("checkout.newflow", FlagSettings.ForAudience(true, null), Editor, default);
+        FeatureFlagResult result = await Service(site).SaveAsync("checkout.newflow", FlagSettings.ForAudience(true, null), Editor, default);
 
-        Assert.That(result.Outcome, Is.EqualTo(OverrideOutcome.Saved));
+        Assert.That(result.Status, Is.EqualTo(FeatureFlagResultStatus.Saved));
         Assert.That(await site.IsOnAsync("Checkout.NewFlow"), Is.True);
         Assert.That(site.Store.All.Single(), Has.Property(nameof(FeatureFlagOverride.FlagName)).EqualTo("Checkout.NewFlow")
             .And.Property(nameof(FeatureFlagOverride.UpdatedBy)).EqualTo(Editor));
@@ -80,13 +80,13 @@ public class OverrideServiceTests
     public async Task Switching_off_keeps_the_audience_for_switching_back_on()
     {
         var site = new TestSite(Flags);
-        OverrideService service = Service(site);
+        FeatureFlagService service = Service(site);
         await service.SaveAsync("Checkout.NewFlow", FlagSettings.ForAudience(true, new FlagAudience([Member], [])), Editor, default);
 
-        await service.SetEnabledAsync("Checkout.NewFlow", false, Editor, default);
+        await service.SwitchAsync("Checkout.NewFlow", false, Editor, default);
         site.Visitor.SignIn(Member.ToLowerInvariant());
         bool whileOff = await site.IsOnAsync("Checkout.NewFlow");
-        await service.SetEnabledAsync("Checkout.NewFlow", true, Editor, default);
+        await service.SwitchAsync("Checkout.NewFlow", true, Editor, default);
 
         Assert.That((whileOff, await site.IsOnAsync("Checkout.NewFlow")), Is.EqualTo((false, true)));
     }
@@ -95,7 +95,7 @@ public class OverrideServiceTests
     public async Task Resetting_goes_back_to_the_default()
     {
         var site = new TestSite(Flags);
-        OverrideService service = Service(site);
+        FeatureFlagService service = Service(site);
         await service.SaveAsync("Checkout.NewFlow", FlagSettings.ForAudience(true, null), Editor, default);
 
         await service.ResetAsync("Checkout.NewFlow", default);
@@ -110,17 +110,17 @@ public class OverrideServiceTests
         var site = new TestSite(Flags);
         site.Store.With("Sale", FlagSettings.Off);
         site.Refresh();
-        OverrideService service = Service(site);
+        FeatureFlagService service = Service(site);
 
         // An override makes the flag editable again, so start from one the backoffice can't read.
         site.Store.WithJson("Sale", """{ "id": "Sale", "enabled": true, "conditions": { "client_filters": [ { "name": "Microsoft.TimeWindow", "parameters": { "Start": "Mon, 01 Jan 2024 00:00:00 GMT" } } ] } }""");
         site.Refresh();
-        OverrideResult save = await service.SaveAsync("Sale", FlagSettings.Off, Editor, default);
-        OverrideResult reset = await service.ResetAsync("Sale", default);
+        FeatureFlagResult save = await service.SaveAsync("Sale", FlagSettings.Off, Editor, default);
+        FeatureFlagResult reset = await service.ResetAsync("Sale", default);
 
-        Assert.That(save.Outcome, Is.EqualTo(OverrideOutcome.ReadOnly));
+        Assert.That(save.Status, Is.EqualTo(FeatureFlagResultStatus.NotAllowed));
         Assert.That(save.Reason, Does.Contain("Microsoft.TimeWindow"));
-        Assert.That(reset.Outcome, Is.EqualTo(OverrideOutcome.Saved));
+        Assert.That(reset.Status, Is.EqualTo(FeatureFlagResultStatus.Saved));
         Assert.That(site.Store.All, Is.Empty);
     }
 
@@ -132,12 +132,12 @@ public class OverrideServiceTests
               "feature_management": { "feature_flags": [ { "id": "Checkout.NewFlow", "enabled": false } ] } }
             """);
         site.Store.With("Checkout.NewFlow", FlagSettings.ForAudience(true, null));
-        OverrideService service = Service(site);
+        FeatureFlagService service = Service(site);
 
-        OverrideResult save = await service.SaveAsync("Checkout.NewFlow", FlagSettings.ForAudience(true, null), Editor, default);
-        OverrideResult reset = await service.ResetAsync("Checkout.NewFlow", default);
+        FeatureFlagResult save = await service.SaveAsync("Checkout.NewFlow", FlagSettings.ForAudience(true, null), Editor, default);
+        FeatureFlagResult reset = await service.ResetAsync("Checkout.NewFlow", default);
 
-        Assert.That((save.Outcome, reset.Outcome), Is.EqualTo((OverrideOutcome.ReadOnly, OverrideOutcome.ReadOnly)));
+        Assert.That((save.Status, reset.Status), Is.EqualTo((FeatureFlagResultStatus.NotAllowed, FeatureFlagResultStatus.NotAllowed)));
         Assert.That(reset.Reason, Does.Contain("ReadOnly"));
         Assert.That(site.Store.All, Has.Count.EqualTo(1));
     }
@@ -151,9 +151,9 @@ public class OverrideServiceTests
             """);
         site.Store.With("Promo.Removed", FlagSettings.ForAudience(true, null));
 
-        OverrideResult remove = await Service(site).ResetAsync("Promo.Removed", default);
+        FeatureFlagResult remove = await Service(site).ResetAsync("Promo.Removed", default);
 
-        Assert.That(remove.Outcome, Is.EqualTo(OverrideOutcome.ReadOnly));
+        Assert.That(remove.Status, Is.EqualTo(FeatureFlagResultStatus.NotAllowed));
         Assert.That(remove.Reason, Does.Contain("ReadOnly"));
         Assert.That(site.Store.All, Has.Count.EqualTo(1));
     }
@@ -163,12 +163,12 @@ public class OverrideServiceTests
     {
         var site = new TestSite(Flags);
 
-        OverrideResult reset = await Service(site).ResetAsync("Checkout.NewFlow", default);
-        OverrideResult unknown = await Service(site).ResetAsync("Nobody", default);
+        FeatureFlagResult reset = await Service(site).ResetAsync("Checkout.NewFlow", default);
+        FeatureFlagResult unknown = await Service(site).ResetAsync("Nobody", default);
 
-        Assert.That(reset.Outcome, Is.EqualTo(OverrideOutcome.ReadOnly));
+        Assert.That(reset.Status, Is.EqualTo(FeatureFlagResultStatus.NotAllowed));
         Assert.That(reset.Reason, Does.Contain("already uses its default"));
-        Assert.That(unknown.Outcome, Is.EqualTo(OverrideOutcome.NotFound));
+        Assert.That(unknown.Status, Is.EqualTo(FeatureFlagResultStatus.NotFound));
     }
 
     [Test]
@@ -176,9 +176,9 @@ public class OverrideServiceTests
     {
         var site = new TestSite(Flags);
 
-        OverrideResult result = await Service(site).SetEnabledAsync("Sale", false, Editor, default);
+        FeatureFlagResult result = await Service(site).SwitchAsync("Sale", false, Editor, default);
 
-        Assert.That(result.Outcome, Is.EqualTo(OverrideOutcome.ReadOnly));
+        Assert.That(result.Status, Is.EqualTo(FeatureFlagResultStatus.NotAllowed));
         Assert.That(result.Reason, Does.Contain("Microsoft.TimeWindow"));
     }
 
@@ -187,12 +187,12 @@ public class OverrideServiceTests
     {
         var site = new TestSite(Flags);
         site.Store.With("Promo.Removed", FlagSettings.ForAudience(true, null));
-        OverrideService service = Service(site);
+        FeatureFlagService service = Service(site);
 
-        OverrideResult save = await service.SaveAsync("Promo.Removed", FlagSettings.Off, Editor, default);
-        OverrideResult remove = await service.ResetAsync("Promo.Removed", default);
+        FeatureFlagResult save = await service.SaveAsync("Promo.Removed", FlagSettings.Off, Editor, default);
+        FeatureFlagResult remove = await service.ResetAsync("Promo.Removed", default);
 
-        Assert.That((save.Outcome, remove.Outcome), Is.EqualTo((OverrideOutcome.NotFound, OverrideOutcome.Saved)));
+        Assert.That((save.Status, remove.Status), Is.EqualTo((FeatureFlagResultStatus.NotFound, FeatureFlagResultStatus.Saved)));
         Assert.That(site.Store.All, Is.Empty);
     }
 
@@ -200,7 +200,7 @@ public class OverrideServiceTests
     public async Task Deleting_the_last_member_of_an_audience_leaves_the_flag_on_for_nobody()
     {
         var site = new TestSite(Flags);
-        OverrideService service = Service(site);
+        FeatureFlagService service = Service(site);
         string member = Member.ToLowerInvariant();
         await service.SaveAsync("Checkout.NewFlow", FlagSettings.ForAudience(true, new FlagAudience([member], [])), Editor, default);
 
@@ -219,7 +219,7 @@ public class OverrideServiceTests
     public async Task Deleting_a_member_group_takes_it_out_of_audiences()
     {
         var site = new TestSite(Flags);
-        OverrideService service = Service(site);
+        FeatureFlagService service = Service(site);
         await service.SaveAsync("Checkout.NewFlow", FlagSettings.ForAudience(true, new FlagAudience([], [Group, "crm:premium"])), Editor, default);
 
         await service.RemoveFromAudiencesAsync([Group], default);
@@ -228,5 +228,92 @@ public class OverrideServiceTests
             Is.EqualTo(new[] { "crm:premium" }));
     }
 
-    private static OverrideService Service(TestSite site) => site.Provider.GetRequiredService<OverrideService>();
+    [Test]
+    public async Task Code_resolves_the_public_service_and_its_save_is_seen_at_once_by_the_feature_manager()
+    {
+        var site = new TestSite(Flags);
+        IFeatureFlagService service = site.Provider.GetRequiredService<IFeatureFlagService>();
+        Assert.That(await site.IsOnAsync("Checkout.NewFlow"), Is.False);
+
+        FeatureFlagResult result = await service.SwitchAsync("Checkout.NewFlow", true);
+
+        Assert.That(result, Is.EqualTo(FeatureFlagResult.Saved));
+        Assert.That(result.IsSaved, Is.True);
+        Assert.That(await site.IsOnAsync("Checkout.NewFlow"), Is.True);
+        Assert.That((await service.ResetAsync("Checkout.NewFlow", Editor)).IsSaved, Is.True);
+        Assert.That(await site.IsOnAsync("Checkout.NewFlow"), Is.False);
+    }
+
+    [Test]
+    public async Task Every_flag_is_listed_with_the_undeclared_ones_and_found_by_name_ignoring_case()
+    {
+        var site = new TestSite(Flags);
+        site.Store.With("Promo.Removed", FlagSettings.ForAudience(true, null));
+        IFeatureFlagService service = site.Provider.GetRequiredService<IFeatureFlagService>();
+
+        IReadOnlyList<FeatureFlag> all = await service.GetAllAsync();
+        FeatureFlag? found = await service.GetAsync("checkout.NEWFLOW");
+
+        Assert.That(all.Select(flag => flag.Name), Is.EquivalentTo(new[] { "Checkout.NewFlow", "Sale", "Promo.Removed" }));
+        Assert.That(found, Has.Property(nameof(FeatureFlag.Name)).EqualTo("Checkout.NewFlow")
+            .And.Property(nameof(FeatureFlag.IsDeclared)).True
+            .And.Property(nameof(FeatureFlag.State)).EqualTo(FeatureFlagState.Off));
+        Assert.That(all.Single(flag => flag.Name == "Promo.Removed").IsDeclared, Is.False);
+        Assert.That(await service.GetAsync("Nobody"), Is.Null);
+    }
+
+    [Test]
+    public async Task A_flag_nobody_declares_is_not_found_to_save_or_switch()
+    {
+        var site = new TestSite(Flags);
+        IFeatureFlagService service = site.Provider.GetRequiredService<IFeatureFlagService>();
+
+        FeatureFlagResult save = await service.SaveAsync("Nobody", FlagSettings.Off);
+        FeatureFlagResult switched = await service.SwitchAsync("Nobody", true);
+
+        Assert.That((save.Status, switched.Status), Is.EqualTo((FeatureFlagResultStatus.NotFound, FeatureFlagResultStatus.NotFound)));
+    }
+
+    [Test]
+    public async Task Code_is_refused_the_way_the_backoffice_is_when_overrides_are_read_only_with_the_reason()
+    {
+        var site = new TestSite("""
+            { "Umbricians": { "FeatureFlags": { "Overrides": "ReadOnly" } },
+              "feature_management": { "feature_flags": [ { "id": "Checkout.NewFlow", "enabled": false } ] } }
+            """);
+        IFeatureFlagService service = site.Provider.GetRequiredService<IFeatureFlagService>();
+
+        FeatureFlagResult save = await service.SaveAsync("Checkout.NewFlow", FlagSettings.Off);
+        FeatureFlagResult switched = await service.SwitchAsync("Checkout.NewFlow", true);
+
+        Assert.That(save, Has.Property(nameof(FeatureFlagResult.Status)).EqualTo(FeatureFlagResultStatus.NotAllowed)
+            .And.Property(nameof(FeatureFlagResult.Reason)).Contain("ReadOnly"));
+        Assert.That(switched.Status, Is.EqualTo(FeatureFlagResultStatus.NotAllowed));
+        Assert.That(site.Store.All, Is.Empty);
+    }
+
+    [Test]
+    public void A_cancelled_result_carries_the_messages_and_no_other_result_does()
+    {
+        FeatureFlagResult cancelled = FeatureFlagResult.Cancelled(["Not on a Friday."]);
+
+        Assert.That(cancelled, Has.Property(nameof(FeatureFlagResult.Status)).EqualTo(FeatureFlagResultStatus.Cancelled)
+            .And.Property(nameof(FeatureFlagResult.IsSaved)).False
+            .And.Property(nameof(FeatureFlagResult.Messages)).EqualTo(new[] { "Not on a Friday." }));
+        Assert.That(FeatureFlagResult.Saved.Messages, Is.Empty);
+    }
+
+    [Test]
+    public async Task The_editor_path_saves_the_same_way_as_code()
+    {
+        var site = new TestSite(Flags);
+
+        FeatureFlagResult result = await Service(site).SaveAsync("Checkout.NewFlow", FlagSettings.ForAudience(true, null), FeatureFlagChangeCause.Editor, Editor, default);
+
+        Assert.That(result.IsSaved, Is.True);
+        Assert.That(await site.IsOnAsync("Checkout.NewFlow"), Is.True);
+        Assert.That(site.Store.All.Single().UpdatedBy, Is.EqualTo(Editor));
+    }
+
+    private static FeatureFlagService Service(TestSite site) => site.Provider.GetRequiredService<FeatureFlagService>();
 }

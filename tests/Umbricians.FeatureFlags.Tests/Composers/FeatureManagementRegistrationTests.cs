@@ -50,7 +50,7 @@ public class FeatureManagementRegistrationTests
         bool overridden = await site.IsOnAsync("FromTheSite");
 
         Assert.That((declared, overridden), Is.EqualTo((true, false)));
-        Assert.That(site.Provider.GetRequiredService<FlagSource>().DeclaredIn, Is.EqualTo(FlagDeclaredIn.FlagSource));
+        Assert.That(site.Provider.GetRequiredService<FlagSource>().DeclaredIn, Is.EqualTo(FeatureFlagDeclaredIn.FlagSource));
     }
 
     [Test]
@@ -58,7 +58,7 @@ public class FeatureManagementRegistrationTests
     {
         var site = new TestSite();
 
-        Assert.That(site.Provider.GetRequiredService<FlagSource>().DeclaredIn, Is.EqualTo(FlagDeclaredIn.Configuration));
+        Assert.That(site.Provider.GetRequiredService<FlagSource>().DeclaredIn, Is.EqualTo(FeatureFlagDeclaredIn.Configuration));
     }
 
     [Test]

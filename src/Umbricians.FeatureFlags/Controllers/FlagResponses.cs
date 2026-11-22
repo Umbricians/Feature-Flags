@@ -17,10 +17,10 @@ internal sealed class FlagResponses
         _groups = groups;
     }
 
-    public async Task<IReadOnlyList<FlagListItemResponseModel>> ListItemsAsync(IReadOnlyList<CatalogFlag> flags, CancellationToken cancellationToken) =>
+    public async Task<IReadOnlyList<FlagListItemResponseModel>> ListItemsAsync(IReadOnlyList<FeatureFlag> flags, CancellationToken cancellationToken) =>
         ListItems(flags, await ReadGroupsAsync(flags, cancellationToken), await UserNamesAsync(flags));
 
-    public async Task<FlagResponseModel> FlagAsync(CatalogFlag flag, CancellationToken cancellationToken)
+    public async Task<FlagResponseModel> FlagAsync(FeatureFlag flag, CancellationToken cancellationToken)
     {
         GroupDirectory? groups = await ReadGroupsAsync([flag], cancellationToken);
         return new FlagResponseModel
@@ -32,18 +32,18 @@ internal sealed class FlagResponses
         };
     }
 
-    public static string DeclaredInName(FlagDeclaredIn declaredIn) => declaredIn switch
+    public static string DeclaredInName(FeatureFlagDeclaredIn declaredIn) => declaredIn switch
     {
-        FlagDeclaredIn.Configuration => "configuration",
-        FlagDeclaredIn.FlagSource => "flagSource",
+        FeatureFlagDeclaredIn.Configuration => "configuration",
+        FeatureFlagDeclaredIn.FlagSource => "flagSource",
         _ => "code",
     };
 
     /// <summary>Reads the site's groups once for the whole response, and only when a flag has an audience to describe.</summary>
-    private async Task<GroupDirectory?> ReadGroupsAsync(IReadOnlyList<CatalogFlag> flags, CancellationToken cancellationToken) =>
+    private async Task<GroupDirectory?> ReadGroupsAsync(IReadOnlyList<FeatureFlag> flags, CancellationToken cancellationToken) =>
         flags.Any(flag => flag.Settings?.Audience is not null) ? await _groups.ReadAsync(cancellationToken) : null;
 
-    private async Task<IReadOnlyDictionary<Guid, string?>> UserNamesAsync(IReadOnlyList<CatalogFlag> flags)
+    private async Task<IReadOnlyDictionary<Guid, string?>> UserNamesAsync(IReadOnlyList<FeatureFlag> flags)
     {
         Guid[] userKeys = flags.Select(flag => flag.Override?.UpdatedBy).OfType<Guid>().Distinct().ToArray();
         return userKeys.Length == 0
@@ -51,7 +51,7 @@ internal sealed class FlagResponses
             : (await _users.GetAsync(userKeys)).ToDictionary(user => user.Key, user => user.Name);
     }
 
-    private static FlagListItemResponseModel[] ListItems(IReadOnlyList<CatalogFlag> flags, GroupDirectory? groups, IReadOnlyDictionary<Guid, string?> userNames) =>
+    private static FlagListItemResponseModel[] ListItems(IReadOnlyList<FeatureFlag> flags, GroupDirectory? groups, IReadOnlyDictionary<Guid, string?> userNames) =>
         flags.Select(flag => ListItem(flag, groups, userNames)).ToArray();
 
     private static AudienceDetailModel Detail(FlagAudience audience, GroupDirectory groups) => new()
@@ -73,7 +73,7 @@ internal sealed class FlagResponses
         return new AudienceCountsModel { Members = audience.Members.Count, MemberGroups = memberGroups, Groups = kinds.Length - memberGroups };
     }
 
-    private static FlagActionsModel Actions(FlagActions actions) => new()
+    private static FlagActionsModel Actions(FeatureFlagActions actions) => new()
     {
         Switch = Action(actions.Switch),
         Save = Action(actions.Save),
@@ -81,22 +81,22 @@ internal sealed class FlagResponses
         Remove = Action(actions.Remove),
     };
 
-    private static FlagActionModel Action(FlagAction action) => new() { Allowed = action.Allowed, Reason = action.Reason };
+    private static FlagActionModel Action(FeatureFlagAction action) => new() { Allowed = action.Allowed, Reason = action.Reason };
 
-    private static FlagListItemResponseModel ListItem(CatalogFlag flag, GroupDirectory? groups, IReadOnlyDictionary<Guid, string?> userNames)
+    private static FlagListItemResponseModel ListItem(FeatureFlag flag, GroupDirectory? groups, IReadOnlyDictionary<Guid, string?> userNames)
     {
         Guid? updatedBy = flag.Override?.UpdatedBy;
         return new FlagListItemResponseModel
         {
             Name = flag.Name,
-            Description = flag.Details.Description,
-            Section = flag.Details.Section,
-            Tags = flag.Details.Tags,
+            Description = flag.Description,
+            Section = flag.Section,
+            Tags = flag.Tags,
             DeclaredIn = DeclaredInName(flag.DeclaredIn),
             DeclaredTwice = flag.DeclaredTwice,
             IsDeclared = flag.IsDeclared,
             State = ApiNames.State(flag.State),
-            Enabled = flag.Settings?.Enabled ?? flag.State != FlagDisplayState.Off,
+            Enabled = flag.Settings?.Enabled ?? flag.State != FeatureFlagState.Off,
             Audience = flag.Settings?.Audience is { } audience ? Counts(audience, groups!) : null,
             HasOverride = flag.Override is not null,
             DiffersFromDefault = flag.DiffersFromDefault,

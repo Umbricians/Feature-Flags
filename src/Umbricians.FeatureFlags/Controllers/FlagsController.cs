@@ -95,7 +95,7 @@ internal sealed class FlagsController : FeatureFlagsControllerBase
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Flag([FromQuery] string name, CancellationToken cancellationToken)
     {
-        CatalogFlag? flag = await _catalog.FindAsync(name, cancellationToken);
+        FeatureFlag? flag = await _catalog.FindAsync(name, cancellationToken);
         return flag is null
             ? NotFound(new ProblemDetails { Title = "Flag not found", Detail = $"No flag source declares '{name}', and it has no saved setting." })
             : Ok(await _responses.FlagAsync(flag, cancellationToken));

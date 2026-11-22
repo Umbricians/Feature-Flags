@@ -73,8 +73,8 @@ public class AudienceCleanupTests : IntegrationTest
 
     private async Task SaveAudienceAsync(string flagName, FlagAudience audience)
     {
-        var result = await Site.Services.GetRequiredService<OverrideService>().SaveAsync(flagName, FlagSettings.ForAudience(true, audience), null, default);
-        Assert.That(result.Outcome, Is.EqualTo(OverrideOutcome.Saved));
+        var result = await Site.Services.GetRequiredService<FeatureFlagService>().SaveAsync(flagName, FlagSettings.ForAudience(true, audience), null, default);
+        Assert.That(result.Status, Is.EqualTo(FeatureFlagResultStatus.Saved));
     }
 
     private async Task<FlagAudience> SavedAudienceAsync(string flagName)

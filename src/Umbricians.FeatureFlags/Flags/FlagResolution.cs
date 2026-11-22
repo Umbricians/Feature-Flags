@@ -53,7 +53,7 @@ internal sealed class FlagResolution
         }
         else if (_code.Find(name) is { } declaration)
         {
-            declared = new DeclaredFlag(declaration.Definition.Name, declaration.Definition, FlagDeclaredIn.Code, false, null);
+            declared = new DeclaredFlag(declaration.Definition.Name, declaration.Definition, FeatureFlagDeclaredIn.Code, false, null);
         }
         else
         {
@@ -157,7 +157,7 @@ internal sealed class FlagResolution
             listingError = exception;
             _logger.LogWarning(exception, "Feature Flags couldn't list every flag the site declares, so it is reading them one by one.");
 
-            IEnumerable<string> names = (_source.DeclaredIn == FlagDeclaredIn.Configuration ? _configuration.DeclaredNames() : [])
+            IEnumerable<string> names = (_source.DeclaredIn == FeatureFlagDeclaredIn.Configuration ? _configuration.DeclaredNames() : [])
                 .Concat(_code.All.Select(declaration => declaration.Definition.Name))
                 .Concat(alsoTry);
             foreach (string name in names)
@@ -189,7 +189,7 @@ internal sealed class FlagResolution
         {
             if (seen.Add(declaration.Definition.Name))
             {
-                flags.Add(new DeclaredFlag(declaration.Definition.Name, declaration.Definition, FlagDeclaredIn.Code, false, null));
+                flags.Add(new DeclaredFlag(declaration.Definition.Name, declaration.Definition, FeatureFlagDeclaredIn.Code, false, null));
             }
         }
 
@@ -198,7 +198,7 @@ internal sealed class FlagResolution
 }
 
 /// <summary>A declared flag as its flag source or code declares it. <paramref name="Default"/> is null exactly when <paramref name="ReadError"/> is set.</summary>
-internal sealed record DeclaredFlag(string Name, FeatureDefinition? Default, FlagDeclaredIn DeclaredIn, bool DeclaredTwice, Exception? ReadError);
+internal sealed record DeclaredFlag(string Name, FeatureDefinition? Default, FeatureFlagDeclaredIn DeclaredIn, bool DeclaredTwice, Exception? ReadError);
 
 /// <summary>Every declared flag, and why the flag source couldn't list them all, when it couldn't.</summary>
 internal sealed record DeclaredFlags(IReadOnlyList<DeclaredFlag> Flags, Exception? ListingError);

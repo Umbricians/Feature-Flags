@@ -29,7 +29,7 @@ internal sealed class FlagList
             return Refused("Invalid page", $"skip must be 0 or more, and take between 1 and {MaxPageSize}.");
         }
 
-        if (!ApiNames.TryParseState(request.State, out FlagDisplayState? state)
+        if (!ApiNames.TryParseState(request.State, out FeatureFlagState? state)
             || !ApiNames.TryParseShow(request.Show, out bool undeclared)
             || !ApiNames.TryParseMarks(request.Marks, out FlagMarks marks)
             || !ApiNames.TryParseOrder(request.OrderBy, out FlagQueryOrder order))
@@ -47,22 +47,22 @@ internal sealed class FlagList
             string.IsNullOrEmpty(request.Tag) ? null : request.Tag,
             order);
 
-        (IReadOnlyList<CatalogFlag> items, int total) = query.Run(await _catalog.GetAllAsync(cancellationToken), request.Skip, request.Take);
+        (IReadOnlyList<FeatureFlag> items, int total) = query.Run(await _catalog.GetAllAsync(cancellationToken), request.Skip, request.Take);
         return new FlagListResult(items, total, null);
     }
 
     /// <summary>The sections and tags declared flags are in, for the list's filters, and what the list says about the site.</summary>
     public async Task<FlagListSummary> SummaryAsync(CancellationToken cancellationToken)
     {
-        IReadOnlyList<CatalogFlag> flags = await _catalog.GetAllAsync(cancellationToken);
-        CatalogFlag[] declared = flags.Where(flag => flag.IsDeclared).ToArray();
+        IReadOnlyList<FeatureFlag> flags = await _catalog.GetAllAsync(cancellationToken);
+        FeatureFlag[] declared = flags.Where(flag => flag.IsDeclared).ToArray();
         return new FlagListSummary(
             declared
-                .GroupBy(flag => flag.Details.Section, StringComparer.OrdinalIgnoreCase)
+                .GroupBy(flag => flag.Section, StringComparer.OrdinalIgnoreCase)
                 .OrderBy(group => group.Key, FlagQuery.SectionOrder)
                 .Select(group => new FlagSectionCount(group.Key, group.Count()))
                 .ToArray(),
-            declared.SelectMany(flag => flag.Details.Tags).Distinct(StringComparer.OrdinalIgnoreCase)
+            declared.SelectMany(flag => flag.Tags).Distinct(StringComparer.OrdinalIgnoreCase)
                 .Order(StringComparer.OrdinalIgnoreCase).ToArray(),
             declared.Length,
             flags.Count - declared.Length,
@@ -86,7 +86,7 @@ internal sealed record FlagListRequest(
 
 internal sealed record FlagListProblem(string Title, string Detail);
 
-internal sealed record FlagListResult(IReadOnlyList<CatalogFlag> Items, int Total, FlagListProblem? Problem);
+internal sealed record FlagListResult(IReadOnlyList<FeatureFlag> Items, int Total, FlagListProblem? Problem);
 
 internal sealed record FlagSectionCount(string? Name, int Count);
 

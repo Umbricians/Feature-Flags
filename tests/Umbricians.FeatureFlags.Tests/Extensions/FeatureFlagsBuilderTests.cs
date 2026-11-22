@@ -71,7 +71,7 @@ public class FeatureFlagsBuilderTests
 
         new FeatureFlagsComposer().Compose(builder);
 
-        Assert.That(services.Select(service => service.ServiceType), Does.Contain(typeof(OverrideCache)).And.Contain(typeof(OverrideService)));
+        Assert.That(services.Select(service => service.ServiceType), Does.Contain(typeof(OverrideCache)).And.Contain(typeof(FeatureFlagService)));
         Assert.That(services.Select(service => service.ImplementationType), Does.Contain(typeof(MemberDeletedHandler))
             .And.Contain(typeof(MemberGroupDeletedHandler)).And.Contain(typeof(OverrideCacheWarmup)).And.Contain(typeof(StartupChecks)));
         Assert.That(builder.CacheRefreshers().GetType().Name, Does.Contain("CacheRefresherCollectionBuilder"));

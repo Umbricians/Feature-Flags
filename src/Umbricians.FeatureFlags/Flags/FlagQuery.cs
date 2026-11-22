@@ -6,7 +6,7 @@ namespace Umbricians.FeatureFlags.Flags;
 /// </summary>
 internal sealed record FlagQuery(
     string? Filter = null,
-    FlagDisplayState? State = null,
+    FeatureFlagState? State = null,
     bool Undeclared = false,
     FlagMarks Marks = FlagMarks.None,
     string? Section = null,
@@ -18,43 +18,43 @@ internal sealed record FlagQuery(
     public static IComparer<string?> SectionOrder { get; } = Comparer<string?>.Create((a, b) =>
         a is null || b is null ? (a is null).CompareTo(b is null) : StringComparer.OrdinalIgnoreCase.Compare(a, b));
 
-    public (IReadOnlyList<CatalogFlag> Items, int Total) Run(IEnumerable<CatalogFlag> flags, int skip, int take)
+    public (IReadOnlyList<FeatureFlag> Items, int Total) Run(IEnumerable<FeatureFlag> flags, int skip, int take)
     {
-        IEnumerable<CatalogFlag> matching = flags.Where(Matches);
+        IEnumerable<FeatureFlag> matching = flags.Where(Matches);
         matching = OrderBy switch
         {
             FlagQueryOrder.Updated => matching
                 .OrderByDescending(flag => flag.Override?.UpdatedUtc ?? DateTime.MinValue)
                 .ThenBy(flag => flag.Name, StringComparer.OrdinalIgnoreCase),
             FlagQueryOrder.Section => matching
-                .OrderBy(flag => flag.Details.Section, SectionOrder)
+                .OrderBy(flag => flag.Section, SectionOrder)
                 .ThenBy(flag => flag.Name, StringComparer.OrdinalIgnoreCase),
             _ => matching.OrderBy(flag => flag.Name, StringComparer.OrdinalIgnoreCase),
         };
 
-        CatalogFlag[] all = matching.ToArray();
+        FeatureFlag[] all = matching.ToArray();
         return (all.Skip(Math.Max(0, skip)).Take(Math.Max(0, take)).ToArray(), all.Length);
     }
 
-    private bool HasMarks(CatalogFlag flag) =>
+    private bool HasMarks(FeatureFlag flag) =>
         (!Marks.HasFlag(FlagMarks.Changed) || flag.Override is not null)
         && (!Marks.HasFlag(FlagMarks.DiffersFromDefault) || flag.DiffersFromDefault)
         && (!Marks.HasFlag(FlagMarks.DeclaredTwice) || flag.DeclaredTwice);
 
-    private bool Matches(CatalogFlag flag)
+    private bool Matches(FeatureFlag flag)
     {
         if (flag.IsDeclared == Undeclared || !HasMarks(flag) || (State is not null && flag.State != State))
         {
             return false;
         }
 
-        if (NoSectionOnly ? flag.Details.Section is not null
-            : Section is not null && !string.Equals(flag.Details.Section, Section, StringComparison.OrdinalIgnoreCase))
+        if (NoSectionOnly ? flag.Section is not null
+            : Section is not null && !string.Equals(flag.Section, Section, StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
 
-        if (Tag is not null && !flag.Details.Tags.Contains(Tag, StringComparer.OrdinalIgnoreCase))
+        if (Tag is not null && !flag.Tags.Contains(Tag, StringComparer.OrdinalIgnoreCase))
         {
             return false;
         }
@@ -66,7 +66,7 @@ internal sealed record FlagQuery(
 
         string text = Filter.Trim();
         return flag.Name.Contains(text, StringComparison.OrdinalIgnoreCase)
-            || flag.Details.Description?.Contains(text, StringComparison.OrdinalIgnoreCase) == true;
+            || flag.Description?.Contains(text, StringComparison.OrdinalIgnoreCase) == true;
     }
 }
 

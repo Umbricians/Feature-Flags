@@ -63,10 +63,10 @@ public class FlagResolutionTests
         ResolvedFlag flag = (await Resolution(site).FindAsync("F"))!;
         DeclaredFlag listed = (await Resolution(site).GetDeclaredAsync(default)).Flags.Single();
 
-        Assert.That(flag.Declared, Has.Property(nameof(DeclaredFlag.DeclaredIn)).EqualTo(FlagDeclaredIn.Configuration)
+        Assert.That(flag.Declared, Has.Property(nameof(DeclaredFlag.DeclaredIn)).EqualTo(FeatureFlagDeclaredIn.Configuration)
             .And.Property(nameof(DeclaredFlag.DeclaredTwice)).True);
         Assert.That(flag.Definition!.Status, Is.EqualTo(FeatureStatus.Disabled));
-        Assert.That(listed, Has.Property(nameof(DeclaredFlag.DeclaredIn)).EqualTo(FlagDeclaredIn.Configuration)
+        Assert.That(listed, Has.Property(nameof(DeclaredFlag.DeclaredIn)).EqualTo(FeatureFlagDeclaredIn.Configuration)
             .And.Property(nameof(DeclaredFlag.DeclaredTwice)).True);
     }
 
@@ -78,7 +78,7 @@ public class FlagResolutionTests
 
         ResolvedFlag flag = (await Resolution(site).FindAsync("DarkMode"))!;
 
-        Assert.That(flag.Declared, Has.Property(nameof(DeclaredFlag.DeclaredIn)).EqualTo(FlagDeclaredIn.Code)
+        Assert.That(flag.Declared, Has.Property(nameof(DeclaredFlag.DeclaredIn)).EqualTo(FeatureFlagDeclaredIn.Code)
             .And.Property(nameof(DeclaredFlag.DeclaredTwice)).False);
         Assert.That(await Resolution(site).FindAsync("Nobody"), Is.Null);
     }
@@ -146,12 +146,12 @@ public class FlagResolutionTests
 
         Assert.That(all.ListingError, Is.Not.Null);
         Assert.That(flags.Keys, Is.EquivalentTo(new[] { "A", "B", "C", "Broken", "OnlyCode", "Nobody" }));
-        Assert.That(flags["B"].Declared, Has.Property(nameof(DeclaredFlag.DeclaredIn)).EqualTo(FlagDeclaredIn.FlagSource)
+        Assert.That(flags["B"].Declared, Has.Property(nameof(DeclaredFlag.DeclaredIn)).EqualTo(FeatureFlagDeclaredIn.FlagSource)
             .And.Property(nameof(DeclaredFlag.DeclaredTwice)).True);
         Assert.That(flags["C"], Has.Property(nameof(ResolvedFlag.IsDeclared)).True.And.Property(nameof(ResolvedFlag.OverrideApplies)).True);
         Assert.That(flags["Broken"].Declared!.ReadError, Is.Not.Null);
         Assert.That(flags["Broken"], Has.Property(nameof(ResolvedFlag.Definition)).Null.And.Property(nameof(ResolvedFlag.OverrideApplies)).False);
-        Assert.That(flags["OnlyCode"].Declared!.DeclaredIn, Is.EqualTo(FlagDeclaredIn.Code));
+        Assert.That(flags["OnlyCode"].Declared!.DeclaredIn, Is.EqualTo(FeatureFlagDeclaredIn.Code));
         Assert.That(flags["Nobody"].IsDeclared, Is.False);
     }
 

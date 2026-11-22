@@ -5,13 +5,13 @@ namespace Umbricians.FeatureFlags.Flags;
 /// <summary>The words the API uses for a flag's state and for the list's filters, each written once, both ways.</summary>
 internal static class ApiNames
 {
-    private static readonly Dictionary<FlagDisplayState, string> States = new()
+    private static readonly Dictionary<FeatureFlagState, string> States = new()
     {
-        [FlagDisplayState.Off] = "off",
-        [FlagDisplayState.Everyone] = "everyone",
-        [FlagDisplayState.Audience] = "audience",
-        [FlagDisplayState.Conditions] = "conditions",
-        [FlagDisplayState.Custom] = "custom",
+        [FeatureFlagState.Off] = "off",
+        [FeatureFlagState.Everyone] = "everyone",
+        [FeatureFlagState.Audience] = "audience",
+        [FeatureFlagState.Conditions] = "conditions",
+        [FeatureFlagState.Custom] = "custom",
     };
 
     private static readonly Dictionary<string, FlagMarks> Marks = new(StringComparer.OrdinalIgnoreCase)
@@ -28,7 +28,7 @@ internal static class ApiNames
         ["updated"] = FlagQueryOrder.Updated,
     };
 
-    public static string State(FlagDisplayState state) => States[state];
+    public static string State(FeatureFlagState state) => States[state];
 
     /// <summary>What an audience group is, as the API says it.</summary>
     public static string GroupKind(AudienceGroupKind kind) => kind switch
@@ -40,7 +40,7 @@ internal static class ApiNames
     };
 
     /// <summary>A state from its name; true with null for none given.</summary>
-    public static bool TryParseState(string? name, out FlagDisplayState? state)
+    public static bool TryParseState(string? name, out FeatureFlagState? state)
     {
         state = null;
         if (string.IsNullOrEmpty(name))
@@ -48,7 +48,7 @@ internal static class ApiNames
             return true;
         }
 
-        foreach ((FlagDisplayState value, string stateName) in States)
+        foreach ((FeatureFlagState value, string stateName) in States)
         {
             if (string.Equals(stateName, name, StringComparison.OrdinalIgnoreCase))
             {

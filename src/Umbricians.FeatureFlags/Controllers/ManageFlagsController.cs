@@ -20,10 +20,10 @@ namespace Umbricians.FeatureFlags.Controllers;
 [FeatureFlagsPermission(Constants.Permissions.Manage)]
 internal sealed class ManageFlagsController : FeatureFlagsControllerBase
 {
-    private readonly OverrideService _overrides;
+    private readonly FeatureFlagService _overrides;
     private readonly IBackOfficeSecurityAccessor _security;
 
-    public ManageFlagsController(OverrideService overrides, IBackOfficeSecurityAccessor security)
+    public ManageFlagsController(FeatureFlagService overrides, IBackOfficeSecurityAccessor security)
     {
         _overrides = overrides;
         _security = security;
@@ -39,7 +39,7 @@ internal sealed class ManageFlagsController : FeatureFlagsControllerBase
         FlagAudience? audience = request.Audience is null
             ? null
             : new FlagAudience(request.Audience.Members, request.Audience.Groups);
-        return Respond(name, await _overrides.SaveAsync(name, FlagSettings.ForAudience(request.Enabled, audience), CurrentUser(), cancellationToken));
+        return Respond(name, await _overrides.SaveAsync(name, FlagSettings.ForAudience(request.Enabled, audience), FeatureFlagChangeCause.Editor, CurrentUser(), cancellationToken));
     }
 
     /// <summary>Switches a flag on or off, keeping who it is for.</summary>
@@ -48,7 +48,7 @@ internal sealed class ManageFlagsController : FeatureFlagsControllerBase
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> SetEnabled([FromQuery] string name, [FromBody] SetFlagEnabledRequestModel request, CancellationToken cancellationToken) =>
-        Respond(name, await _overrides.SetEnabledAsync(name, request.Enabled!.Value, CurrentUser(), cancellationToken));
+        Respond(name, await _overrides.SwitchAsync(name, request.Enabled!.Value, FeatureFlagChangeCause.Editor, CurrentUser(), cancellationToken));
 
     /// <summary>Resets a flag to its default, or removes the setting of a flag nobody declares any more.</summary>
     [HttpDelete("flag")]
@@ -56,14 +56,15 @@ internal sealed class ManageFlagsController : FeatureFlagsControllerBase
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Reset([FromQuery] string name, CancellationToken cancellationToken) =>
-        Respond(name, await _overrides.ResetAsync(name, cancellationToken));
+        Respond(name, await _overrides.ResetAsync(name, FeatureFlagChangeCause.Editor, CurrentUser(), cancellationToken));
 
     private Guid? CurrentUser() => _security.BackOfficeSecurity?.CurrentUser?.Key;
 
-    private IActionResult Respond(string name, OverrideResult result) => result.Outcome switch
+    private IActionResult Respond(string name, FeatureFlagResult result) => result.Status switch
     {
-        OverrideOutcome.Saved => Ok(),
-        OverrideOutcome.NotFound => NotFound(new ProblemDetails { Title = "Flag not found", Detail = $"No flag source declares '{name}'." }),
+        FeatureFlagResultStatus.Saved => Ok(),
+        FeatureFlagResultStatus.NotFound => NotFound(new ProblemDetails { Title = "Flag not found", Detail = $"No flag source declares '{name}'." }),
+        FeatureFlagResultStatus.Cancelled => Conflict(new ProblemDetails { Title = "Flag can't be changed here", Detail = string.Join(" ", result.Messages) }),
         _ => Conflict(new ProblemDetails { Title = "Flag can't be changed here", Detail = result.Reason }),
     };
 }

@@ -57,7 +57,8 @@ internal static class ServiceCollectionExtensions
         services.TryAddSingleton<FlagList>();
         services.TryAddSingleton<IMemberGroups, UmbracoMemberGroups>();
         services.TryAddSingleton<AudienceGroups>();
-        services.TryAddSingleton<OverrideService>();
+        services.TryAddSingleton<FeatureFlagService>();
+        services.TryAddSingleton<IFeatureFlagService>(provider => provider.GetRequiredService<FeatureFlagService>());
         services.TryAddSingleton<FlagResponses>();
         return services;
     }
