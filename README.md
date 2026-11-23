@@ -126,6 +126,9 @@ Everything is optional. Override only what you need in `appsettings.json`:
 | `Overrides` | `Enabled` | `Enabled`: editors' settings in the backoffice win over each flag's default. `ReadOnly`: the backoffice shows flags but can't change them, and settings saved earlier are ignored, so the site's flag source, such as appsettings or Azure App Configuration, stays in charge. |
 | `Headless:Enabled` | `false` | `true` serves public flags to headless front ends; see [Headless](docs/headless.md). |
 
+A value that can't work, such as an `Overrides` that isn't `Enabled` or `ReadOnly`, stops the site starting with an
+error that names the setting, rather than being ignored.
+
 Flags themselves are configured in Microsoft's `feature_management` section, not here.
 
 ## Extending
@@ -152,6 +155,9 @@ builder.AddFeatureFlags(flags => flags
 | `MakePublic(...)` on the builder | Mark flags public, whichever flag source declares them, so the [headless endpoint](docs/headless.md) serves them. |
 | Backoffice extensions (`umbriciansFeatureFlagsCondition`, entity actions for the flag entity type, the flag workspace context) | Edit your own condition in the backoffice, add actions to a flag, or read the flag being edited. See [Extending the backoffice](docs/backoffice.md#extending-the-backoffice). |
 | `IFeatureDefinitionProvider` (Microsoft's) | Use your own flag source. Register it before Umbraco is added and Feature Flags puts editors' settings in front of it. |
+
+The NuGet package is all a site needs, backoffice extensions included. `@umbricians/feature-flags` on npm is optional:
+it has types only, for checking a TypeScript extension as you write it, and without it your extension runs the same.
 
 ## API
 

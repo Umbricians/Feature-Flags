@@ -56,6 +56,20 @@ public class ServiceCollectionExtensionsTests
         Assert.That(startupValidator.Validate, Throws.TypeOf<OptionsValidationException>());
     }
 
+    [TestCase("Nonsense")]
+    [TestCase("5")]
+    public void An_overrides_setting_that_isnt_Enabled_or_ReadOnly_stops_the_site_starting(string value)
+    {
+        var services = new ServiceCollection();
+        services.AddFeatureFlags(new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Umbricians:FeatureFlags:Overrides"] = value })
+            .Build());
+
+        IStartupValidator startupValidator = services.BuildServiceProvider().GetRequiredService<IStartupValidator>();
+
+        Assert.That(startupValidator.Validate, Throws.InstanceOf<Exception>());
+    }
+
     [Test]
     public void Adds_the_package_api_document()
     {
