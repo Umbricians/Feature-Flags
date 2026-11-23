@@ -16,15 +16,27 @@ criteria the pull request is checked against.
 
 ## Building and testing
 
-Run the steps the `build` check runs before opening a pull request:
+Run the steps the `build` check runs before opening a pull request. These build Umbraco 17, the default:
 
 ```bash
 cd src/Umbricians.FeatureFlags/Client && npm ci && npm test && npm run build && cd -
 dotnet build Umbricians.FeatureFlags.slnx -c Release
 dotnet test Umbricians.FeatureFlags.slnx -c Release --no-build
-node build/smoke-test.mjs demo/Umbricians.FeatureFlags.Demo /App_Plugins/UmbriciansFeatureFlags/umbricians-feature-flags.js umbricians-feature-flags
+node build/smoke-test.mjs demo/Umbricians.FeatureFlags.Demo /App_Plugins/UmbriciansFeatureFlags/umbricians-feature-flags.js /umbraco/swagger/umbricians-feature-flags/swagger.json
 dotnet pack src/Umbricians.FeatureFlags -c Release -o artifacts
 ```
+
+Each Umbraco major is its own package, built from the same source. Build and test one major at a time with
+`-p:UmbracoMajor=18` or `-p:UmbracoMajor=19` on the `dotnet` commands. Each major has its own folders under `bin` and
+`obj`, such as `bin/umbraco18/`. Umbraco 17 and 18 run on .NET 10; 19 needs the .NET 11 SDK. For 18, the smoke test's
+API document is `/umbraco/openapi/umbricians-feature-flags.json`, and it takes the major as a last argument:
+
+```bash
+node build/smoke-test.mjs demo/Umbricians.FeatureFlags.Demo /App_Plugins/UmbriciansFeatureFlags/umbricians-feature-flags.js /umbraco/openapi/umbricians-feature-flags.json 18
+```
+
+The smoke test checks the demo serves the backoffice, the package's bundle and its API document. Run it after building
+the same major, and pass `19` for Umbraco 19.
 
 ### Coverage
 

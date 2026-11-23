@@ -5,7 +5,7 @@
 [![NuGet](https://img.shields.io/nuget/v/Umbricians.FeatureFlags?label=NuGet)](https://www.nuget.org/packages/Umbricians.FeatureFlags)
 [![Build](https://github.com/Umbricians/Feature-Flags/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/Umbricians/Feature-Flags/actions/workflows/build.yml)
 
-Switch the site's feature flags on and off from the Umbraco backoffice, for everyone or only for chosen members and member groups, built on Microsoft.FeatureManagement. (Umbraco 17.8.2+)
+Switch the site's feature flags on and off from the Umbraco backoffice, for everyone or only for chosen members and member groups, built on Microsoft.FeatureManagement. It supports Umbraco 17, 18 and 19.
 
 Developers declare flags in appsettings or code and check them with
 [Microsoft.FeatureManagement](https://learn.microsoft.com/azure/azure-app-configuration/feature-management-dotnet-reference),
@@ -39,9 +39,21 @@ the members it is on for.
 
 ## Installation
 
+Each Umbraco major has its own package. Install the one that matches your Umbraco:
+
+| Umbraco version | Feature Flags to install |
+| --- | --- |
+| 17.8.2 or later | 17.x |
+| 18.3.2 or later | 18.x |
+| 19 | 19.x (a pre-release until Umbraco 19 ships) |
+
+NuGet picks the right one if you install the major that matches, for example:
+
 ```bash
-dotnet add package Umbricians.FeatureFlags
+dotnet add package Umbricians.FeatureFlags --version 18.*
 ```
+
+Until Umbraco 19 ships, its package is a pre-release, so name it: `--version 19.0.0-rc.1`.
 
 Restart the site. No configuration is needed to get started: the package adds Microsoft.FeatureManagement if the site
 hasn't, adds its database table, and gives Administrators its permissions.
@@ -173,7 +185,7 @@ token, examples, the endpoints, the status codes and what is promised.
 
 ```
 src/Umbricians.FeatureFlags                     the package (Razor class library + Client/ TypeScript)
-demo/Umbricians.FeatureFlags.Demo               Umbraco 17.8.2 site on SQLite that references the package
+demo/Umbricians.FeatureFlags.Demo               Umbraco site on SQLite that references the package (17 by default)
 tests/Umbricians.FeatureFlags.Tests             NUnit tests, run with `dotnet test`
 tests/Umbricians.FeatureFlags.IntegrationTests  NUnit tests on a real Umbraco and SQL Server; see CONTRIBUTING.md
 tests/Umbricians.FeatureFlags.TestSite          the Umbraco site the integration tests start
@@ -187,6 +199,9 @@ cd src/Umbricians.FeatureFlags/Client && npm ci && npm run build
 ```bash
 dotnet run --project demo/Umbricians.FeatureFlags.Demo
 ```
+
+The demo builds against Umbraco 17. For 18 or 19, add `-p:UmbracoMajor=18` or `-p:UmbracoMajor=19`; 19 needs the
+.NET 11 SDK. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 The demo runs on https://localhost:44301. The backoffice only accepts logins over HTTPS, so if you pass your own
 `--urls`, include an `https://` one. The demo's test admin

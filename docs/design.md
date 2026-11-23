@@ -273,6 +273,12 @@ hand that Umbraco already has. Checked in Umbraco 17.8, which ships UUI 2.2.1:
 The collection gets its items from a `repository` extension that calls the package's API, and the Settings tree's
 menu item opens a workspace whose only view is the collection.
 
+### One package per Umbraco major
+
+The same source builds a package for each Umbraco major, chosen with the `UmbracoMajor` build setting (17 by default).
+Where a major needs different code, the source uses `#if UMBRACO_18_OR_GREATER`, as the API document does: Umbraco 18
+replaced Swashbuckle with Microsoft.AspNetCore.OpenApi.
+
 ### Management API
 
 The endpoints are listed in the [README](../README.md#api). A flag's name is a query parameter (`flag?name=`), not a
@@ -281,8 +287,9 @@ server, across every flag, so paging stays correct on a site with hundreds.
 
 ## Roadmap
 
-Both parts below ship together in 17.0.0, the first release. The package's major follows Umbraco's, so 17.x is for
-Umbraco 17.
+Both parts below ship together in the first release, for Umbraco 17, 18 and 19: 17.0.0, 18.0.0 and 19.0.0-rc.1. The
+package's major follows Umbraco's, one package per major from one source, so 17.x is for Umbraco 17, 18.x for 18 and
+19.x for 19.
 
 1. **The core:** declared flags from any flag source and code; overrides with off, on for everyone, and on for
    members, member groups and provider groups; reset; undeclared flags; read-only mode; permissions; cache refresh

@@ -1,10 +1,12 @@
 # Calling the API from scripts
 
 Feature Flags has a Management API under `/umbraco/umbriciansfeatureflags/api/v1/`. The backoffice uses it, and so
-can your scripts and CI pipelines. It is listed as `umbricians-feature-flags` in the backoffice's Swagger UI.
+can your scripts and CI pipelines. Its API document is `umbricians-feature-flags`. On Umbraco 17 it is in the
+backoffice's Swagger UI, at `/umbraco/swagger/umbricians-feature-flags/swagger.json`. From Umbraco 18, Umbraco serves
+API documents at `/umbraco/openapi/umbricians-feature-flags.json`, with its UI under `/umbraco/openapi`.
 
-This is not the API a headless front end calls. That is a separate, read-only endpoint with its own Swagger
-document, `umbricians-feature-flags-delivery`, which needs no backoffice user: see [Headless front ends](headless.md).
+This is not the API a headless front end calls. That is a separate, read-only endpoint with its own API document,
+`umbricians-feature-flags-delivery`, found the same way, which needs no backoffice user: see [Headless front ends](headless.md).
 
 ## Who can call it
 
@@ -116,15 +118,15 @@ or `messages` as extra fields on a 409.
 ## What is promised for v1
 
 Every endpoint, every field of the responses and bodies above, every query parameter, and every status code stays as it
-is for the whole of 1.x. New fields, endpoints and values may be added, so ignore fields you don't know.
+is for every package version that serves `v1`. New fields, endpoints and values may be added, so ignore fields you don't know.
 
 Not promised: the wording of `title`, `detail`, `reason`, `problems`, `messages` and `summary`, which are for people, and
 the order of items, except what `orderBy` gives you.
 
 ## Versioning
 
-The `v1` in the path follows the package's major version. A breaking change ships in 2.0 as `/api/v2/`, and 2.0 drops
-`v1`.
+The `v1` in the path is the API's own version, not the package's: 17.x, 18.x and 19.x all serve `v1`. A breaking
+change would come only in the package for a new Umbraco major, as `/api/v2/`, and that package would drop `v1`.
 
 ## Good to know
 

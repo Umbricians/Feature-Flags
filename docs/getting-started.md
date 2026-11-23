@@ -5,16 +5,17 @@ switched from the backoffice. It takes about ten minutes.
 
 ## Requirements
 
-- Umbraco 17.8.2 or later.
+- Umbraco 17.8.2 or later, 18.3.2 or later, or 19.0.0-rc1 or later. Install the Feature Flags major that matches your
+  Umbraco; see the [README](../README.md#installation).
 - A developer to declare flags and check them in the site's code. Editors switch flags, but they can't create them.
 
 ## 1. Install the package
 
 ```bash
-dotnet add package Umbricians.FeatureFlags
+dotnet add package Umbricians.FeatureFlags --version 18.*
 ```
 
-Restart the site. On first start the package:
+Use the major that matches your Umbraco (17.x, 18.x or 19.x). Restart the site. On first start the package:
 
 - adds Microsoft.FeatureManagement, unless the site already uses it;
 - adds one table to the database, `umbriciansFeatureFlagsOverride`, for editors' settings;
