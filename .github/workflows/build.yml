@@ -269,7 +269,8 @@ jobs:
             if [[ "$major" == "$newest" ]]; then dist_tag=latest; else dist_tag="umbraco-$major"; fi
           fi
           echo "Publishing $package@$version with the dist-tag $dist_tag"
-          npm publish "artifacts-npm/umbricians-feature-flags-$version.tgz" --access public --tag "$dist_tag"
+          # A full path: npm reads a relative "folder/file.tgz" as a GitHub "user/repo" to fetch.
+          npm publish "$GITHUB_WORKSPACE/artifacts-npm/umbricians-feature-flags-$version.tgz" --access public --tag "$dist_tag"
 
   release:
     # Runs only once the package is on NuGet, so every GitHub release has a matching package.
