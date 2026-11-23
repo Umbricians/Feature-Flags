@@ -22,19 +22,19 @@
     <UmbracoTargetFramework>net10.0</UmbracoTargetFramework>
     <!-- Microsoft's ASP.NET Core packages the tests use, of the same .NET version. -->
     <AspNetCoreVersion>10.0.15</AspNetCoreVersion>
-    <PackageValidationBaselineVersion>17.0.0</PackageValidationBaselineVersion>
+    <PackageValidationBaselineVersion>17.1.0</PackageValidationBaselineVersion>
   </PropertyGroup>
   <PropertyGroup Condition="'$(UmbracoMajor)' == '18'">
     <UmbracoVersion Condition="'$(UmbracoVersion)' == ''">18.3.2</UmbracoVersion>
     <UmbracoTargetFramework>net10.0</UmbracoTargetFramework>
     <AspNetCoreVersion>10.0.15</AspNetCoreVersion>
-    <PackageValidationBaselineVersion>18.0.0</PackageValidationBaselineVersion>
+    <PackageValidationBaselineVersion>18.1.0</PackageValidationBaselineVersion>
   </PropertyGroup>
   <PropertyGroup Condition="'$(UmbracoMajor)' == '19'">
     <UmbracoVersion Condition="'$(UmbracoVersion)' == ''">19.0.0-rc1</UmbracoVersion>
     <UmbracoTargetFramework>net11.0</UmbracoTargetFramework>
     <AspNetCoreVersion>11.0.0</AspNetCoreVersion>
-    <PackageValidationBaselineVersion>19.0.0-rc.1</PackageValidationBaselineVersion>
+    <PackageValidationBaselineVersion>19.1.0-rc.1</PackageValidationBaselineVersion>
   </PropertyGroup>
 
   <PropertyGroup>
