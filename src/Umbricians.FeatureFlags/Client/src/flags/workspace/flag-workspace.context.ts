@@ -210,7 +210,7 @@ export class FeatureFlagWorkspaceContext extends UmbContextBase implements UmbRo
       if (!notFound) this.#fail(error);
     } finally {
       this.#loading.setValue(false);
-      this.#reassertTitle();
+      this.#reassertTitleAfterRender();
     }
   }
 
@@ -224,7 +224,7 @@ export class FeatureFlagWorkspaceContext extends UmbContextBase implements UmbRo
       context.views,
       (views) => {
         this.#tabs = views as ReadonlyArray<EditorTab>;
-        this.#reassertTitle();
+        this.#reassertTitleAfterRender();
       },
       "umbriciansEditorViews",
     );
@@ -243,6 +243,16 @@ export class FeatureFlagWorkspaceContext extends UmbContextBase implements UmbRo
     const alias = routedViewAlias(this.#tabs.map((tab) => tab.manifest), window.location.pathname);
     const tab = this.#tabs.find((candidate) => candidate.manifest.alias === alias);
     if (typeof tab?._internal_activate === "function") tab._internal_activate();
+  }
+
+  /**
+   * Reasserts the title now and again once the tabs have rendered: on a full page load the tabs' views register (and
+   * each activates, setting the title) after the views list arrives and after the flag loads, so the last word has to
+   * come after their render.
+   */
+  #reassertTitleAfterRender() {
+    this.#reassertTitle();
+    requestAnimationFrame(() => requestAnimationFrame(() => this.#reassertTitle()));
   }
 
   setMode(mode: FlagEditorMode) {
