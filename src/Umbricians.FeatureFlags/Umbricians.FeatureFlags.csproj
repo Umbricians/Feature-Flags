@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk.Razor">
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>$(UmbracoTargetFramework)</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <StaticWebAssetBasePath>/</StaticWebAssetBasePath>
@@ -19,8 +19,9 @@
     <Title>Umbricians Feature Flags</Title>
     <Description>Switch the site's feature flags on and off from the Umbraco backoffice, for everyone or only for chosen members and member groups, built on Microsoft.FeatureManagement.</Description>
     <Authors>Umbricians</Authors>
-    <Version>0.1.0</Version>
-    <PackageTags>umbraco;umbraco-marketplace;feature flags;feature toggles;feature management;members</PackageTags>
+    <!-- The major is the Umbraco major; CI sets the full version from the tag. -->
+    <Version>$(UmbracoMajor).0.0</Version>
+    <PackageTags>umbraco;umbraco-marketplace;umbraco-v$(UmbracoMajor);feature-flags;featureflags;feature-toggles;featuremanagement;targeting;members</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>icon.png</PackageIcon>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
@@ -37,12 +38,14 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Umbricians.FeatureFlags.Tests" />
+    <InternalsVisibleTo Include="Umbricians.FeatureFlags.IntegrationTests" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Umbraco.Cms.Api.Common" />
     <PackageReference Include="Umbraco.Cms.Api.Management" />
     <PackageReference Include="Umbraco.Cms.Web.Common" />
+    <PackageReference Include="Microsoft.FeatureManagement.AspNetCore" />
   </ItemGroup>
 
 

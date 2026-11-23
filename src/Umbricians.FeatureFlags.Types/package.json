@@ -1,0 +1,40 @@
+{
+  "name": "@umbricians/feature-flags",
+  "version": "0.0.0",
+  "description": "TypeScript types for extending the Umbricians Feature Flags backoffice: the entity types, aliases, condition editors and read-only flag workspace context it promises. Types only: no runtime code.",
+  "license": "MIT",
+  "type": "module",
+  "author": "Umbricians",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Umbricians/Feature-Flags.git",
+    "directory": "src/Umbricians.FeatureFlags.Types"
+  },
+  "homepage": "https://github.com/Umbricians/Feature-Flags#readme",
+  "keywords": [
+    "umbraco",
+    "umbraco-package",
+    "feature-flags",
+    "backoffice"
+  ],
+  "types": "index.d.ts",
+  "files": [
+    "index.d.ts",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "peerDependencies": {
+    "@umbraco-cms/backoffice": "^17.8.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@umbraco-cms/backoffice": "17.8.2",
+    "typescript": "^7.0.2"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit && node test/check-declarations.mjs",
+    "test": "node --test --experimental-strip-types --import ../Umbricians.FeatureFlags/Client/test/resolve-ts.mjs \"test/*.test.ts\"",
+    "pack:check": "npm pack --dry-run"
+  }
+}

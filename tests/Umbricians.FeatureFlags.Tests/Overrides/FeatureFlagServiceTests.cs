@@ -1,0 +1,319 @@
+using Microsoft.Extensions.DependencyInjection;
+using Umbricians.FeatureFlags.Flags;
+using Umbricians.FeatureFlags.Groups;
+using Umbricians.FeatureFlags.Overrides;
+
+namespace Umbricians.FeatureFlags.Tests.Overrides;
+
+/// <summary>What editors' changes do to flags, through the service the API calls.</summary>
+public class FeatureFlagServiceTests
+{
+    private const string Member = "8C2F4A10-3B6E-4D1A-9F5C-2E7B1D0A6C34";
+    private const string Group = "7f3a9c21-4e8b-4d6f-a1c5-0b2e9d4f8a67";
+    private const string Flags = """
+        { "feature_management": { "feature_flags": [
+            { "id": "Checkout.NewFlow", "enabled": false },
+            { "id": "Sale", "enabled": true, "conditions": { "client_filters": [ { "name": "Microsoft.Percentage", "parameters": { "Start": "Mon, 01 Jan 2024 00:00:00 GMT" } } ] } } ] } }
+        """;
+
+    private static readonly Guid Editor = Guid.NewGuid();
+
+    [Test]
+    public async Task Saving_switches_the_flag_straight_away_and_records_who_saved_it()
+    {
+        var site = new TestSite(Flags);
+        await site.IsOnAsync("Checkout.NewFlow");
+
+        FeatureFlagResult result = await Service(site).SaveAsync("checkout.newflow", FlagSettings.ForAudience(true, null), Editor, default);
+
+        Assert.That(result.Status, Is.EqualTo(FeatureFlagResultStatus.Saved));
+        Assert.That(await site.IsOnAsync("Checkout.NewFlow"), Is.True);
+        Assert.That(site.Store.All.Single(), Has.Property(nameof(FeatureFlagOverride.FlagName)).EqualTo("Checkout.NewFlow")
+            .And.Property(nameof(FeatureFlagOverride.UpdatedBy)).EqualTo(Editor));
+    }
+
+    [Test]
+    public async Task Saving_writes_keys_the_way_targeting_compares_them()
+    {
+        var site = new TestSite(Flags);
+
+        await Service(site).SaveAsync("Checkout.NewFlow", FlagSettings.ForAudience(true, new FlagAudience([Member, Member, " "], [Group])), Editor, default);
+        site.Visitor.SignIn(Member.ToLowerInvariant());
+
+        Assert.That(await site.IsOnAsync("Checkout.NewFlow"), Is.True);
+        Assert.That(FlagDefinitions.ReadOverride(site.Store.All.Single().Definition, out _)!.Audience!.Members,
+            Is.EqualTo(new[] { Member.ToLowerInvariant() }));
+    }
+
+    [Test]
+    public async Task Saving_writes_member_group_keys_the_way_targeting_compares_them_and_leaves_provider_ids_as_they_are()
+    {
+        string providerId = "A1B2C3D4-0000-4000-8000-000000000000";
+        var site = new TestSite(Flags, before: services => services.AddSingleton<IFeatureFlagGroupProvider>(new TestProvider(providerId)));
+        site.MemberGroups.Add(Guid.Parse(Group), "Premium members");
+
+        await Service(site).SaveAsync("Checkout.NewFlow", FlagSettings.ForAudience(true, new FlagAudience([], [Group.ToUpperInvariant(), providerId])), Editor, default);
+
+        Assert.That(FlagDefinitions.ReadOverride(site.Store.All.Single().Definition, out _)!.Audience!.Groups, Is.EqualTo(new[] { Group, providerId }));
+    }
+
+    [Test]
+    public async Task Saving_keeps_member_groups_named_by_name_and_unknown_ids()
+    {
+        var site = new TestSite(Flags);
+        site.MemberGroups.Add(Guid.NewGuid(), "VIPs");
+
+        await Service(site).SaveAsync("Checkout.NewFlow", FlagSettings.ForAudience(true, new FlagAudience([], ["VIPs", "crm:gone", Group.ToUpperInvariant()])), Editor, default);
+
+        Assert.That(FlagDefinitions.ReadOverride(site.Store.All.Single().Definition, out _)!.Audience!.Groups,
+            Is.EqualTo(new[] { "VIPs", "crm:gone", Group.ToUpperInvariant() }));
+    }
+
+    private sealed class TestProvider(string id) : IFeatureFlagGroupProvider
+    {
+        public Task<IEnumerable<FeatureFlagGroup>> GetGroupsAsync(CancellationToken cancellationToken) => Task.FromResult<IEnumerable<FeatureFlagGroup>>([new FeatureFlagGroup(id, "Provided")]);
+
+        public Task<IEnumerable<string>> GetGroupIdsForMemberAsync(FeatureFlagMember member, CancellationToken cancellationToken) => Task.FromResult<IEnumerable<string>>([]);
+    }
+
+    [Test]
+    public async Task Switching_off_keeps_the_audience_for_switching_back_on()
+    {
+        var site = new TestSite(Flags);
+        FeatureFlagService service = Service(site);
+        await service.SaveAsync("Checkout.NewFlow", FlagSettings.ForAudience(true, new FlagAudience([Member], [])), Editor, default);
+
+        await service.SwitchAsync("Checkout.NewFlow", false, Editor, default);
+        site.Visitor.SignIn(Member.ToLowerInvariant());
+        bool whileOff = await site.IsOnAsync("Checkout.NewFlow");
+        await service.SwitchAsync("Checkout.NewFlow", true, Editor, default);
+
+        Assert.That((whileOff, await site.IsOnAsync("Checkout.NewFlow")), Is.EqualTo((false, true)));
+    }
+
+    [Test]
+    public async Task Resetting_goes_back_to_the_default()
+    {
+        var site = new TestSite(Flags);
+        FeatureFlagService service = Service(site);
+        await service.SaveAsync("Checkout.NewFlow", FlagSettings.ForAudience(true, null), Editor, default);
+
+        await service.ResetAsync("Checkout.NewFlow", default);
+
+        Assert.That(await site.IsOnAsync("Checkout.NewFlow"), Is.False);
+        Assert.That(site.Store.All, Is.Empty);
+    }
+
+    [Test]
+    public async Task A_flag_the_backoffice_can_not_edit_is_refused_but_can_still_be_reset()
+    {
+        var site = new TestSite(Flags);
+        site.Store.With("Sale", FlagSettings.Off);
+        site.Refresh();
+        FeatureFlagService service = Service(site);
+
+        // An override makes the flag editable again, so start from one the backoffice can't read.
+        site.Store.WithJson("Sale", """{ "id": "Sale", "enabled": true, "conditions": { "client_filters": [ { "name": "Microsoft.Percentage", "parameters": { "Start": "Mon, 01 Jan 2024 00:00:00 GMT" } } ] } }""");
+        site.Refresh();
+        FeatureFlagResult save = await service.SaveAsync("Sale", FlagSettings.Off, Editor, default);
+        FeatureFlagResult reset = await service.ResetAsync("Sale", default);
+
+        Assert.That(save.Status, Is.EqualTo(FeatureFlagResultStatus.NotAllowed));
+        Assert.That(save.Reason, Does.Contain("Microsoft.Percentage"));
+        Assert.That(reset.Status, Is.EqualTo(FeatureFlagResultStatus.Saved));
+        Assert.That(site.Store.All, Is.Empty);
+    }
+
+    [Test]
+    public async Task Nothing_can_be_changed_when_overrides_are_read_only()
+    {
+        var site = new TestSite("""
+            { "Umbricians": { "FeatureFlags": { "Overrides": "ReadOnly" } },
+              "feature_management": { "feature_flags": [ { "id": "Checkout.NewFlow", "enabled": false } ] } }
+            """);
+        site.Store.With("Checkout.NewFlow", FlagSettings.ForAudience(true, null));
+        FeatureFlagService service = Service(site);
+
+        FeatureFlagResult save = await service.SaveAsync("Checkout.NewFlow", FlagSettings.ForAudience(true, null), Editor, default);
+        FeatureFlagResult reset = await service.ResetAsync("Checkout.NewFlow", default);
+
+        Assert.That((save.Status, reset.Status), Is.EqualTo((FeatureFlagResultStatus.NotAllowed, FeatureFlagResultStatus.NotAllowed)));
+        Assert.That(reset.Reason, Does.Contain("ReadOnly"));
+        Assert.That(site.Store.All, Has.Count.EqualTo(1));
+    }
+
+    [Test]
+    public async Task Removing_an_undeclared_flag_on_a_read_only_site_is_refused_with_the_read_only_reason()
+    {
+        var site = new TestSite("""
+            { "Umbricians": { "FeatureFlags": { "Overrides": "ReadOnly" } },
+              "feature_management": { "feature_flags": [ { "id": "Checkout.NewFlow", "enabled": false } ] } }
+            """);
+        site.Store.With("Promo.Removed", FlagSettings.ForAudience(true, null));
+
+        FeatureFlagResult remove = await Service(site).ResetAsync("Promo.Removed", default);
+
+        Assert.That(remove.Status, Is.EqualTo(FeatureFlagResultStatus.NotAllowed));
+        Assert.That(remove.Reason, Does.Contain("ReadOnly"));
+        Assert.That(site.Store.All, Has.Count.EqualTo(1));
+    }
+
+    [Test]
+    public async Task Resetting_a_flag_with_nothing_saved_is_refused()
+    {
+        var site = new TestSite(Flags);
+
+        FeatureFlagResult reset = await Service(site).ResetAsync("Checkout.NewFlow", default);
+        FeatureFlagResult unknown = await Service(site).ResetAsync("Nobody", default);
+
+        Assert.That(reset.Status, Is.EqualTo(FeatureFlagResultStatus.NotAllowed));
+        Assert.That(reset.Reason, Does.Contain("already uses its default"));
+        Assert.That(unknown.Status, Is.EqualTo(FeatureFlagResultStatus.NotFound));
+    }
+
+    [Test]
+    public async Task A_flag_the_backoffice_can_not_edit_can_not_be_switched()
+    {
+        var site = new TestSite(Flags);
+
+        FeatureFlagResult result = await Service(site).SwitchAsync("Sale", false, Editor, default);
+
+        Assert.That(result.Status, Is.EqualTo(FeatureFlagResultStatus.NotAllowed));
+        Assert.That(result.Reason, Does.Contain("Microsoft.Percentage"));
+    }
+
+    [Test]
+    public async Task A_flag_nobody_declares_can_not_be_saved_but_its_setting_can_be_removed()
+    {
+        var site = new TestSite(Flags);
+        site.Store.With("Promo.Removed", FlagSettings.ForAudience(true, null));
+        FeatureFlagService service = Service(site);
+
+        FeatureFlagResult save = await service.SaveAsync("Promo.Removed", FlagSettings.Off, Editor, default);
+        FeatureFlagResult remove = await service.ResetAsync("Promo.Removed", default);
+
+        Assert.That((save.Status, remove.Status), Is.EqualTo((FeatureFlagResultStatus.NotFound, FeatureFlagResultStatus.Saved)));
+        Assert.That(site.Store.All, Is.Empty);
+    }
+
+    [Test]
+    public async Task Deleting_the_last_member_of_an_audience_leaves_the_flag_on_for_nobody()
+    {
+        var site = new TestSite(Flags);
+        FeatureFlagService service = Service(site);
+        string member = Member.ToLowerInvariant();
+        await service.SaveAsync("Checkout.NewFlow", FlagSettings.ForAudience(true, new FlagAudience([member], [])), Editor, default);
+
+        await service.RemoveFromAudiencesAsync([member], default);
+        site.Visitor.SignIn(member);
+        bool forDeleted = await site.IsOnAsync("Checkout.NewFlow");
+        site.Visitor.SignIn("someone-else");
+        bool forOthers = await site.IsOnAsync("Checkout.NewFlow");
+
+        Assert.That((forDeleted, forOthers), Is.EqualTo((false, false)));
+        Assert.That(FlagDefinitions.ReadOverride(site.Store.All.Single().Definition, out _)!.Audience, Is.Not.Null
+            .And.Property(nameof(FlagAudience.Members)).Empty);
+    }
+
+    [Test]
+    public async Task Deleting_a_member_group_takes_it_out_of_audiences()
+    {
+        var site = new TestSite(Flags);
+        FeatureFlagService service = Service(site);
+        await service.SaveAsync("Checkout.NewFlow", FlagSettings.ForAudience(true, new FlagAudience([], [Group, "crm:premium"])), Editor, default);
+
+        await service.RemoveFromAudiencesAsync([Group], default);
+
+        Assert.That(FlagDefinitions.ReadOverride(site.Store.All.Single().Definition, out _)!.Audience!.Groups,
+            Is.EqualTo(new[] { "crm:premium" }));
+    }
+
+    [Test]
+    public async Task Code_resolves_the_public_service_and_its_save_is_seen_at_once_by_the_feature_manager()
+    {
+        var site = new TestSite(Flags);
+        IFeatureFlagService service = site.Provider.GetRequiredService<IFeatureFlagService>();
+        Assert.That(await site.IsOnAsync("Checkout.NewFlow"), Is.False);
+
+        FeatureFlagResult result = await service.SwitchAsync("Checkout.NewFlow", true);
+
+        Assert.That(result, Is.EqualTo(FeatureFlagResult.Saved));
+        Assert.That(result.IsSaved, Is.True);
+        Assert.That(await site.IsOnAsync("Checkout.NewFlow"), Is.True);
+        Assert.That((await service.ResetAsync("Checkout.NewFlow", Editor)).IsSaved, Is.True);
+        Assert.That(await site.IsOnAsync("Checkout.NewFlow"), Is.False);
+    }
+
+    [Test]
+    public async Task Every_flag_is_listed_with_the_undeclared_ones_and_found_by_name_ignoring_case()
+    {
+        var site = new TestSite(Flags);
+        site.Store.With("Promo.Removed", FlagSettings.ForAudience(true, null));
+        IFeatureFlagService service = site.Provider.GetRequiredService<IFeatureFlagService>();
+
+        IReadOnlyList<FeatureFlag> all = await service.GetAllAsync();
+        FeatureFlag? found = await service.GetAsync("checkout.NEWFLOW");
+
+        Assert.That(all.Select(flag => flag.Name), Is.EquivalentTo(new[] { "Checkout.NewFlow", "Sale", "Promo.Removed" }));
+        Assert.That(found, Has.Property(nameof(FeatureFlag.Name)).EqualTo("Checkout.NewFlow")
+            .And.Property(nameof(FeatureFlag.IsDeclared)).True
+            .And.Property(nameof(FeatureFlag.State)).EqualTo(FeatureFlagState.Off));
+        Assert.That(all.Single(flag => flag.Name == "Promo.Removed").IsDeclared, Is.False);
+        Assert.That(await service.GetAsync("Nobody"), Is.Null);
+    }
+
+    [Test]
+    public async Task A_flag_nobody_declares_is_not_found_to_save_or_switch()
+    {
+        var site = new TestSite(Flags);
+        IFeatureFlagService service = site.Provider.GetRequiredService<IFeatureFlagService>();
+
+        FeatureFlagResult save = await service.SaveAsync("Nobody", FlagSettings.Off);
+        FeatureFlagResult switched = await service.SwitchAsync("Nobody", true);
+
+        Assert.That((save.Status, switched.Status), Is.EqualTo((FeatureFlagResultStatus.NotFound, FeatureFlagResultStatus.NotFound)));
+    }
+
+    [Test]
+    public async Task Code_is_refused_the_way_the_backoffice_is_when_overrides_are_read_only_with_the_reason()
+    {
+        var site = new TestSite("""
+            { "Umbricians": { "FeatureFlags": { "Overrides": "ReadOnly" } },
+              "feature_management": { "feature_flags": [ { "id": "Checkout.NewFlow", "enabled": false } ] } }
+            """);
+        IFeatureFlagService service = site.Provider.GetRequiredService<IFeatureFlagService>();
+
+        FeatureFlagResult save = await service.SaveAsync("Checkout.NewFlow", FlagSettings.Off);
+        FeatureFlagResult switched = await service.SwitchAsync("Checkout.NewFlow", true);
+
+        Assert.That(save, Has.Property(nameof(FeatureFlagResult.Status)).EqualTo(FeatureFlagResultStatus.NotAllowed)
+            .And.Property(nameof(FeatureFlagResult.Reason)).Contain("ReadOnly"));
+        Assert.That(switched.Status, Is.EqualTo(FeatureFlagResultStatus.NotAllowed));
+        Assert.That(site.Store.All, Is.Empty);
+    }
+
+    [Test]
+    public void A_cancelled_result_carries_the_messages_and_no_other_result_does()
+    {
+        FeatureFlagResult cancelled = FeatureFlagResult.Cancelled(["Not on a Friday."]);
+
+        Assert.That(cancelled, Has.Property(nameof(FeatureFlagResult.Status)).EqualTo(FeatureFlagResultStatus.Cancelled)
+            .And.Property(nameof(FeatureFlagResult.IsSaved)).False
+            .And.Property(nameof(FeatureFlagResult.Messages)).EqualTo(new[] { "Not on a Friday." }));
+        Assert.That(FeatureFlagResult.Saved.Messages, Is.Empty);
+    }
+
+    [Test]
+    public async Task The_editor_path_saves_the_same_way_as_code()
+    {
+        var site = new TestSite(Flags);
+
+        FeatureFlagResult result = await Service(site).SaveAsync("Checkout.NewFlow", FlagSettings.ForAudience(true, null), FeatureFlagChangeCause.Editor, Editor, default);
+
+        Assert.That(result.IsSaved, Is.True);
+        Assert.That(await site.IsOnAsync("Checkout.NewFlow"), Is.True);
+        Assert.That(site.Store.All.Single().UpdatedBy, Is.EqualTo(Editor));
+    }
+
+    private static FeatureFlagService Service(TestSite site) => site.Provider.GetRequiredService<FeatureFlagService>();
+}
