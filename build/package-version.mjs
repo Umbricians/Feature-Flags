@@ -4,7 +4,9 @@
 //
 // The package's major is the Umbraco major it supports, and each major is built separately (-p:UmbracoMajor=18).
 // A tag v18.2.3 builds 18.2.3, and fails for any other major. Any other build is {next patch}-ci.{run number}, where
-// the next patch follows the highest stable release tag of that major, or is {major}.0.0 before its first release.
+// the next patch follows the highest release or pre-release tag of that major (v19.1.0-rc.1 counts as 19.1.0), or is
+// {major}.0.0 before its first tag. Counting pre-releases keeps a CI build above the package validation baseline of a
+// major that has only pre-releases so far.
 // Needs the tags fetched.
 import { execFileSync } from "node:child_process";
 
@@ -33,15 +35,20 @@ if (version.split(".")[0] !== umbracoMajor) {
 console.log(version);
 
 function nextPatch() {
-  const lastRelease = lastStableTag();
-  if (!lastRelease) return undefined;
-  const [major, minor, patch] = lastRelease.slice(1).split(".").map(Number);
+  const last = lastTaggedVersion();
+  if (!last) return undefined;
+  const [major, minor, patch] = last;
   return `${major}.${minor}.${patch + 1}`;
 }
 
-// The highest stable tag of this major in the repository, reachable or not: Gitflow tags releases on main before
-// develop has them. Other majors' tags don't count.
-function lastStableTag() {
-  const tags = execFileSync("git", ["tag", "--list", `v${umbracoMajor}.*.*`, "--sort=-v:refname"], { encoding: "utf8" });
-  return tags.split("\n").find((tag) => /^v\d+\.\d+\.\d+$/.test(tag.trim()))?.trim();
+// The highest major.minor.patch of this major's tags in the repository, reachable or not: Gitflow tags releases on
+// main before develop has them. A pre-release tag counts by its major.minor.patch. Other majors' tags don't count.
+function lastTaggedVersion() {
+  const tags = execFileSync("git", ["tag", "--list", `v${umbracoMajor}.*.*`], { encoding: "utf8" });
+  return tags
+    .split("\n")
+    .map((tag) => /^v(\d+)\.(\d+)\.(\d+)(-[0-9A-Za-z.-]+)?$/.exec(tag.trim()))
+    .filter(Boolean)
+    .map((match) => match.slice(1, 4).map(Number))
+    .sort((a, b) => b[0] - a[0] || b[1] - a[1] || b[2] - a[2])[0];
 }
