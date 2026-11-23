@@ -12,6 +12,7 @@ import {
   UmbWorkspaceRouteManager,
   umbWorkspaceWillNavigateAway,
   type UmbRoutableWorkspaceContext,
+  type UmbWorkspaceEditorContext,
 } from "@umbraco-cms/backoffice/workspace";
 import {
   fetchConditions,
@@ -34,6 +35,7 @@ import { observePermission } from "../../permissions/permissions.js";
 import { addableConditions } from "../../conditions/condition-names.js";
 import { stateLabel } from "../describe.js";
 import { mayDo } from "../display.js";
+import { routedViewAlias } from "./routed-view.js";
 import { FeatureFlagEditorElement } from "./flag-editor.element.js";
 import {
   addCondition,
@@ -49,6 +51,9 @@ import {
   type FlagEditorState,
   type SaveBlocker,
 } from "./flag-editor-state.js";
+
+/** One of the workspace editor's tabs: its manifest, and its view context's internal activation. */
+type EditorTab = { manifest: { alias: string; meta: { pathname: string } }; _internal_activate?: () => void };
 
 /**
  * The flag editor's workspace, at …/edit/{name}: loads one flag, holds the editor's unsaved changes, and saves or resets
@@ -110,6 +115,8 @@ export class FeatureFlagWorkspaceContext extends UmbContextBase implements UmbRo
   #allowNavigateAway = false;
   /** Gives the browser tab the flag's name, rather than the name of the Settings tab twice. */
   #view = new UmbViewContext(this, null);
+  /** The workspace editor's tabs (one view context each, in tab order), once the editor exists. */
+  #tabs: ReadonlyArray<EditorTab> = [];
   #localize = new UmbLocalizationController(this);
   #notifications?: typeof UMB_NOTIFICATION_CONTEXT.TYPE;
 
@@ -152,6 +159,8 @@ export class FeatureFlagWorkspaceContext extends UmbContextBase implements UmbRo
       history.pushState({}, "", url);
       return true;
     } catch {
+      // Stayed on the flag; the closed modal has left the section's title behind.
+      this.#reassertTitle();
       return false;
     }
   };
@@ -201,9 +210,39 @@ export class FeatureFlagWorkspaceContext extends UmbContextBase implements UmbRo
       if (!notFound) this.#fail(error);
     } finally {
       this.#loading.setValue(false);
-      // Views that render after a load (such as after a reset) can replace the title, so say it again.
-      this.#view.setTitle(name);
+      this.#reassertTitle();
     }
+  }
+
+  /** Hands over the workspace editor (the frame that holds the tabs), whose tabs are what set the browser tab's title. */
+  setEditorContext(context: UmbWorkspaceEditorContext | undefined) {
+    if (!context) {
+      this.#tabs = [];
+      return;
+    }
+    this.observe(
+      context.views,
+      (views) => {
+        this.#tabs = views as ReadonlyArray<EditorTab>;
+        this.#reassertTitle();
+      },
+      "umbriciansEditorViews",
+    );
+  }
+
+  /**
+   * Makes the browser tab's title "{flag name} | {tab} | Umbraco" again, for the tab the URL shows.
+   *
+   * Umbraco appears to get this wrong (an upstream bug). A modal hosted on the workspace deactivates the open view, and
+   * on closing activates the *parent* view, so the title falls back to the section's ("Settings | Umbraco") and nothing
+   * re-activates the routed tab. Also, every tab activates as it registers, so the last one registered (not the one
+   * shown) can set the title. Activating the routed tab's view rewrites the title; no public method does that, so this
+   * calls the internal `_internal_activate`, only if it exists.
+   */
+  #reassertTitle() {
+    const alias = routedViewAlias(this.#tabs.map((tab) => tab.manifest), window.location.pathname);
+    const tab = this.#tabs.find((candidate) => candidate.manifest.alias === alias);
+    if (typeof tab?._internal_activate === "function") tab._internal_activate();
   }
 
   setMode(mode: FlagEditorMode) {
@@ -270,6 +309,8 @@ export class FeatureFlagWorkspaceContext extends UmbContextBase implements UmbRo
       );
     } catch {
       return;
+    } finally {
+      this.#reassertTitle();
     }
     this.#saving.setValue(true);
     try {

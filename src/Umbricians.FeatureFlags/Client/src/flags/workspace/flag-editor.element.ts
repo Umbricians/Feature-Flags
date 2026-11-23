@@ -1,5 +1,7 @@
 import { customElement, html, nothing, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbLitElement } from "@umbraco-cms/backoffice/lit-element";
+import { UmbContextConsumerController } from "@umbraco-cms/backoffice/context-api";
+import { UMB_WORKSPACE_EDITOR_CONTEXT } from "@umbraco-cms/backoffice/workspace";
 import type { FeatureFlag } from "../../api/feature-flags.resource.js";
 import { mayDo } from "../display.js";
 import { flagListPath } from "../paths.js";
@@ -13,6 +15,7 @@ import { FEATURE_FLAG_WORKSPACE_CONTEXT } from "./flag-workspace.context-token.j
 @customElement("umbricians-feature-flags-editor")
 export class FeatureFlagEditorElement extends UmbLitElement {
   #context?: typeof FEATURE_FLAG_WORKSPACE_CONTEXT.TYPE;
+  #editorContext?: typeof UMB_WORKSPACE_EDITOR_CONTEXT.TYPE;
 
   @state() private _flag?: FeatureFlag;
   @state() private _loading = true;
@@ -29,6 +32,7 @@ export class FeatureFlagEditorElement extends UmbLitElement {
     this.consumeContext(FEATURE_FLAG_WORKSPACE_CONTEXT, (context) => {
       this.#context = context;
       if (!context) return;
+      if (this.#editorContext) context.setEditorContext(this.#editorContext);
       this.observe(context.flag, (flag) => (this._flag = flag), "umbriciansFlag");
       this.observe(context.loading, (loading) => (this._loading = loading), "umbriciansLoading");
       this.observe(context.notFound, (notFound) => (this._notFound = notFound), "umbriciansNotFound");
@@ -36,6 +40,16 @@ export class FeatureFlagEditorElement extends UmbLitElement {
       this.observe(context.saving, (saving) => (this._saving = saving), "umbriciansSaving");
       this.observe(context.saveBlocker, (blocker) => (this._blocked = blocker !== null), "umbriciansSaveBlocker");
       this.observe(context.canManage, (canManage) => (this._canManage = canManage), "umbriciansCanManage");
+    });
+  }
+
+  protected override firstUpdated() {
+    // The workspace editor provides its context on its own element, below this one, so it can only be asked for from there.
+    const editor = this.shadowRoot?.querySelector("umb-workspace-editor");
+    if (!editor) return;
+    new UmbContextConsumerController(editor, UMB_WORKSPACE_EDITOR_CONTEXT, (editorContext) => {
+      this.#editorContext = editorContext;
+      this.#context?.setEditorContext(editorContext);
     });
   }
 
