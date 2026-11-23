@@ -56,6 +56,9 @@ named after its 17.x version.
 7. Check each run also published the npm types package, or publish it by hand while npm publishing is off (see
    below).
 8. Merge `main` back into `develop` through a pull request with the `release-flow` label.
+9. In that back-merge or the next pull request, move each released major's `PackageValidationBaselineVersion` in
+   `Directory.Build.props` to the version just released. Packing fails when a major's public API breaks against its
+   baseline, so breaking changes wait for a new Umbraco major.
 
 Umbraco 19 stays a pre-release until Umbraco 19.0.0 is out (due 10 December 2026), so until then leave `v19.x.y`
 out of step 4 and tag it as `v19.N.P-rc.M` on the release branch, as in the first release below.
