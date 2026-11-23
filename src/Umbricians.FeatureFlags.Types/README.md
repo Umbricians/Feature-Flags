@@ -9,4 +9,6 @@ helps TypeScript check your extension. There is no runtime code. There are no co
 literal aliases (such as `FeatureFlagEntityType`) where you want a typo to fail to compile. See
 [Extending the backoffice](https://github.com/Umbricians/Feature-Flags/blob/main/docs/backoffice.md#extending-the-backoffice).
 
-The surface is promised within one Umbraco major version; this package's peer dependency is `@umbraco-cms/backoffice` `^17.8.2`.
+The surface is promised within one Umbraco major version. Each major has its own version of this package, with its peer
+dependency on `@umbraco-cms/backoffice`: `^17.8.2` for 17.x, `^18.3.2` for 18.x and `^19.0.0-rc1` for 19.x. Install the
+one that matches your Umbraco major, for example `npm install -D @umbricians/feature-flags@18`.

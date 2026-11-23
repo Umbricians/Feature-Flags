@@ -8,7 +8,9 @@ using Umbricians.FeatureFlags.Controllers;
 using Umbricians.FeatureFlags.Diagnostics;
 using Umbricians.FeatureFlags.Flags;
 using Umbricians.FeatureFlags.Groups;
+#if !UMBRACO_18_OR_GREATER
 using Umbricians.FeatureFlags.OpenApi;
+#endif
 using Umbricians.FeatureFlags.Overrides;
 using Umbricians.FeatureFlags.Targeting;
 
@@ -36,7 +38,9 @@ internal static class ServiceCollectionExtensions
 
         services.AddMvcCore().ConfigureApplicationPartManager(parts =>
             parts.FeatureProviders.Add(new FeatureFlagsControllerFeatureProvider()));
+#if !UMBRACO_18_OR_GREATER
         services.ConfigureOptions<FeatureFlagsSwaggerGenOptions>();
+#endif
 
         services.TryAddSingleton(TimeProvider.System);
         services.AddHttpContextAccessor();

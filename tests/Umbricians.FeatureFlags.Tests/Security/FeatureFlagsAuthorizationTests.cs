@@ -161,9 +161,19 @@ public class FeatureFlagsAuthorizationTests
     private static int _nextGroupId;
 
     private static ReadOnlyUserGroup Group(string alias, string[] sections, string[] permissions) =>
+#if UMBRACO_19_OR_GREATER
+        new(
+            ++_nextGroupId, Guid.NewGuid(), alias, null, null, null, null, null, null, alias, [], sections,
+            new HashSet<string>(permissions), new HashSet<IGranularPermission>(), true, false);
+#elif UMBRACO_18_OR_GREATER
+        new(
+            ++_nextGroupId, Guid.NewGuid(), alias, null, null, null, null, null, alias, [], sections,
+            new HashSet<string>(permissions), new HashSet<IGranularPermission>(), true);
+#else
         new(
             ++_nextGroupId, Guid.NewGuid(), alias, null, null, null, null, alias, [], sections,
             new HashSet<string>(permissions), new HashSet<IGranularPermission>(), true);
+#endif
 
     private static User UserIn(params ReadOnlyUserGroup[] groups)
     {

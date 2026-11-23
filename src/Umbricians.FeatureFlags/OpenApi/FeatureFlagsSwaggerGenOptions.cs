@@ -1,3 +1,4 @@
+#if !UMBRACO_18_OR_GREATER
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -25,3 +26,5 @@ internal sealed class FeatureFlagsSwaggerGenOptions : IConfigureOptions<SwaggerG
         options.OperationFilter<FeatureFlagsSecurityRequirementsOperationFilter>();
     }
 }
+
+#endif

@@ -117,20 +117,71 @@ public class ApiUserTests : IntegrationTest
     }
 
     [Test]
-    public async Task The_swagger_document_describes_a_condition_s_parameters_as_free_form_json()
+    public async Task The_api_document_describes_a_condition_s_parameters_as_free_form_json()
     {
         using HttpClient client = Site.CreateClient();
 
+#if UMBRACO_18_OR_GREATER
+        HttpResponseMessage response = await client.GetAsync("/umbraco/openapi/" + Constants.ApiName + ".json");
+#else
         HttpResponseMessage response = await client.GetAsync("/umbraco/swagger/" + Constants.ApiName + "/swagger.json");
+#endif
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK), await response.Content.ReadAsStringAsync());
         JsonElement document = await response.Content.ReadFromJsonAsync<JsonElement>();
 
         JsonElement schemas = document.GetProperty("components").GetProperty("schemas");
         JsonElement condition = schemas.GetProperty("FlagConditionModel");
-        Assert.That(condition.GetProperty("properties").GetProperty("parameters").GetRawText(), Does.Contain("\"object\"").And.Not.Contain("options"));
+        JsonElement parameters = condition.GetProperty("properties").GetProperty("parameters");
+        if (parameters.TryGetProperty("$ref", out JsonElement reference))
+        {
+            // Umbraco 18 and later describe JsonObject once, as a shared schema.
+            parameters = schemas.GetProperty(reference.GetString()!.Split('/')[^1]);
+        }
+
+        Assert.That(parameters.GetRawText(), Does.Contain("\"object\"").And.Not.Contain("options"));
         Assert.That(schemas.TryGetProperty("SaveFlagRequestModel", out _), Is.True);
         Assert.That(schemas.TryGetProperty("SaveAudienceRequestModel", out _), Is.False);
     }
+
+#if UMBRACO_18_OR_GREATER
+    [Test]
+    public async Task Umbracos_management_document_does_not_include_the_package_s_endpoints()
+    {
+        IReadOnlyList<string> paths = await DocumentPathsAsync("management");
+
+        Assert.That(paths, Is.Not.Empty);
+        Assert.That(paths, Has.None.Contain("umbriciansfeatureflags").IgnoreCase);
+    }
+
+    [Test]
+    public async Task The_package_s_management_document_has_only_its_management_endpoints()
+    {
+        IReadOnlyList<string> paths = await DocumentPathsAsync(Constants.ApiName);
+
+        Assert.That(paths, Is.Not.Empty);
+        Assert.That(paths, Has.All.Contain("/umbriciansfeatureflags/api/"));
+    }
+
+    [Test]
+    public async Task The_delivery_document_has_only_the_delivery_endpoint()
+    {
+        IReadOnlyList<string> paths = await DocumentPathsAsync(Constants.DeliveryApiName);
+
+        Assert.That(paths, Is.Not.Empty);
+        Assert.That(paths, Has.All.Contain("/umbriciansfeatureflags/delivery/"));
+    }
+
+    private async Task<IReadOnlyList<string>> DocumentPathsAsync(string name)
+    {
+        using HttpClient client = Site.CreateClient();
+
+        HttpResponseMessage response = await client.GetAsync("/umbraco/openapi/" + name + ".json");
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK), await response.Content.ReadAsStringAsync());
+        JsonElement document = await response.Content.ReadFromJsonAsync<JsonElement>();
+
+        return document.GetProperty("paths").EnumerateObject().Select(path => path.Name).ToList();
+    }
+#endif
 
     /// <summary>Makes an API user in a new group with these permissions, and returns a client that has its bearer token.</summary>
     private async Task<HttpClient> SignInAsApiUserAsync(params string[] permissions)
