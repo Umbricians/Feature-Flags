@@ -2,6 +2,7 @@ using Umbraco.Cms.Core.Composing;
 using Umbraco.Cms.Core.DependencyInjection;
 using Umbraco.Cms.Core.Notifications;
 using Umbricians.FeatureFlags.Flags;
+using Umbricians.FeatureFlags.OpenApi;
 using Umbricians.FeatureFlags.Overrides;
 
 namespace Umbricians.FeatureFlags.Composers;
@@ -15,6 +16,7 @@ public class FeatureFlagsComposer : IComposer
     public void Compose(IUmbracoBuilder builder)
     {
         builder.Services.AddFeatureFlags(builder.Config);
+        builder.AddFeatureFlagsOpenApi();
 
         builder.CacheRefreshers().Add<FeatureFlagsCacheRefresher>();
         builder.AddNotificationAsyncHandler<MemberDeletedNotification, MemberDeletedHandler>();

@@ -18,7 +18,7 @@ if (!demoFolder || !bundlePath || !swaggerDocument) {
 }
 
 const projectDir = resolve(demoFolder);
-const assembly = join(projectDir, "bin", "Release", "net10.0", `${basename(projectDir)}.dll`);
+const assembly = join(projectDir, "bin", "Release", "net11.0", `${basename(projectDir)}.dll`);
 const site = spawn("dotnet", [assembly, "--urls", SITE_URL], {
   cwd: projectDir,
   env: { ...process.env, ASPNETCORE_ENVIRONMENT: "Development", DOTNET_ENVIRONMENT: "Development" },
@@ -28,7 +28,7 @@ const site = spawn("dotnet", [assembly, "--urls", SITE_URL], {
 try {
   await waitUntilOk(`${SITE_URL}/umbraco`);
   await expectOk(`${SITE_URL}${bundlePath}`);
-  await expectOk(`${SITE_URL}/umbraco/swagger/${swaggerDocument}/swagger.json`);
+  await expectOk(`${SITE_URL}/umbraco/openapi/${swaggerDocument}.json`);
   console.log("The demo serves the backoffice, the package's bundle and its Swagger document.");
 } catch (error) {
   console.error(error.message);

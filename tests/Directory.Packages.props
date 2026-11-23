@@ -16,7 +16,7 @@
     <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="11.0.1" />
     <PackageVersion Include="Umbraco.Cms.Persistence.Sqlite" Version="$(UmbracoVersion)" />
     <PackageVersion Include="Umbraco.Cms" Version="$(UmbracoVersion)" />
-    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="11.0.0" />
     <PackageVersion Include="Microsoft.Data.SqlClient" Version="$(SqlClientVersion)" />
   </ItemGroup>
 </Project>

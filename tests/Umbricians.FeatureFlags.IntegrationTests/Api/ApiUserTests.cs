@@ -121,13 +121,19 @@ public class ApiUserTests : IntegrationTest
     {
         using HttpClient client = Site.CreateClient();
 
-        HttpResponseMessage response = await client.GetAsync("/umbraco/swagger/" + Constants.ApiName + "/swagger.json");
+        HttpResponseMessage response = await client.GetAsync("/umbraco/openapi/" + Constants.ApiName + ".json");
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK), await response.Content.ReadAsStringAsync());
         JsonElement document = await response.Content.ReadFromJsonAsync<JsonElement>();
 
         JsonElement schemas = document.GetProperty("components").GetProperty("schemas");
         JsonElement condition = schemas.GetProperty("FlagConditionModel");
-        Assert.That(condition.GetProperty("properties").GetProperty("parameters").GetRawText(), Does.Contain("\"object\"").And.Not.Contain("options"));
+        JsonElement parameters = condition.GetProperty("properties").GetProperty("parameters");
+        if (parameters.TryGetProperty("$ref", out JsonElement reference))
+        {
+            parameters = schemas.GetProperty(reference.GetString()!.Split('/')[^1]);
+        }
+
+        Assert.That(parameters.GetRawText(), Does.Contain("\"object\"").And.Not.Contain("options"));
         Assert.That(schemas.TryGetProperty("SaveFlagRequestModel", out _), Is.True);
         Assert.That(schemas.TryGetProperty("SaveAudienceRequestModel", out _), Is.False);
     }

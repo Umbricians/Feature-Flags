@@ -162,8 +162,8 @@ public class FeatureFlagsAuthorizationTests
 
     private static ReadOnlyUserGroup Group(string alias, string[] sections, string[] permissions) =>
         new(
-            ++_nextGroupId, Guid.NewGuid(), alias, null, null, null, null, alias, [], sections,
-            new HashSet<string>(permissions), new HashSet<IGranularPermission>(), true);
+            ++_nextGroupId, Guid.NewGuid(), alias, null, null, null, null, null, null, alias, [], sections,
+            new HashSet<string>(permissions), new HashSet<IGranularPermission>(), true, false);
 
     private static User UserIn(params ReadOnlyUserGroup[] groups)
     {

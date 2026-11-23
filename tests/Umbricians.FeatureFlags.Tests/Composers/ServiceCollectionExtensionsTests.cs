@@ -3,11 +3,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
-using Swashbuckle.AspNetCore.SwaggerGen;
 using Umbricians.FeatureFlags.Composers;
 using Umbricians.FeatureFlags.Configuration;
 using Umbricians.FeatureFlags.Controllers;
-using Umbricians.FeatureFlags.OpenApi;
 
 namespace Umbricians.FeatureFlags.Tests.Composers;
 
@@ -68,27 +66,6 @@ public class ServiceCollectionExtensionsTests
         IStartupValidator startupValidator = services.BuildServiceProvider().GetRequiredService<IStartupValidator>();
 
         Assert.That(startupValidator.Validate, Throws.InstanceOf<Exception>());
-    }
-
-    [Test]
-    public void Adds_the_package_api_document()
-    {
-        ServiceProvider provider = WithPackageServices().BuildServiceProvider();
-
-        SwaggerGenOptions swagger = provider.GetRequiredService<IOptions<SwaggerGenOptions>>().Value;
-
-        Assert.That(swagger.SwaggerGeneratorOptions.SwaggerDocs, Does.ContainKey(Constants.ApiName));
-    }
-
-    [Test]
-    public void Sends_the_backoffice_token_from_the_package_api_document()
-    {
-        ServiceProvider provider = WithPackageServices().BuildServiceProvider();
-
-        SwaggerGenOptions swagger = provider.GetRequiredService<IOptions<SwaggerGenOptions>>().Value;
-
-        Assert.That(swagger.OperationFilterDescriptors.Select(filter => filter.Type),
-            Has.Member(typeof(FeatureFlagsSecurityRequirementsOperationFilter)));
     }
 
     private static ServiceCollection WithPackageServices()
