@@ -56,6 +56,9 @@ named after its 17.x version.
 7. Check each run also published the npm types package, or publish it by hand while npm publishing is off (see
    below).
 8. Merge `main` back into `develop` through a pull request with the `release-flow` label.
+9. In that back-merge or the next pull request, move each released major's `PackageValidationBaselineVersion` in
+   `Directory.Build.props` to the version just released. Packing fails when a major's public API breaks against its
+   baseline, so breaking changes wait for a new Umbraco major.
 
 Umbraco 19 stays a pre-release until Umbraco 19.0.0 is out (due 10 December 2026), so until then leave `v19.x.y`
 out of step 4 and tag it as `v19.N.P-rc.M` on the release branch, as in the first release below.
@@ -79,9 +82,8 @@ The first release is `17.0.0`. There is no 0.x or 1.0. Until Umbraco 19.0.0 is o
    ```
 
 3. Approve `production` in its run, and check the NuGet pre-release and the GitHub pre-release.
-4. Publish `@umbricians/feature-flags@19.0.0-rc.1` by hand, the one npm publish that can't come from the workflow,
-   and switch npm publishing on, as in "The first npm publish" below. Tags pushed after that publish to npm
-   themselves.
+4. Set up npm publishing before the tag in step 2 is pushed, as in "The first npm publish" below. The run then
+   publishes `@umbricians/feature-flags@19.0.0-rc.1` to npm with the `next` dist-tag, so no manual publish is needed.
 5. Merge the pull request with a merge commit once the `build` check passes.
 6. Tag the merge commit on `main` as `v17.0.0` and `v18.0.0`, and push both tags:
 
@@ -153,24 +155,33 @@ packs it as the `npm-types-package-17`, `npm-types-package-18` or `npm-types-pac
 Install the major that matches your Umbraco with `npm install -D @umbricians/feature-flags@18`. A version that is
 already on npm is skipped, so a run can be re-run.
 
+**If a publish fails.** nuget.org and the npm registry can take several minutes to list a new version, and npm can
+return 404 for a while, so wait before deciding a publish failed. If a run's npm step fails after NuGet pushed, re-run
+its `publish` job. If the bug is in the workflow file, a re-run won't help, because a tag always runs the workflow at
+its own commit: publish that version's `.tgz` by hand with its dist-tag, then re-run the job so the GitHub release is
+created. NuGet and npm skip the versions they already have. The v17.0.0 run failed this way: npm read the relative
+path `folder/file.tgz` as a GitHub `user/repo`, with a git "Permission denied (publickey)" error. The workflow now
+passes the tarball's full path (fixed in #69).
+
 ### The first npm publish
 
-npm only trusts a workflow for a package that already exists, so the first version is published by hand, once:
+For a new npm package, or a fresh setup, set up trusted publishing before the first version exists, and let the first
+tagged release publish it and validate the setup:
 
-1. Download `npm-types-package-19` from the `v19.0.0-rc.1` run, and check the `.tgz` holds `index.d.ts`,
-   `README.md`, `LICENSE` and `package.json`.
-2. From a machine logged in to an npm account that can publish to the `@umbricians` scope, run
-   `npm publish umbricians-feature-flags-19.0.0-rc.1.tgz --access public --tag next`.
-3. On npmjs.com, open the package's **Settings → Trusted publishing**, choose GitHub Actions, and enter owner
-   `Umbricians`, repository `Feature-Flags`, workflow `build.yml` and environment `production`. npm doesn't check
-   these until the next publish, so check the spelling.
-4. In the package's settings, set publishing access to require two-factor authentication and disallow tokens, so
+1. On npmjs.com, open the package's **Settings → Trusted publishing**, choose GitHub Actions, and enter owner
+   `Umbricians`, repository `Feature-Flags`, workflow `build.yml` and environment `production`. Tick both
+   **Allow npm publish** and **Allow npm dist-tag**. npm then creates a placeholder version `0.0.0-stage`
+   ("Temporary package placeholder for staged publishing") and shows "Trusted publishing config not yet validated.
+   Publish once before <date> to validate this configuration." npm doesn't check the entries until the next publish,
+   so check the spelling.
+2. In the package's settings, set publishing access to require two-factor authentication and disallow tokens, so
    only the workflow and a maintainer can publish.
-5. In the GitHub repository, **Settings → Secrets and variables → Actions → Variables**, add the variable
+3. In the GitHub repository, **Settings → Secrets and variables → Actions → Variables**, add the variable
    `NPM_PUBLISH` with the value `true`.
-
-If a run published to NuGet but not npm (npm publishing was off, or npm failed), re-run its `publish` job, or
-publish that run's `.tgz` by hand with the dist-tag above.
+4. Tag a release as usual. Its run publishes the package to npm, and that first publish validates the trusted
+   publishing setup. No manual publish is needed.
+5. Once the workflow has published, remove the placeholder with
+   `npm unpublish @umbricians/feature-flags@0.0.0-stage`, or with `npm deprecate` if npm refuses to unpublish it.
 
 ## Adding an Umbraco major
 

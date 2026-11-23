@@ -26,6 +26,9 @@ node build/smoke-test.mjs demo/Umbricians.FeatureFlags.Demo /App_Plugins/Umbrici
 dotnet pack src/Umbricians.FeatureFlags -c Release -o artifacts
 ```
 
+Packing also checks the public API against the major's last release on nuget.org (package validation, with the baseline in
+`Directory.Build.props`), so it needs network access and fails on a breaking change.
+
 Each Umbraco major is its own package, built from the same source. Build and test one major at a time with
 `-p:UmbracoMajor=18` or `-p:UmbracoMajor=19` on the `dotnet` commands. Each major has its own folders under `bin` and
 `obj`, such as `bin/umbraco18/`. Umbraco 17 and 18 run on .NET 10; 19 needs the .NET 11 SDK. For 18, the smoke test's

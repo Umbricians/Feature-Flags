@@ -5,16 +5,29 @@
 [![NuGet](https://img.shields.io/nuget/v/Umbricians.FeatureFlags?label=NuGet)](https://www.nuget.org/packages/Umbricians.FeatureFlags)
 [![Build](https://github.com/Umbricians/Feature-Flags/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/Umbricians/Feature-Flags/actions/workflows/build.yml)
 
-Switch the site's feature flags on and off from the Umbraco backoffice, for everyone or only for chosen members and member groups, built on Microsoft.FeatureManagement. It supports Umbraco 17, 18 and 19.
+A feature flag is a switch that turns part of your website on or off without a new release. Developers build the
+feature and add the flag. Editors then decide, in the Umbraco backoffice, when it is on and who sees it.
 
-Developers declare flags in appsettings or code and check them with
-[Microsoft.FeatureManagement](https://learn.microsoft.com/azure/azure-app-configuration/feature-management-dotnet-reference),
-as they would on any ASP.NET Core site. Feature Flags gives editors a screen in Settings to switch each flag off, on
-for everyone, or on for an audience of members, member groups and groups the site works out in code. Changes apply
-to that site and environment only, reach every server within seconds, and never need a deploy.
+## Why use a feature flag
 
-A flag doesn't have to switch on a whole new page. It can add one button, swap a search box, or change a price for
-the members it is on for.
+- Show a redesigned checkout to a few members first, then to everyone.
+- Let a group of beta testers try a new feature before it is public.
+- Put a seasonal banner on the site and take it off again at set times.
+- Switch a feature off at once if it causes trouble, without waiting for a deploy.
+- Turn something on for one site of several on the same Umbraco install.
+- Use different settings in staging and production. Each environment keeps its own.
+
+## What this package adds
+
+- Everything happens in the backoffice, under **Settings → Feature Flags**.
+- Safe defaults: new flags start off, and a visitor who isn't signed in is in no audience.
+- Umbraco permissions decide which users can see flags and which can change them.
+- It is built on Microsoft's standard feature management, so developers use the normal .NET ways of declaring and
+  checking flags.
+- It supports Umbraco 17, 18 and 19.
+
+Changes reach every server within seconds and never need a deploy. A flag usually controls one part of a page, such as
+a button, a search box or a price, rather than a whole page.
 
 <img src="docs/images/feature-flags-list.png" alt="The Feature Flags list in Settings, with flags in sections for Checkout and Members, each showing its state, an on/off switch and notes such as Changed here">
 
