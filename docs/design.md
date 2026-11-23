@@ -2,8 +2,8 @@
 
 How Feature Flags works, and why. Words in this document are used as [GLOSSARY.md](../GLOSSARY.md) defines them.
 It is for the people building the package: the reasons behind the design, and what comes later. What the package
-does, and how to use it, is in the [README](../README.md) and the other pages in `docs/`. Parts that come after 1.0
-are in the [Later](#later) list.
+does, and how to use it, is in the [README](../README.md) and the other pages in `docs/`. Parts that come after the first
+release are in the [Later](#later) list.
 
 ## What it is
 
@@ -194,7 +194,7 @@ people another way replaces the accessor.
   editor: an id a provider offers is shown as the provider's group even when a member group has that key. A prefix
   for provider groups, or a check at startup, comes later.
 - **Percentages for anonymous visitors.** Microsoft's percentage rollout buckets people by user id, and a visitor
-  who isn't signed in has none, so 1.0's percentages include members only and the editor says so. The package sets
+  who isn't signed in has none, so percentages include members only and the editor says so. The package sets
   no cookie; a site that wants visitors included gives them ids with its own accessor.
 
 ### Group providers
@@ -281,15 +281,17 @@ server, across every flag, so paging stays correct on a site with hundreds.
 
 ## Roadmap
 
-1. **First release:** declared flags from any flag source and code; overrides with off, on for everyone, and on
-   for members, member groups and provider groups; reset; undeclared flags; read-only mode; permissions; cache
-   refresh across servers.
-2. **1.0:** what developers can extend and rely on: conditions of their own, editable in the backoffice;
-   percentages and exclusions in the audience; time windows; the Root condition for a site with several roots; a
-   public service and notifications for changing overrides; the Management API as a contract; a health check;
-   flags for headless front ends; and a promised backoffice extension surface, with its npm types (in progress on
-   the 1.0 branches; not released). Specified in
-   [spec-1.0.md](spec-1.0.md).
+Both parts below ship together in 17.0.0, the first release. The package's major follows Umbraco's, so 17.x is for
+Umbraco 17.
+
+1. **The core:** declared flags from any flag source and code; overrides with off, on for everyone, and on for
+   members, member groups and provider groups; reset; undeclared flags; read-only mode; permissions; cache refresh
+   across servers.
+2. **What developers can extend and rely on** (planned as "1.0"): conditions of their own, editable in the
+   backoffice; percentages and exclusions in the audience; time windows; the Root condition for a site with several
+   roots; a public service and notifications for changing overrides; the Management API as a contract; a health
+   check; flags for headless front ends; and a promised backoffice extension surface, with its optional npm types.
+   Specified in [spec-1.0.md](spec-1.0.md).
 
 ### Later
 

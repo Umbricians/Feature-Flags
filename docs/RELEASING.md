@@ -5,7 +5,9 @@ release and hotfix pull requests. [`.github/workflows/build.yml`](../.github/wor
 every push to `main` and `develop` and every pull request. A version tag on `main` publishes to NuGet, and so does a
 pre-release tag on a `release/*` branch.
 
-The tag sets the package version (`v1.2.3` publishes `1.2.3`, and `v1.3.0-beta.1` a pre-release). Only the package
+The tag sets the package version (`v17.2.3` publishes `17.2.3`, and `v17.3.0-beta.1` a pre-release). The major is the
+Umbraco major the package supports, which the project's `<Version>` (`17.0.0`) carries: a tag of any other major fails
+the build. The first release is `v17.0.0`; there is no 0.x or 1.0. Only the package
 in `src/Umbricians.FeatureFlags` is packed; the demo site is built and smoke-tested but never published. Once the
 package is on NuGet, the workflow creates a matching GitHub release with generated notes and the `.nupkg` and
 `.snupkg` attached.
@@ -15,20 +17,20 @@ package is on NuGet, the workflow creates a matching GitHub release with generat
 1. Cut the release branch from an up-to-date `develop`:
 
    ```bash
-   git checkout develop && git pull && git checkout -b release/1.2.0
+   git checkout develop && git pull && git checkout -b release/17.2.0
    ```
 
-2. Push it, then open a pull request from `release/1.2.0` into `main` with the `release-flow` label. Only release
+2. Push it, then open a pull request from `release/17.2.0` into `main` with the `release-flow` label. Only release
    fixes go on this branch.
 3. Merge it with a merge commit (not squash) once the `build` check passes.
 4. Tag the merge commit on `main` and push the tag:
 
    ```bash
-   git checkout main && git pull && git tag -a v1.2.0 -m "v1.2.0"
+   git checkout main && git pull && git tag -a v17.2.0 -m "v17.2.0"
    ```
 
    ```bash
-   git push origin v1.2.0
+   git push origin v17.2.0
    ```
 
 5. In the run, open **Review deployments** and approve `production`.
@@ -38,7 +40,7 @@ package is on NuGet, the workflow creates a matching GitHub release with generat
 
 ## A hotfix
 
-Cut `hotfix/1.2.1` from `main`, fix it there, and open a pull request into `main` with the `release-flow` label.
+Cut `hotfix/17.2.1` from `main`, fix it there, and open a pull request into `main` with the `release-flow` label.
 Then follow steps 3 to 7 above with the hotfix version.
 
 ## A pre-release
@@ -46,11 +48,11 @@ Then follow steps 3 to 7 above with the hotfix version.
 To publish a pre-release from a release branch before it merges, tag a commit on it with a suffix and push the tag:
 
 ```bash
-git checkout release/1.2.0 && git pull && git tag -a v1.2.0-beta.1 -m "v1.2.0-beta.1"
+git checkout release/17.2.0 && git pull && git tag -a v17.2.0-beta.1 -m "v17.2.0-beta.1"
 ```
 
 ```bash
-git push origin v1.2.0-beta.1
+git push origin v17.2.0-beta.1
 ```
 
 Then follow steps 5 and 6 above. It publishes a NuGet pre-release and a GitHub pre-release, and nothing merges back.
@@ -72,7 +74,7 @@ tests that its string literals equal the client's `constants.ts`, and packs it a
 1. Download `npm-types-package` from the tag's run (its version is the tag's), and check the `.tgz` with
    `npm pack --dry-run` style listing: `index.d.ts`, `README.md`, `LICENSE`, `package.json`.
 2. From a maintainer's machine logged in to an npm account in the `@umbricians` scope, run
-   `npm publish umbricians-feature-flags-1.2.0.tgz --access public` (add `--tag next` for a pre-release).
+   `npm publish umbricians-feature-flags-17.2.0.tgz --access public` (add `--tag next` for a pre-release).
 
 Later this can move to npm trusted publishing from the `production` environment, the way NuGet's works: register the
 workflow on npmjs.com, give the job `id-token: write` and run `npm publish` on the downloaded tarball. That needs the
