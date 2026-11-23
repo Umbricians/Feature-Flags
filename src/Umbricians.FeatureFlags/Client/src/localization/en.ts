@@ -84,10 +84,13 @@ export default {
     confirmOnHeadline: (name: string) => `Turn on ${name}?`,
     confirmOnMessage: (who: string, environment: string) =>
       `It will be on for ${who} in ${environment}, as soon as every server picks up the change.`,
-    confirmOnConditionsMessage: (conditions: string, environment: string) =>
-      conditions
-        ? `It will be on in ${environment} only when its conditions hold (${conditions}), as soon as every server picks up the change.`
-        : `It will be on in ${environment} only when its saved conditions hold, as soon as every server picks up the change.`,
+    confirmOnConditionsMessage: (conditions: string, environment: string, match?: "any" | "all" | null) => {
+      const which = match === "all" ? "all of its" : match === "any" ? "any one of its" : "its";
+      const saved = match ? which.replace(/its$/, "its saved") : "its saved";
+      return conditions
+        ? `It will be on in ${environment} only when ${which} conditions hold (${conditions}), as soon as every server picks up the change.`
+        : `It will be on in ${environment} only when ${saved} conditions hold, as soon as every server picks up the change.`;
+    },
     turnedOn: (name: string, environment: string) => `${name} is now on in ${environment}.`,
     turnedOff: (name: string, environment: string) => `${name} is now off in ${environment}.`,
     changeFailed: "The flag wasn't changed",
@@ -141,7 +144,7 @@ export default {
     unknownGroup: (id: string) => `${id} (not a member group or a group this site offers)`,
     removeGroup: (name: string) => `Remove ${name}`,
     unknownGroupsHelp: "Kept as saved. Remove any that are no longer needed.",
-    onFromUntil: "On from a time until a time. Leave either one empty for no limit.",
+    onFromUntil: "On from a time until a time. Leave one of them empty for no limit at that end, but not both.",
     windowStart: "On from",
     windowEnd: "Until",
     windowZone: (zone: string) => `Times are in your time zone (${zone}) and are stored as UTC.`,

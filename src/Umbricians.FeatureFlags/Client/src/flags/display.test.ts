@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { FlagActions } from "../api/types.ts";
-import { ALL_SECTIONS, audienceParts, conditionsOnSwitchOn, listNote, excludedParts, joinList, mayDo, quickAction, sectionFromOption, sectionOption, sections, shortName } from "./display.ts";
+import { ALL_SECTIONS, audienceParts, conditionsOnSwitchOn, matchOnSwitchOn, listNote, excludedParts, joinList, mayDo, quickAction, sectionFromOption, sectionOption, sections, shortName } from "./display.ts";
 
 test("the section is taken off the front of the name", () => {
   assert.equal(shortName({ name: "Checkout.NewFlow", section: "Checkout" }), "NewFlow");
@@ -95,6 +95,14 @@ test("switching on a flag that keeps conditions describes them, and one without 
   assert.equal(conditionsOnSwitchOn({ settings: settings(window), summary: null }), "");
   assert.equal(conditionsOnSwitchOn({ settings: settings([]), summary: null }), null);
   assert.equal(conditionsOnSwitchOn({ settings: null, summary: null }), null);
+});
+
+test("switching on says whether any or all conditions must hold, only when there are several", () => {
+  const two = [{ name: "Microsoft.TimeWindow", parameters: {} }, { name: "Microsoft.Targeting", parameters: {} }];
+  assert.equal(matchOnSwitchOn({ settings: { enabled: false, conditions: two, match: "all" } }), "all");
+  assert.equal(matchOnSwitchOn({ settings: { enabled: false, conditions: two, match: "any" } }), "any");
+  assert.equal(matchOnSwitchOn({ settings: { enabled: false, conditions: two.slice(0, 1), match: "all" } }), null);
+  assert.equal(matchOnSwitchOn({ settings: null }), null);
 });
 
 const note = (state: "off" | "everyone" | "audience" | "conditions" | "custom", audience: boolean, summary: string | null, conditions = 1) => ({

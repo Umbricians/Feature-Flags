@@ -164,12 +164,14 @@ list, add a collection view to the promised collection.
 **Why only within a major.** Umbraco's promise of no breaking changes in a minor release is about its C# API. Its
 backoffice TypeScript has no such promise, and its own breaking changes have all come in majors so far. So this
 surface is promised for an Umbraco major, not for every minor. A scheduled workflow
-([Umbraco minors](../.github/workflows/umbraco-minors.yml)) builds and tests the package against the newest 17.x every
-week to find a break early.
+([Umbraco minors](../.github/workflows/umbraco-minors.yml)) builds and tests the package against the newest release
+of each supported Umbraco major every week to find a break early.
 
 ### The npm package
 
-`@umbricians/feature-flags` has the types only, with `@umbraco-cms/backoffice` `^17.8.2` as a peer dependency.
+`@umbricians/feature-flags` is optional: the NuGet package is all a site needs, and an extension written without the
+types runs the same. It has the types only. Its peer dependency on `@umbraco-cms/backoffice` is `^17.8.2` in 17.x, `^18.3.2` in 18.x and
+`^19.0.0-rc1` in 19.x, so install the version for your Umbraco major, such as `npm install -D @umbricians/feature-flags@18`.
 It has no runtime code, so there are no constants to import: write the strings, or build a token from them. Where you
 want a misspelt string to fail to compile, type it with the package's string literal aliases, such as
 `FeatureFlagEntityType` (`"umbricians-feature-flags-flag"`).

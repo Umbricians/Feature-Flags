@@ -1,0 +1,48 @@
+<Project>
+  <!--
+    The Umbraco major everything builds for: 17, 18 or 19. Each major is its own package, versioned {UmbracoMajor}.x.y,
+    built from this one source with -p:UmbracoMajor=18 (CI's matrix builds each). It chooses the lowest Umbraco
+    version the package supports, the .NET version, and the UMBRACO_* symbols the code uses where majors differ.
+  -->
+  <PropertyGroup>
+    <UmbracoMajor Condition="'$(UmbracoMajor)' == ''">17</UmbracoMajor>
+  </PropertyGroup>
+
+  <!-- The lowest version of each major, which sites on newer versions resolve past. The "Umbraco minors" workflow passes
+       a newer one with -p:UmbracoVersion=, and .github/dependabot.yml ignores these packages, so they change here only. -->
+  <PropertyGroup Condition="'$(UmbracoMajor)' == '17'">
+    <UmbracoVersion Condition="'$(UmbracoVersion)' == ''">17.8.2</UmbracoVersion>
+    <UmbracoTargetFramework>net10.0</UmbracoTargetFramework>
+    <!-- Microsoft's ASP.NET Core packages the tests use, of the same .NET version. -->
+    <AspNetCoreVersion>10.0.15</AspNetCoreVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(UmbracoMajor)' == '18'">
+    <UmbracoVersion Condition="'$(UmbracoVersion)' == ''">18.3.2</UmbracoVersion>
+    <UmbracoTargetFramework>net10.0</UmbracoTargetFramework>
+    <AspNetCoreVersion>10.0.15</AspNetCoreVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(UmbracoMajor)' == '19'">
+    <UmbracoVersion Condition="'$(UmbracoVersion)' == ''">19.0.0-rc1</UmbracoVersion>
+    <UmbracoTargetFramework>net11.0</UmbracoTargetFramework>
+    <AspNetCoreVersion>11.0.0</AspNetCoreVersion>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!-- The package never installs on the next Umbraco major, which its code may not support. -->
+    <UmbracoVersionRange>[$(UmbracoVersion), $([MSBuild]::Add($(UmbracoMajor), 1)).0.0)</UmbracoVersionRange>
+    <DefineConstants>$(DefineConstants);UMBRACO_$(UmbracoMajor)</DefineConstants>
+    <DefineConstants Condition="$(UmbracoMajor) &gt;= 18">$(DefineConstants);UMBRACO_18_OR_GREATER</DefineConstants>
+    <DefineConstants Condition="$(UmbracoMajor) &gt;= 19">$(DefineConstants);UMBRACO_19_OR_GREATER</DefineConstants>
+    <!-- 17 and 18 both build net10.0, so each major has its own build folders: switching majors never reuses the other's
+         outputs. -->
+    <BaseOutputPath>bin\umbraco$(UmbracoMajor)\</BaseOutputPath>
+    <BaseIntermediateOutputPath>obj\umbraco$(UmbracoMajor)\</BaseIntermediateOutputPath>
+    <!-- The default excludes cover only the folders above, so a plain bin or obj (from before this, or another tool) would be
+         compiled as source. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);bin\**;obj\**</DefaultItemExcludes>
+  </PropertyGroup>
+
+  <Target Name="CheckUmbracoMajor" BeforeTargets="Restore;Build" Condition="'$(UmbracoTargetFramework)' == ''">
+    <Error Text="UmbracoMajor '$(UmbracoMajor)' isn't supported. Use 17, 18 or 19." />
+  </Target>
+</Project>

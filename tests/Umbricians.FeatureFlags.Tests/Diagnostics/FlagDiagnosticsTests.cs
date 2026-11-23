@@ -408,7 +408,8 @@ public class FlagDiagnosticsTests
     {
         public Task<IEnumerable<FeatureFlagGroup>> GetGroupsAsync(CancellationToken cancellationToken)
         {
-            Thread.Sleep(1500);
+            // Long enough that only the timeout can explain a quick return, even on a slow CI runner.
+            Thread.Sleep(5000);
             return Task.FromResult<IEnumerable<FeatureFlagGroup>>([]);
         }
 
@@ -439,12 +440,13 @@ public class FlagDiagnosticsTests
     public async Task A_group_provider_that_blocks_its_thread_still_times_out()
     {
         var site = new TestSite(before: services => services.AddSingleton<IFeatureFlagGroupProvider>(new BlockingGroups()));
+        AudienceGroups groups = site.Provider.GetRequiredService<AudienceGroups>();
         var watch = System.Diagnostics.Stopwatch.StartNew();
 
-        IReadOnlyList<FailingProvider> failing = await site.Provider.GetRequiredService<AudienceGroups>().FindFailingProvidersAsync(TimeSpan.FromMilliseconds(100), default);
+        IReadOnlyList<FailingProvider> failing = await groups.FindFailingProvidersAsync(TimeSpan.FromMilliseconds(100), default);
 
         Assert.That(failing, Has.Count.EqualTo(1));
-        Assert.That(watch.ElapsedMilliseconds, Is.LessThan(1000));
+        Assert.That(watch.ElapsedMilliseconds, Is.LessThan(2500));
     }
 
     [Test]

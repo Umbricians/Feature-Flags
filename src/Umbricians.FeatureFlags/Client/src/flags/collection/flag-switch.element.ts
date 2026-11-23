@@ -8,7 +8,7 @@ import { describeFailure } from "../../api/request-error.js";
 import { FEATURE_FLAGS_PERMISSION_MANAGE } from "../../permissions/constants.js";
 import { observePermission } from "../../permissions/permissions.js";
 import { FEATURE_FLAGS_SUMMARY_CONTEXT } from "../summary.context.js";
-import { conditionsOnSwitchOn, quickAction, type FeatureFlagCollectionItem } from "../display.js";
+import { conditionsOnSwitchOn, matchOnSwitchOn, quickAction, type FeatureFlagCollectionItem } from "../display.js";
 import { describeAudience } from "../describe.js";
 
 /**
@@ -57,7 +57,7 @@ export class FeatureFlagSwitchElement extends UmbLitElement {
           content:
             conditions === null
               ? this.localize.term("umbriciansFeatureFlags_confirmOnMessage", describeAudience(this.localize, item.audience), this.#environment)
-              : this.localize.term("umbriciansFeatureFlags_confirmOnConditionsMessage", conditions, this.#environment),
+              : this.localize.term("umbriciansFeatureFlags_confirmOnConditionsMessage", conditions, this.#environment, matchOnSwitchOn(item)),
           color: "positive",
           confirmLabel: this.localize.term("umbriciansFeatureFlags_turnOn"),
         });

@@ -1,5 +1,5 @@
 // How flags are shown. No backoffice imports, so Node can test it.
-import type { AudienceCounts, FeatureFlag, FlagActions, FlagOrder, FlagState } from "../api/types.js";
+import type { AudienceCounts, ConditionMatch, FeatureFlag, FlagActions, FlagOrder, FlagState } from "../api/types.js";
 
 /** A flag as a collection item: its unique is its name. */
 export interface FeatureFlagCollectionItem extends FeatureFlag {
@@ -83,6 +83,11 @@ export function quickAction(
  */
 export function conditionsOnSwitchOn(item: Pick<FeatureFlag, "settings" | "summary">): string | null {
   return (item.settings?.conditions.length ?? 0) > 0 ? (item.summary ?? "") : null;
+}
+
+/** Whether any one or all of a flag's saved conditions must hold, for the confirmation; null with fewer than two. */
+export function matchOnSwitchOn(item: Pick<FeatureFlag, "settings">): ConditionMatch | null {
+  return (item.settings?.conditions.length ?? 0) > 1 ? item.settings!.match : null;
 }
 
 /**

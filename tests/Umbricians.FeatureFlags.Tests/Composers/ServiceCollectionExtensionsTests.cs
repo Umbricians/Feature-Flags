@@ -3,11 +3,15 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
+#if !UMBRACO_18_OR_GREATER
 using Swashbuckle.AspNetCore.SwaggerGen;
+#endif
 using Umbricians.FeatureFlags.Composers;
 using Umbricians.FeatureFlags.Configuration;
 using Umbricians.FeatureFlags.Controllers;
+#if !UMBRACO_18_OR_GREATER
 using Umbricians.FeatureFlags.OpenApi;
+#endif
 
 namespace Umbricians.FeatureFlags.Tests.Composers;
 
@@ -51,11 +55,30 @@ public class ServiceCollectionExtensionsTests
         services.AddSingleton<IValidateOptions<FeatureFlagsOptions>>(
             new ValidateOptions<FeatureFlagsOptions>(Options.DefaultName, _ => false, "Rejected by the test."));
 
+#pragma warning disable SYSLIB0066 // IStartupValidator is obsolete on .NET 11, but it is how a test runs ValidateOnStart.
         IStartupValidator startupValidator = services.BuildServiceProvider().GetRequiredService<IStartupValidator>();
+#pragma warning restore SYSLIB0066
 
         Assert.That(startupValidator.Validate, Throws.TypeOf<OptionsValidationException>());
     }
 
+    [TestCase("Nonsense")]
+    [TestCase("5")]
+    public void An_overrides_setting_that_isnt_Enabled_or_ReadOnly_stops_the_site_starting(string value)
+    {
+        var services = new ServiceCollection();
+        services.AddFeatureFlags(new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Umbricians:FeatureFlags:Overrides"] = value })
+            .Build());
+
+#pragma warning disable SYSLIB0066 // IStartupValidator is obsolete on .NET 11, but it is how a test runs ValidateOnStart.
+        IStartupValidator startupValidator = services.BuildServiceProvider().GetRequiredService<IStartupValidator>();
+#pragma warning restore SYSLIB0066
+
+        Assert.That(startupValidator.Validate, Throws.InstanceOf<Exception>());
+    }
+
+#if !UMBRACO_18_OR_GREATER
     [Test]
     public void Adds_the_package_api_document()
     {
@@ -76,6 +99,7 @@ public class ServiceCollectionExtensionsTests
         Assert.That(swagger.OperationFilterDescriptors.Select(filter => filter.Type),
             Has.Member(typeof(FeatureFlagsSecurityRequirementsOperationFilter)));
     }
+#endif
 
     private static ServiceCollection WithPackageServices()
     {

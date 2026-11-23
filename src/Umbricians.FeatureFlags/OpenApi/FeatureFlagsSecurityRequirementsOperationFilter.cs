@@ -1,3 +1,4 @@
+#if !UMBRACO_18_OR_GREATER
 using Umbraco.Cms.Api.Management.OpenApi;
 
 namespace Umbricians.FeatureFlags.OpenApi;
@@ -9,3 +10,5 @@ internal sealed class FeatureFlagsSecurityRequirementsOperationFilter : BackOffi
 {
     protected override string ApiName => Constants.ApiName;
 }
+
+#endif

@@ -1,5 +1,8 @@
 # 1.0 spec
 
+> Written as "1.0" while it was planned. It ships as **17.0.0**, the first release, because the package's major
+> is the Umbraco major it supports. Read "1.0" below as 17.0.0, and "a new major version" as the next Umbraco major.
+
 What Feature Flags 1.0 adds to the first release, so developers can extend it and build on it, and what it
 promises to keep stable. Words are used as [GLOSSARY.md](../GLOSSARY.md) defines them. Each part links to the issue
 that decided it, which holds the reasoning; the map is

@@ -1,3 +1,4 @@
+#if !UMBRACO_18_OR_GREATER
 using System.Reflection;
 using Umbricians.FeatureFlags.OpenApi;
 
@@ -14,3 +15,4 @@ public class FeatureFlagsSecurityRequirementsOperationFilterTests
         Assert.That(apiName.GetValue(new FeatureFlagsSecurityRequirementsOperationFilter()), Is.EqualTo(Constants.ApiName));
     }
 }
+#endif
