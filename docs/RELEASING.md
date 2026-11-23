@@ -53,7 +53,8 @@ named after its 17.x version.
 5. In each run, open **Review deployments** and approve `production`.
 6. Check each publish log says the package was pushed, not skipped as a duplicate, and that each GitHub release has
    its `.nupkg` attached. nuget.org lists the packages a few minutes later, after validation.
-7. Publish the npm types packages (see below).
+7. Check each run also published the npm types package, or publish it by hand while npm publishing is off (see
+   below).
 8. Merge `main` back into `develop` through a pull request with the `release-flow` label.
 
 Umbraco 19 stays a pre-release until Umbraco 19.0.0 is out (due 10 December 2026), so until then leave `v19.x.y`
@@ -78,8 +79,11 @@ The first release is `17.0.0`. There is no 0.x or 1.0. Until Umbraco 19.0.0 is o
    ```
 
 3. Approve `production` in its run, and check the NuGet pre-release and the GitHub pre-release.
-4. Merge the pull request with a merge commit once the `build` check passes.
-5. Tag the merge commit on `main` as `v17.0.0` and `v18.0.0`, and push both tags:
+4. Publish `@umbricians/feature-flags@19.0.0-rc.1` by hand, the one npm publish that can't come from the workflow,
+   and switch npm publishing on, as in "The first npm publish" below. Tags pushed after that publish to npm
+   themselves.
+5. Merge the pull request with a merge commit once the `build` check passes.
+6. Tag the merge commit on `main` as `v17.0.0` and `v18.0.0`, and push both tags:
 
    ```bash
    git checkout main && git pull && git tag -a v17.0.0 -m "v17.0.0" && git tag -a v18.0.0 -m "v18.0.0"
@@ -89,8 +93,9 @@ The first release is `17.0.0`. There is no 0.x or 1.0. Until Umbraco 19.0.0 is o
    git push origin v17.0.0 v18.0.0
    ```
 
-6. Approve `production` in each of the two runs, check the packages, publish the npm types packages, and merge
-   `main` back into `develop`, as in steps 5 to 8 above.
+7. Approve `production` in each of the two runs, check the packages on NuGet and npm, and merge `main` back into
+   `develop`, as in steps 5 to 8 above. Push `v17.0.0` before `v18.0.0` is fine either way: npm's `latest` ends on
+   18.
 
 ## Umbraco 19.0.0
 
@@ -137,20 +142,35 @@ Umbraco version. Every build stamps both into its `package.json` with `build/sta
 major's own backoffice types, type-checks, tests that its string literals equal the client's `constants.ts`, and
 packs it as the `npm-types-package-17`, `npm-types-package-18` or `npm-types-package-19` artifact. Each major's
 `.tgz` comes from its own tag's run.
-**Nothing publishes it automatically.** To publish a release, after the NuGet packages are out, for each major:
 
-1. Download `npm-types-package-NN` from that major's tag run, and check the `.tgz` with
-   `npm pack --dry-run` style listing: `index.d.ts`, `README.md`, `LICENSE`, `package.json`.
-2. From a maintainer's machine logged in to an npm account in the `@umbricians` scope, run
-   `npm publish umbricians-feature-flags-17.2.0.tgz --access public --tag umbraco-17`. Use `--tag umbraco-18` and
-   `--tag umbraco-19` for the others, and `--tag next` for a pre-release such as `19.0.0-rc.1`.
-3. Make sure `latest` ends on the newest stable major. Publish that major last, or move the tag afterwards:
-   `npm dist-tag add @umbricians/feature-flags@18.2.0 latest`. While 19 is a pre-release, the newest stable major
-   is 18.
+**Publishing.** Once switched on, the `publish` job publishes the tag's `.tgz` to npm after NuGet, in the same
+`production` approval. It uses npm trusted publishing, so no npm token is stored. The dist-tag:
 
-Later this can move to npm trusted publishing from the `production` environment, the way NuGet's works: register the
-workflow on npmjs.com, give the job `id-token: write` and run `npm publish` on the downloaded tarball. That needs the
-package to exist first, so the first publish is manual either way.
+- a pre-release, such as `19.0.0-rc.1`, gets `next`;
+- a release of the newest stable major gets `latest`, so `npm install @umbricians/feature-flags` takes it;
+- a release of an older major gets `umbraco-NN`, such as `umbraco-17`, and never takes `latest` from a newer major.
+
+Install the major that matches your Umbraco with `npm install -D @umbricians/feature-flags@18`. A version that is
+already on npm is skipped, so a run can be re-run.
+
+### The first npm publish
+
+npm only trusts a workflow for a package that already exists, so the first version is published by hand, once:
+
+1. Download `npm-types-package-19` from the `v19.0.0-rc.1` run, and check the `.tgz` holds `index.d.ts`,
+   `README.md`, `LICENSE` and `package.json`.
+2. From a machine logged in to an npm account that can publish to the `@umbricians` scope, run
+   `npm publish umbricians-feature-flags-19.0.0-rc.1.tgz --access public --tag next`.
+3. On npmjs.com, open the package's **Settings → Trusted publishing**, choose GitHub Actions, and enter owner
+   `Umbricians`, repository `Feature-Flags`, workflow `build.yml` and environment `production`. npm doesn't check
+   these until the next publish, so check the spelling.
+4. In the package's settings, set publishing access to require two-factor authentication and disallow tokens, so
+   only the workflow and a maintainer can publish.
+5. In the GitHub repository, **Settings → Secrets and variables → Actions → Variables**, add the variable
+   `NPM_PUBLISH` with the value `true`.
+
+If a run published to NuGet but not npm (npm publishing was off, or npm failed), re-run its `publish` job, or
+publish that run's `.tgz` by hand with the dist-tag above.
 
 ## Adding an Umbraco major
 
