@@ -28,6 +28,19 @@ export function shortName(item: Pick<FeatureFlag, "name" | "section">): string {
     : item.name;
 }
 
+/**
+ * A flag name in the pieces it can wrap between: between PascalCase words and after `.`, `_` and `-`. Flag names have no
+ * spaces, so without these a long one runs out of its card. `PaymentProviderV2` gives `Payment`, `Provider`, `V2`.
+ */
+export function nameParts(name: string): Array<string> {
+  return name.split(/(?<=[._-])|(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])/);
+}
+
+/** How much of the state circle is filled: empty when off, full when on for everyone, half when on for some. */
+export function stateFill(state: FlagState): "empty" | "half" | "full" {
+  return state === "off" ? "empty" : state === "everyone" ? "full" : "half";
+}
+
 export interface ListSection<T> {
   /** The section's name, or null for flags in no section. */
   name: string | null;

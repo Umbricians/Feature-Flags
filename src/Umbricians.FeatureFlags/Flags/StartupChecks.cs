@@ -15,7 +15,12 @@ namespace Umbricians.FeatureFlags.Flags;
 /// has started composing, a flag source registered after Feature Flags, and a flag declared both in code and by the
 /// site's flag source. Info and success results aren't problems, so they aren't logged.
 /// </summary>
-internal sealed class StartupChecks(IServiceProvider services, ILogger<StartupChecks> logger)
+/// <remarks>
+/// Umbraco resolves notification handlers from a scope that ends when the notification has been handled, but the checks
+/// carry on in the background after that. So they take services from a scope of their own, which lasts as long as they do,
+/// never from the provider the handler was resolved from.
+/// </remarks>
+internal sealed class StartupChecks(IServiceScopeFactory scopes, ILogger<StartupChecks> logger)
     : INotificationAsyncHandler<UmbracoApplicationStartedNotification>
 {
     /// <summary>
@@ -24,12 +29,17 @@ internal sealed class StartupChecks(IServiceProvider services, ILogger<StartupCh
     /// </summary>
     public Task HandleAsync(UmbracoApplicationStartedNotification notification, CancellationToken cancellationToken)
     {
-        if (services.GetService<IRuntimeState>() is { } runtime && runtime.Level != RuntimeLevel.Run)
+        CancellationToken stopping;
+        using (IServiceScope scope = scopes.CreateScope())
         {
-            return Task.CompletedTask;
+            if (scope.ServiceProvider.GetService<IRuntimeState>() is { } runtime && runtime.Level != RuntimeLevel.Run)
+            {
+                return Task.CompletedTask;
+            }
+
+            stopping = scope.ServiceProvider.GetService<IHostApplicationLifetime>()?.ApplicationStopping ?? CancellationToken.None;
         }
 
-        CancellationToken stopping = services.GetService<IHostApplicationLifetime>()?.ApplicationStopping ?? CancellationToken.None;
         using (ExecutionContext.SuppressFlow())
         {
             _ = Task.Run(() => RunAsync(stopping), CancellationToken.None);
@@ -43,7 +53,8 @@ internal sealed class StartupChecks(IServiceProvider services, ILogger<StartupCh
     {
         try
         {
-            foreach (DiagnosticResult result in await services.GetRequiredService<FlagDiagnostics>().RunAsync(cancellationToken))
+            await using AsyncServiceScope scope = scopes.CreateAsyncScope();
+            foreach (DiagnosticResult result in await scope.ServiceProvider.GetRequiredService<FlagDiagnostics>().RunAsync(cancellationToken))
             {
                 switch (result.Severity)
                 {

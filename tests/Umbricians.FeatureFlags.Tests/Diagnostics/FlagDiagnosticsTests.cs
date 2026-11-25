@@ -328,7 +328,7 @@ public class FlagDiagnosticsTests
         site.Store.With("Gone", FlagSettings.Off);
         var logger = new CollectingLogger<StartupChecks>();
 
-        await new StartupChecks(site.Provider, logger).RunAsync(default);
+        await new StartupChecks(site.Provider.GetRequiredService<IServiceScopeFactory>(), logger).RunAsync(default);
         var check = new FeatureFlagsHealthCheck(site.Provider.GetRequiredService<FlagDiagnostics>());
         HealthCheckStatus[] statuses = (await check.GetStatusAsync()).ToArray();
 
@@ -349,7 +349,7 @@ public class FlagDiagnosticsTests
         await using ServiceProvider validating = site.Services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
         var logger = new CollectingLogger<StartupChecks>();
 
-        await new StartupChecks(validating, logger).RunAsync(default);
+        await new StartupChecks(validating.GetRequiredService<IServiceScopeFactory>(), logger).RunAsync(default);
 
         Assert.That(logger.Entries, Is.Empty);
     }
