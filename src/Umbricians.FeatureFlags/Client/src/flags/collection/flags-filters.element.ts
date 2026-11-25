@@ -140,6 +140,11 @@ export class FeatureFlagsFiltersElement extends UmbLitElement {
       margin-bottom: var(--uui-size-space-5);
     }
 
+    /* uui-select pads its native select by only 6px a side, which leaves the browser's arrow against the right edge. */
+    uui-select {
+      --uui-select-padding-x: var(--uui-size-3);
+    }
+
     .marks {
       display: flex;
       flex-wrap: wrap;
