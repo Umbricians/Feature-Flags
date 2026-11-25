@@ -127,6 +127,7 @@ export class FeatureFlagsTableViewElement extends UmbCollectionViewElementBase<F
         display: flex;
         flex-direction: column;
         gap: var(--uui-size-space-1);
+        overflow-wrap: anywhere;
       }
       .name a {
         font-weight: bold;
