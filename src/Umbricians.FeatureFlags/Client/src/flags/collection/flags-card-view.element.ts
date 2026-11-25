@@ -86,7 +86,10 @@ export class FeatureFlagsCardViewElement extends UmbCollectionViewElementBase<Fe
         grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
         gap: var(--uui-size-space-4);
       }
-      /* Looks like a uui-box, but is a plain element so the footer can be pinned to the bottom of a stretched card. */
+      /*
+       * Styled to match a uui-box (its border, corners and surface, with no shadow), but a plain element so the footer
+       * can be pinned to the bottom of a stretched card: uui-box puts its content in an unnamed slot that can't stretch.
+       */
       .card {
         display: flex;
         flex-direction: column;
@@ -94,8 +97,8 @@ export class FeatureFlagsCardViewElement extends UmbCollectionViewElementBase<Fe
         min-width: 0;
         padding: var(--uui-size-space-4);
         background: var(--uui-color-surface);
-        border-radius: var(--uui-border-radius);
-        box-shadow: var(--uui-shadow-depth-1);
+        border: var(--uui-box-border-width, 1px) solid var(--uui-box-border-color, var(--uui-color-divider-standalone));
+        border-radius: var(--uui-box-border-radius, var(--uui-border-radius-3));
       }
 
       /* The state: the circle's fill says how much is on, its colour what kind. */
