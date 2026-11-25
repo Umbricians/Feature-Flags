@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { FlagActions } from "../api/types.ts";
-import { ALL_SECTIONS, audienceParts, conditionsOnSwitchOn, matchOnSwitchOn, listNote, excludedParts, joinList, mayDo, quickAction, sectionFromOption, sectionOption, sections, shortName } from "./display.ts";
+import { ALL_SECTIONS, audienceParts, conditionsOnSwitchOn, matchOnSwitchOn, listNote, excludedParts, joinList, mayDo, quickAction, sectionFromOption, sectionOption, sections, shortName, nameParts, stateFill } from "./display.ts";
 
 test("the section is taken off the front of the name", () => {
   assert.equal(shortName({ name: "Checkout.NewFlow", section: "Checkout" }), "NewFlow");
@@ -9,6 +9,23 @@ test("the section is taken off the front of the name", () => {
   assert.equal(shortName({ name: "GiftCards", section: "Payments" }), "GiftCards");
   assert.equal(shortName({ name: "DarkMode", section: null }), "DarkMode");
   assert.equal(shortName({ name: "Checkout.", section: "Checkout" }), "Checkout.");
+});
+
+test("a name wraps between its words and after separators", () => {
+  assert.deepEqual(nameParts("SubscriptionRenewalReminderEmails"), ["Subscription", "Renewal", "Reminder", "Emails"]);
+  assert.deepEqual(nameParts("PaymentProviderV2"), ["Payment", "Provider", "V2"]);
+  assert.deepEqual(nameParts("HTMLParser"), ["HTML", "Parser"]);
+  assert.deepEqual(nameParts("legacy_search-results.v2"), ["legacy_", "search-", "results.", "v2"]);
+  assert.deepEqual(nameParts("DarkMode"), ["Dark", "Mode"]);
+  assert.deepEqual(nameParts("x"), ["x"]);
+});
+
+test("the state circle is empty when off, full for everyone and half otherwise", () => {
+  assert.equal(stateFill("off"), "empty");
+  assert.equal(stateFill("everyone"), "full");
+  assert.equal(stateFill("audience"), "half");
+  assert.equal(stateFill("conditions"), "half");
+  assert.equal(stateFill("custom"), "half");
 });
 
 test("a page is split into its sections, in order", () => {

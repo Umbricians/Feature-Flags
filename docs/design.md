@@ -261,14 +261,18 @@ hand that Umbraco already has. Checked in Umbraco 17.8, which ships UUI 2.2.1:
 | --- | --- |
 | The list, its toolbar, search, paging and list/cards switch | the collection framework: a `collection` with two `collectionView` extensions (list and cards), `umb-collection-toolbar`, `umb-collection-filter-field`, `umb-collection-pagination`, `umb-collection-view-bundle` |
 | List view | `uui-table` |
-| Card view | `uui-card` |
+| Card view | a plain element styled with UUI tokens to match a `uui-box`, so the footer can be pinned to the bottom of the card |
 | On/off switch | `uui-toggle` |
-| State and markers | `uui-tag` |
+| State and markers | `uui-tag` in the list view; a state circle and text in the card view |
 | Paging | `uui-pagination`, through `umb-collection-pagination` |
 | Editing screen | a workspace, with `uui-tabs`, `uui-box`, `uui-radio`, `uui-checkbox`, `uui-button` |
 | Member and member group pickers | `umb-input-member`, `umb-input-member-group` |
 | Confirming a switch-on | Umbraco's confirm modal |
 | Messages after a change | Umbraco's notifications (`uui-toast-notification`) |
+
+The card view is the one exception to drawing nothing by hand. A `uui-card` or `uui-box` can't stretch its content to
+the card's full height, so a plain element styled to match a `uui-box` keeps each card's footer, with its switch, at the bottom and
+lined up across a row.
 
 The collection gets its items from a `repository` extension that calls the package's API, and the Settings tree's
 menu item opens a workspace whose only view is the collection.

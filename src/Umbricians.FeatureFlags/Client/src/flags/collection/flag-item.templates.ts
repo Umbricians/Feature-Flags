@@ -1,6 +1,6 @@
 import { html, nothing } from "@umbraco-cms/backoffice/external/lit";
 import type { UmbLocalizationController } from "@umbraco-cms/backoffice/localization-api";
-import { listNote, shortName, stateColor, type FeatureFlagCollectionItem } from "../display.js";
+import { listNote, nameParts, shortName, stateColor, type FeatureFlagCollectionItem } from "../display.js";
 import { describeAudience, markers, stateLabel } from "../describe.js";
 import { editFlagPath } from "../paths.js";
 import type { FeatureFlagsCollectionFilter } from "./flags-collection.repository.js";
@@ -9,9 +9,15 @@ import type { FeatureFlagsCollectionFilter } from "./flags-collection.repository
 
 /** The flag's name, linking to its editor; without its section in front while the list is in sections. */
 export function flagName(item: FeatureFlagCollectionItem, orderBy: FeatureFlagsCollectionFilter["orderBy"]) {
+  const text = wrappable(item.isDeclared && orderBy !== "updated" ? shortName(item) : item.name);
   return item.isDeclared
-    ? html`<a href=${editFlagPath(item.name)} title=${item.name}>${orderBy === "updated" ? item.name : shortName(item)}</a>`
-    : html`<strong title=${item.name}>${item.name}</strong>`;
+    ? html`<a href=${editFlagPath(item.name)} title=${item.name}>${text}</a>`
+    : html`<strong title=${item.name}>${text}</strong>`;
+}
+
+/** A name with a line-break opportunity between its words, so a long one wraps where a reader would split it. */
+function wrappable(name: string) {
+  return nameParts(name).map((part, index) => (index === 0 ? part : html`<wbr>${part}`));
 }
 
 /** The flag's state as a tag. */
