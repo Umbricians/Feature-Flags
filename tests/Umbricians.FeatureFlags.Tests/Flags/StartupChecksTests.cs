@@ -68,10 +68,12 @@ public class StartupChecksTests
             entry => entry.Level == LogLevel.Error && entry.Message.Contains("registered more than once")));
     }
 
+    private static IServiceScopeFactory Scopes(IServiceProvider provider) => provider.GetRequiredService<IServiceScopeFactory>();
+
     private static async Task<List<(LogLevel Level, string Message, Exception? Exception)>> Run(TestSite site)
     {
         var logger = new CollectingLogger<StartupChecks>();
-        await new StartupChecks(site.Provider, logger).RunAsync(default);
+        await new StartupChecks(Scopes(site.Provider), logger).RunAsync(default);
         return logger.Entries;
     }
 
@@ -80,7 +82,7 @@ public class StartupChecksTests
     {
         var logger = new CollectingLogger<StartupChecks>();
 
-        await new StartupChecks(new ServiceCollection().BuildServiceProvider(), logger).RunAsync(default);
+        await new StartupChecks(Scopes(new ServiceCollection().BuildServiceProvider()), logger).RunAsync(default);
 
         Assert.That(logger.Entries.Single().Level, Is.EqualTo(LogLevel.Warning));
     }
@@ -93,7 +95,7 @@ public class StartupChecksTests
         var runtime = Stub.Of<Umbraco.Cms.Core.Services.IRuntimeState>((name, _) => name == "get_Level" ? Umbraco.Cms.Core.RuntimeLevel.Upgrade : null);
         var services = new ServiceCollection().AddSingleton(runtime).AddSingleton(site.Provider.GetRequiredService<Umbricians.FeatureFlags.Diagnostics.FlagDiagnostics>());
 
-        await new StartupChecks(services.BuildServiceProvider(), logger).HandleAsync(new UmbracoApplicationStartedNotification(false), default);
+        await new StartupChecks(Scopes(services.BuildServiceProvider()), logger).HandleAsync(new UmbracoApplicationStartedNotification(false), default);
         await Task.Delay(200);
 
         Assert.That(logger.Entries, Is.Empty);
@@ -105,7 +107,7 @@ public class StartupChecksTests
         var site = new TestSite(after: services => services.AddFeatureManagement());
         var logger = new CollectingLogger<StartupChecks>();
 
-        await new StartupChecks(site.Provider, logger).HandleAsync(new UmbracoApplicationStartedNotification(false), default);
+        await new StartupChecks(Scopes(site.Provider), logger).HandleAsync(new UmbracoApplicationStartedNotification(false), default);
 
         // The checks run in the background and log what they find when they finish.
         DateTime giveUp = DateTime.UtcNow.AddSeconds(5);
@@ -115,5 +117,25 @@ public class StartupChecksTests
         }
 
         Assert.That(logger.Entries, Has.Some.Matches<(LogLevel Level, string Message, Exception? Exception)>(entry => entry.Level == LogLevel.Error));
+    }
+
+    [Test]
+    public async Task The_checks_still_run_after_the_scope_the_handler_came_from_has_ended()
+    {
+        // Umbraco resolves the handler from a scope that ends as soon as the notification is handled, while the checks
+        // carry on in the background, so they can start after it has gone: issue #78. Ending the scope before the checks
+        // run makes that order certain rather than a race.
+        var site = new TestSite(after: services => services.AddFeatureManagement());
+        var logger = new CollectingLogger<StartupChecks>();
+        StartupChecks checks;
+        using (IServiceScope handlerScope = site.Provider.CreateScope())
+        {
+            checks = new StartupChecks(handlerScope.ServiceProvider.GetRequiredService<IServiceScopeFactory>(), logger);
+        }
+
+        await checks.RunAsync(default);
+
+        Assert.That(logger.Entries, Has.None.Matches<(LogLevel Level, string Message, Exception? Exception)>(entry => entry.Message.Contains("couldn't run its startup checks")));
+        Assert.That(logger.Entries, Has.Some.Matches<(LogLevel Level, string Message, Exception? Exception)>(entry => entry.Level == LogLevel.Error && entry.Message.Contains("registered more than once")));
     }
 }

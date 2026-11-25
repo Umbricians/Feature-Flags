@@ -114,7 +114,7 @@ public class SignedInTargetingTests
         site.Store.With("F", MemberOnly);
         var logger = new CollectingLogger<StartupChecks>();
 
-        await new StartupChecks(site.Provider, logger).RunAsync(default);
+        await new StartupChecks(site.Provider.GetRequiredService<IServiceScopeFactory>(), logger).RunAsync(default);
 
         Assert.That(logger.Entries, Has.Some.Matches<(Microsoft.Extensions.Logging.LogLevel Level, string Message, Exception? Exception)>(
             entry => entry.Level == Microsoft.Extensions.Logging.LogLevel.Error && entry.Message.Contains("same name") && entry.Message.Contains("Microsoft.Targeting")));
